@@ -83,7 +83,7 @@ function Weight({ body, now }: { body: BodyEntry[]; now: Date }) {
       </div>
       <div className="meta mt-4">{Math.abs(perWeek) < 0.05 ? 'Holding steady' : `${perWeek < 0 ? 'Losing' : 'Gaining'} ${Math.abs(perWeek).toFixed(2)} kg a week`}</div>
       <div className="mt-6">
-        <TrendChart points={data.points} avg={data.avg} height={150} format={(v) => v.toFixed(1)} xLabel={(t) => fmt(new Date(t).toISOString(), 'd MMM')} />
+        <TrendChart points={data.points} avg={data.avg} height={150} format={(v) => v.toFixed(1)} minSpan={1} xLabel={(t) => fmt(new Date(t).toISOString(), 'd MMM')} />
       </div>
       <div className="meta mt-3 flex items-center justify-between gap-3">
         <span className="truncate">

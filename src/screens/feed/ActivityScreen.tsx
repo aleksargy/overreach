@@ -7,12 +7,13 @@ import { Screen } from '../../components/ui/Screen'
 import { Empty, Section, Stat } from '../../components/ui/bits'
 import type { Activity, Stream } from '../../data/types'
 import { useUi } from '../../data/ui'
-import { useStream, useWorld } from '../../data/world'
+import { useRunModel, useStream, useWorld } from '../../data/world'
 import { clock, dur, fmt, kmh, km, pace, swimPace } from '../../lib/format'
 import { zoneBounds } from '../../lib/load'
 import { mean } from '../../lib/math'
+import { runInsight } from '../../lib/running'
 
-const KIND: Record<string, string> = { easy: 'Easy', tempo: 'Tempo', intervals: 'Intervals', long: 'Long', commute: 'Commute', endurance: 'Endurance', pool: 'Pool' }
+const KIND: Record<string, string> = { easy: 'Easy', tempo: 'Tempo', intervals: 'Intervals', long: 'Long', race: 'Race', commute: 'Commute', endurance: 'Endurance', pool: 'Pool' }
 
 export function ActivityScreen() {
   const { id } = useParams()
@@ -53,6 +54,7 @@ export function ActivityScreen() {
       <HeadStats a={act} />
 
       {a.sport === 'football' && <FootballCta a={a} />}
+      {a.sport === 'run' && a.run && <RunAnalysis a={a} />}
 
       <Section title="Zones" action={<span className="meta">Load {Math.round(a.load)}</span>}>
         <div className="card p-4">
@@ -75,7 +77,7 @@ function HeadStats({ a }: { a: Activity }) {
     items.push(
       { label: 'Avg HR', value: String(a.avgHr ?? '–'), unit: 'bpm' },
       { label: 'Climb', value: String(a.elevGainM ?? 0), unit: 'm' },
-      { label: 'Cadence', value: String(a.avgCadence ?? '–'), unit: 'spm' },
+      a.avgCadence ? { label: 'Cadence', value: String(a.avgCadence), unit: 'spm' } : { label: 'Max HR', value: String(a.maxHr ?? '–'), unit: 'bpm' },
     )
   } else if (a.sport === 'ride') {
     items.push(
@@ -84,7 +86,7 @@ function HeadStats({ a }: { a: Activity }) {
       { label: 'Speed', value: kmh(a.avgSpeed).toFixed(1), unit: 'km/h' },
     )
     items.push(
-      { label: 'Power', value: String(a.avgPower ?? '–'), unit: 'W' },
+      a.avgPower ? { label: 'Power', value: String(a.avgPower), unit: 'W' } : { label: 'Max HR', value: String(a.maxHr ?? '–'), unit: 'bpm' },
       { label: 'Climb', value: String(a.elevGainM ?? 0), unit: 'm' },
       { label: 'Avg HR', value: String(a.avgHr ?? '–'), unit: 'bpm' },
     )
@@ -118,6 +120,43 @@ function HeadStats({ a }: { a: Activity }) {
         <Stat key={it.label} label={it.label} value={it.value} unit={it.unit} size="sm" />
       ))}
     </div>
+  )
+}
+
+/** This run against your running model: engine on the day, the conditions, football legs and drift. */
+function RunAnalysis({ a }: { a: Activity }) {
+  const w = useWorld()
+  const m = useRunModel(w)
+  if (!m) return null
+  const x = runInsight(m, a)
+  const rows: { k: string; v: string; sub?: string }[] = []
+  if (x.engine) {
+    const diff = x.vsTrend === undefined ? undefined : Math.round(x.vsTrend)
+    rows.push({
+      k: 'Engine',
+      v: `${pace(x.engine)} /km at ${m.refHr} bpm`,
+      sub: diff === undefined ? undefined : diff === 0 ? 'Right on your trend' : `${Math.abs(diff)} s/km ${diff < 0 ? 'better' : 'worse'} than your trend`,
+    })
+  }
+  if (x.tempC !== undefined) rows.push({ k: 'Weather', v: `${Math.round(x.tempC)}°C${x.dewC !== undefined ? `, dew point ${Math.round(x.dewC)}°C` : ''}` })
+  if (x.afterFootballH !== undefined && x.afterFootballH < 72)
+    rows.push({ k: 'Legs', v: `${x.afterFootballH < 36 ? `${x.afterFootballH} hours` : `${Math.round(x.afterFootballH / 24)} days`} after football` })
+  if (x.drift) rows.push({ k: 'Drift', v: x.drift.onset === undefined ? `None in ${x.drift.minutes} min` : `After ${x.drift.onset} min` })
+  if (!rows.length) return null
+  return (
+    <Section title="Analysis">
+      <div className="card list overflow-hidden">
+        {rows.map((r) => (
+          <div key={r.k} className="flex items-baseline justify-between gap-4 px-4 py-3">
+            <span className="text-[15px] text-fg-2">{r.k}</span>
+            <span className="text-right">
+              <span className="block text-[15px] font-medium tabular-nums">{r.v}</span>
+              {r.sub && <span className="meta block">{r.sub}</span>}
+            </span>
+          </div>
+        ))}
+      </div>
+    </Section>
   )
 }
 

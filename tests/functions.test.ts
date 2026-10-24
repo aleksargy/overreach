@@ -20,8 +20,9 @@ before(async () => {
   process.env.NETLIFY_BLOBS_CONTEXT = Buffer.from(JSON.stringify({ edgeURL: url, uncachedEdgeURL: url, siteID: 'site', token: 'local' })).toString('base64')
   process.env.GARMIN_PERSONAL_API_KEY = 'personal-api-key'
   process.env.OVERREACH_PASSPHRASE = PASS
+  const faked = ['https://personal.connectapi.garmin.com', 'https://archive-api.open-meteo.com', 'https://api.open-meteo.com']
   globalThis.fetch = ((input: string | URL | Request, init?: RequestInit) =>
-    String(input instanceof Request ? input.url : input).startsWith('https://personal.connectapi.garmin.com') ? fake.fetch(input, init) : realFetch(input, init)) as typeof fetch
+    faked.some((host) => String(input instanceof Request ? input.url : input).startsWith(host)) ? fake.fetch(input, init) : realFetch(input, init)) as typeof fetch
 })
 
 after(async () => {
@@ -61,23 +62,29 @@ test('syncs to the end, then serves the data, streams and status', async () => {
   assert.ok(steps < 30)
 
   const data = await call('data')
-  const acts = data.body.activities as { id: string; start: string; sport: string; football?: { sprints: number } }[]
+  const acts = data.body.activities as { id: string; start: string; sport: string; football?: { sprints: number }; run?: { spd: number[]; tempC?: number } }[]
   const days = data.body.dailies as { date: string }[]
   assert.equal(acts.length, fake.activities.length)
   assert.ok(acts[0].start > acts[acts.length - 1].start, 'newest first')
   assert.ok(days[0].date < days[days.length - 1].date, 'oldest day first')
   assert.deepEqual(data.body.profile && { hrMax: (data.body.profile as { hrMax: number }).hrMax }, { hrMax: 189 })
   assert.ok(acts.filter((a) => a.sport === 'football').every((a) => a.football?.sprints === 6))
+  // runs arrive ready for the running analysis
+  assert.ok(acts.filter((a) => a.sport === 'run').every((a) => a.run?.spd.length && typeof a.run.tempC === 'number'))
 
-  // a run's stream is read from its FIT file once, then served from the store
-  const run = acts.find((a) => a.sport === 'run')!
+  // a ride's stream is read from its FIT file once, then served from the store
+  const ride = acts.find((a) => a.sport === 'ride')!
   const downloads = () => fake.calls['/download-service/files/activity/:x'] ?? 0
   const before = downloads()
-  const s1 = await call('stream', { query: `?id=${run.id}` })
+  const s1 = await call('stream', { query: `?id=${ride.id}` })
   assert.equal(s1.status, 200)
   assert.ok((s1.body.hr as number[]).length > 100)
   assert.equal(downloads(), before + 1)
-  await call('stream', { query: `?id=${run.id}` })
+  await call('stream', { query: `?id=${ride.id}` })
+  assert.equal(downloads(), before + 1)
+  // runs were read during the sync, so opening one costs Garmin nothing
+  const run = acts.find((a) => a.sport === 'run')!
+  assert.equal((await call('stream', { query: `?id=${run.id}` })).status, 200)
   assert.equal(downloads(), before + 1)
   assert.equal((await call('stream', { query: '?id=nope' })).status, 400)
 

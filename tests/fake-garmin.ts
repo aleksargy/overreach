@@ -108,24 +108,31 @@ export function enduranceFit(start: Date, sport: 'run' | 'ride', durationS: numb
   let lapDist = 0
   let hrSum = 0
   let hrN = 0
+  let hrNow = 95
   for (let s = 0; s < durationS; s++) {
     const v = base + Math.sin(s / 240) * 0.25 + (r() - 0.5) * 0.3
-    const hr = Math.round(120 + Math.min(30, s / 30) + Math.sin(s / 300) * 6)
+    // a run's heart rate follows its pace, the climbs and time on feet; a ride's just wanders
+    const grade = ((12 / 400) * Math.cos(s / 400)) / v
+    const target = sport === 'run' ? 62 + 26 * v * (1 + 3.5 * Math.max(grade, 0)) + 0.05 * (s / 60) : 120 + Math.min(30, s / 30) + Math.sin(s / 300) * 6
+    hrNow += (target - hrNow) / 25
+    const hr = Math.round(hrNow + (r() - 0.5) * 2)
     dist += v
     lapDist += v
     hrSum += hr
     hrN++
-    put(enc, {
-      mesgNum: Profile.MesgNum.RECORD,
-      timestamp: new Date(t0 + s * 1000),
-      heartRate: hr,
-      distance: dist,
-      enhancedSpeed: v,
-      enhancedAltitude: 30 + Math.sin(s / 400) * 12,
-      positionLat: Math.round(((51.5 + Math.sin(s / 900) * 0.01) * 2 ** 31) / 180),
-      positionLong: Math.round(((-0.12 + Math.cos(s / 900) * 0.016) * 2 ** 31) / 180),
-      ...(sport === 'ride' ? { power: Math.round(170 + Math.sin(s / 200) * 40 + (r() - 0.5) * 30), cadence: 85 } : { cadence: 84 }),
-    })
+    // "smart recording": a sample every few seconds, as most watches store them
+    if (s % 3 === 0)
+      put(enc, {
+        mesgNum: Profile.MesgNum.RECORD,
+        timestamp: new Date(t0 + s * 1000),
+        heartRate: hr,
+        distance: dist,
+        enhancedSpeed: v,
+        enhancedAltitude: 30 + Math.sin(s / 400) * 12,
+        positionLat: Math.round(((51.5 + Math.sin(s / 900) * 0.01) * 2 ** 31) / 180),
+        positionLong: Math.round(((-0.12 + Math.cos(s / 900) * 0.016) * 2 ** 31) / 180),
+        ...(sport === 'ride' ? { power: Math.round(170 + Math.sin(s / 200) * 40 + (r() - 0.5) * 30), cadence: 85 } : { cadence: 84 }),
+      })
     if (lapDist >= lapM || s === durationS - 1) {
       put(enc, {
         mesgNum: Profile.MesgNum.LAP,
@@ -145,6 +152,9 @@ export function enduranceFit(start: Date, sport: 'run' | 'ride', durationS: numb
   }
   return enc.close()
 }
+
+/** FIT files are slow to encode and every test builds the same history, so they're shared */
+const fits = new Map<string, Uint8Array>()
 
 export function fakeGarmin(opts: { now?: Date; years?: number } = {}): Fake {
   const now = opts.now ?? new Date('2026-10-24T09:00:00Z')
@@ -189,7 +199,6 @@ export function fakeGarmin(opts: { now?: Date; years?: number } = {}): Fake {
   const bad = (status: number, why = '') => new Response(why, { status })
   const span = (a: string, b: string) => Math.round((Date.parse(b) - Date.parse(a)) / DAY) + 1
   const datesIn = (a: string, b: string) => Array.from({ length: span(a, b) }, (_, i) => iso(Date.parse(a) + i * DAY))
-  const fits = new Map<number, Uint8Array>()
 
   const handler = async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
     const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url)
@@ -202,6 +211,21 @@ export function fakeGarmin(opts: { now?: Date; years?: number } = {}): Fake {
       if (init?.method !== 'POST' || !String(new Headers(init?.headers).get('authorization')).startsWith('ApiKey ')) return bad(401)
       // tokens live in real time: the client checks them against the clock, not the simulated date
       return new Response(jwt(Math.floor(Date.now() / 1000) + 86_400))
+    }
+    // Open-Meteo, for run weather: a mild seasonal climate, hour by hour
+    if (path === '/v1/archive' || path === '/v1/forecast') {
+      const days = datesIn(q.get('start_date')!, q.get('end_date')!)
+      const time = days.flatMap((d) => Array.from({ length: 24 }, (_, h) => `${d}T${String(h).padStart(2, '0')}:00`))
+      const temperature_2m = time.map((t) => {
+        const ms = Date.parse(`${t}Z`)
+        const season = 11 + 7 * Math.sin((2 * Math.PI * (ms / DAY - 105)) / 365.25)
+        return Math.round((season + 3.5 * Math.sin((2 * Math.PI * (new Date(ms).getUTCHours() - 9)) / 24)) * 10) / 10
+      })
+      return ok({
+        latitude: Number(q.get('latitude')),
+        longitude: Number(q.get('longitude')),
+        hourly: { time, temperature_2m, dew_point_2m: temperature_2m.map((x) => Math.round((x - 4) * 10) / 10) },
+      })
     }
     if (!String(new Headers(init?.headers).get('authorization')).startsWith('Bearer ')) return bad(401)
     if (broken.some((b) => path.startsWith(b))) return bad(404)
@@ -271,13 +295,14 @@ export function fakeGarmin(opts: { now?: Date; years?: number } = {}): Fake {
     if (m) {
       const a = activities.find((x) => x.activityId === Number(m![1]))
       if (!a) return bad(404)
-      if (!fits.has(a.activityId)) {
+      const k = a.activityType.typeKey
+      const key = `${a.activityId}|${k}|${a.startTimeGMT}|${a.duration}`
+      if (!fits.has(key)) {
         const start = new Date(`${a.startTimeGMT.replace(' ', 'T')}Z`)
-        const k = a.activityType.typeKey
         const fit = k === 'running' ? enduranceFit(start, 'run', a.duration) : k === 'road_biking' ? enduranceFit(start, 'ride', a.duration) : footballFit(start)
-        fits.set(a.activityId, zipSync({ [`${a.activityId}_ACTIVITY.fit`]: fit }))
+        fits.set(key, zipSync({ [`${a.activityId}_ACTIVITY.fit`]: fit }))
       }
-      return new Response(fits.get(a.activityId)!.slice())
+      return new Response(fits.get(key)!.slice())
     }
     return bad(404)
   }

@@ -4,7 +4,8 @@ import { fitFromDownload, footballSummary, streamFromFit } from '../netlify/lib/
 import { garmin } from '../netlify/lib/garmin'
 import { memoryKV } from '../netlify/lib/kv'
 import { gmtToIso, mapActivity, sportOf } from '../netlify/lib/mapping'
-import { HISTORY_DAYS, loadAll, runStep, type StepResult } from '../netlify/lib/sync'
+import { HISTORY_DAYS, loadAll, RUN_DAYS, runStep, type StepResult } from '../netlify/lib/sync'
+import { BEST_S } from '../src/lib/running'
 import type { Stream } from '../src/data/types'
 import { fakeGarmin, footballFit } from './fake-garmin'
 
@@ -12,7 +13,7 @@ async function syncToEnd(kv: ReturnType<typeof memoryKV>, fake: ReturnType<typeo
   const api = garmin('test-key', kv, { fetch: fake.fetch })
   const steps: StepResult[] = []
   for (let i = 0; i < maxSteps; i++) {
-    const r = await runStep({ kv, api, budgetMs: 25_000, now: fake.now, forceRecent: i === 0 })
+    const r = await runStep({ kv, api, budgetMs: 25_000, now: fake.now, forceRecent: i === 0, fetch: fake.fetch })
     steps.push(r)
     if (r.done || r.paused) break
   }
@@ -95,6 +96,21 @@ test('a first sync walks the full history, then reports up to date', async () =>
   for (const g of games) assert.equal(g.football?.sprints, 6)
   assert.ok(await kv.get<Stream>(`stream/${games[0].id}`))
   assert.equal(state.pending.length, 0)
+
+  // runs from the last year were read for the running analysis, weather and all; older ones weren't
+  const runs = Object.values(data.activities).filter((a) => a.sport === 'run')
+  const yearAgo = fake.now.getTime() - RUN_DAYS * 86_400_000
+  const recentRuns = runs.filter((a) => Date.parse(a.start) >= yearAgo)
+  assert.ok(recentRuns.length > 60, `${recentRuns.length} recent runs`)
+  for (const a of recentRuns) {
+    assert.ok(a.run, `no summary for ${a.id}`)
+    assert.ok(Math.abs(a.run.spd.length - a.durationS / 60) <= 1, `${a.run.spd.length} minutes in ${a.durationS} s`)
+    assert.equal(a.run.best.length, BEST_S.length)
+    assert.equal(typeof a.run.tempC, 'number')
+  }
+  assert.ok(runs.some((a) => Date.parse(a.start) < yearAgo))
+  assert.ok(runs.filter((a) => Date.parse(a.start) < yearAgo).every((a) => !a.run))
+  assert.equal(state.weather, undefined)
 
   // health: two years of days, sleep stages only for recent months
   const days = Object.values(data.dailies)

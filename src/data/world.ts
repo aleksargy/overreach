@@ -10,6 +10,7 @@ import { liftSummary } from '../lib/lift'
 import { isoDay } from '../lib/format'
 import { loadModel, srpeLoad, trimp, zoneBounds, zoneSecondsFromAvg, type LoadModel } from '../lib/load'
 import { readiness, type Readiness } from '../lib/readiness'
+import { runModel, type RunModel } from '../lib/running'
 import { nextOccurrence, recurringSlots, type Slot } from '../lib/schedule'
 import { differenceInCalendarDays, format } from 'date-fns'
 
@@ -190,6 +191,17 @@ export function useWorld(): World {
     worldCache = { day, inputs, world }
     return world
   }, [s])
+}
+
+let runCache: { activities: Activity[]; profile: Profile; model: RunModel | null } | null = null
+
+/** The running analysis for the world, worked out once however many screens ask. */
+export function useRunModel(w: World): RunModel | null {
+  return useMemo(() => {
+    if (runCache?.activities !== w.activities || runCache.profile !== w.profile)
+      runCache = { activities: w.activities, profile: w.profile, model: runModel(w.activities, w.profile, w.now) }
+    return runCache.model
+  }, [w])
 }
 
 const streamCache = new Map<string, Stream>()
