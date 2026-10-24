@@ -93,7 +93,12 @@ export function RatingReveal() {
                   <span className={`font-mono text-[13px] font-semibold ${f.value > 0 ? 'text-good' : f.value < 0 ? 'text-bad' : 'text-fg-3'}`}>{signed(f.value, 2)}</span>
                 </motion.div>
               ))}
-              <motion.div className="flex items-center justify-between pt-1" initial={{ opacity: 0 }} animate={done ? { opacity: 1 } : {}} transition={{ delay: 0.5 + m.breakdown.length * 0.07 }}>
+              <motion.div
+                className="flex items-center justify-between pt-1"
+                initial={{ opacity: 0 }}
+                animate={done ? { opacity: 1 } : {}}
+                transition={{ delay: 0.5 + m.breakdown.length * 0.07 }}
+              >
                 <span className="font-mono text-[11px] uppercase tracking-[0.1em] text-fg-3">Everyone starts on 6.0</span>
                 <span className="num text-[20px]" style={{ color }}>
                   {m.rating.toFixed(1)}

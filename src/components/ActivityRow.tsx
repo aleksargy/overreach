@@ -30,7 +30,7 @@ export function secondary(a: Activity): string[] {
   else if (a.sport === 'swim') out.push(`${swimPace(a.avgSpeed)} /100m`, dur(a.durationS))
   else if (a.sport === 'football') out.push(dur(a.durationS), a.football ? `${a.football.sprints} sprints` : '')
   else if (a.sport === 'strength' && a.lift) out.push(a.lift.volumeKg >= 1000 ? `${(a.lift.volumeKg / 1000).toFixed(1)} t · ${dur(a.durationS)}` : dur(a.durationS))
-  else out.push(dur(a.durationS))
+  // anything else already leads with its minutes
   if (a.avgHr) out.push(`${a.avgHr} bpm`)
   return out.filter(Boolean)
 }
@@ -53,15 +53,18 @@ export function ActivityRow({ a, match }: { a: Activity; match?: Match }) {
         <span className="flex items-baseline gap-2">
           <span className="truncate text-[15px] font-semibold">{a.name}</span>
         </span>
-        <span className="mt-0.5 block truncate font-mono text-[10.5px] uppercase tracking-[0.06em] text-fg-3">
-          {fmt(a.start, 'EEE d MMM · HH:mm')}
-        </span>
+        <span className="mt-0.5 block truncate font-mono text-[10.5px] uppercase tracking-[0.06em] text-fg-3">{fmt(a.start, 'EEE d MMM · HH:mm')}</span>
         <span className="mt-1.5 block w-24">
           <ZoneBar zones={a.zoneS} height={3} />
         </span>
       </span>
       <span className="flex shrink-0 items-center gap-2.5">
-        {a.sport === 'football' && (match ? <RatingBadge rating={match.rating} size="sm" /> : <span className="rounded-full border border-warn/50 px-2 py-0.5 font-mono text-[9.5px] font-semibold uppercase tracking-[0.1em] text-warn">Rate</span>)}
+        {a.sport === 'football' &&
+          (match ? (
+            <RatingBadge rating={match.rating} size="sm" />
+          ) : (
+            <span className="rounded-full border border-warn/50 px-2 py-0.5 font-mono text-[9.5px] font-semibold uppercase tracking-[0.1em] text-warn">Rate</span>
+          ))}
         <span className="text-right">
           <span className="num block text-[26px]">
             {h.value}

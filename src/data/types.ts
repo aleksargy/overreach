@@ -39,7 +39,7 @@ export interface Activity {
   load: number
   hasStream: boolean
   laps?: Lap[]
-  swim?: { poolM: number; lengths: number; swolf: number; stroke: string }
+  swim?: { poolM: number; lengths: number; swolf?: number; stroke: string }
   /** strength activities point at the workout they came from */
   workoutId?: string
   /** football summary computed at sync time so season stats don't need every stream */
@@ -64,10 +64,15 @@ export interface FootballSummary {
   fadeMinute?: number
 }
 
+/** What the sync functions send. Zones (when Garmin didn't split them) and load are filled in on the phone from your profile. */
+export type GarminActivity = Omit<Activity, 'zoneS' | 'load'> & { zoneS?: ZoneSeconds }
+
 /** Columnar time series, sampled evenly (dt seconds). */
 export interface Stream {
   activityId: string
   dt: number
+  /** Garmin laps arrive with the stream; sample activities carry them on the activity */
+  laps?: Lap[]
   hr?: number[]
   /** speed m/s */
   v?: number[]
@@ -99,15 +104,7 @@ export interface Daily {
 export type Position = 'GK' | 'DEF' | 'MID' | 'FWD' | 'ANY'
 export type Format = 5 | 6 | 7 | 8 | 11
 
-export type MomentKey =
-  | 'worldie'
-  | 'nutmeg'
-  | 'lastDitch'
-  | 'bigSave'
-  | 'sitter'
-  | 'error'
-  | 'ownGoal'
-  | 'lostHead'
+export type MomentKey = 'worldie' | 'nutmeg' | 'lastDitch' | 'bigSave' | 'sitter' | 'error' | 'ownGoal' | 'lostHead'
 
 export interface RatingFactor {
   key: string
@@ -139,19 +136,7 @@ export interface Match {
   createdAt: string
 }
 
-export type Muscle =
-  | 'chest'
-  | 'back'
-  | 'shoulders'
-  | 'biceps'
-  | 'triceps'
-  | 'quads'
-  | 'hamstrings'
-  | 'glutes'
-  | 'calves'
-  | 'core'
-  | 'forearms'
-  | 'full'
+export type Muscle = 'chest' | 'back' | 'shoulders' | 'biceps' | 'triceps' | 'quads' | 'hamstrings' | 'glutes' | 'calves' | 'core' | 'forearms' | 'full'
 
 export type Equipment = 'barbell' | 'dumbbell' | 'machine' | 'cable' | 'bodyweight' | 'kettlebell' | 'band' | 'other'
 export type ExerciseKind = 'weight' | 'bodyweight' | 'weighted-bodyweight' | 'duration'

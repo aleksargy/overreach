@@ -4,7 +4,18 @@ import type { Sport } from '../../data/types'
 /** A football: hexagon panel in the middle, seams out to the edge. */
 export function Ball({ size = 20, className = '' }: { size?: number; className?: string }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
       <circle cx="12" cy="12" r="9.5" />
       <path d="M12 8.2l3.6 2.6-1.4 4.2H9.8l-1.4-4.2z" fill="currentColor" stroke="none" />
       <path d="M12 8.2V3.6M15.6 10.8l4.3-1.5M14.2 15l2.7 3.8M9.8 15l-2.7 3.8M8.4 10.8l-4.3-1.5" />

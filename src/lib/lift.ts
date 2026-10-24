@@ -86,12 +86,10 @@ export function suggest(ex: Exercise, history: ExerciseSession[], readinessScore
       tag: 'first',
       reps: `${lo}–${hi}${unit}`,
       rpe: t,
-      text: isDuration
-        ? `First time. Hold for ${lo}–${hi}s with a little left in the tank.`
-        : `First time. Pick a load you could do ${hi} times with 2 reps left.`,
+      text: isDuration ? `First time. Hold for ${lo}–${hi}s with a little left in the tank.` : `First time. Pick a load you could do ${hi} times with 2 reps left.`,
     }
   } else {
-    const vals = work.map((x) => (isDuration ? x.secs ?? 0 : x.reps ?? 0))
+    const vals = work.map((x) => (isDuration ? (x.secs ?? 0) : (x.reps ?? 0)))
     const minVal = Math.min(...vals)
     const maxRpe = Math.max(...work.map((x) => x.rpe ?? t))
     const kg = Math.max(...work.map((x) => x.kg ?? 0))
@@ -102,7 +100,13 @@ export function suggest(ex: Exercise, history: ExerciseSession[], readinessScore
         s = { tag: 'up', reps: `${hi}+`, rpe: t, text: `Hit ${hi}+ on every set at RPE ${fmtRpe(maxRpe)}. Time for a harder variation or a weight belt.` }
       else {
         const next = round(kg + ex.increment, 2)
-        s = { tag: 'up', kg: next, reps: `${lo}–${hi}`, rpe: t, text: `Hit ${hi} on every set at RPE ${fmtRpe(maxRpe)} or less. Go up to ${fmtKg(next)} kg and start back at ${lo}.` }
+        s = {
+          tag: 'up',
+          kg: next,
+          reps: `${lo}–${hi}`,
+          rpe: t,
+          text: `Hit ${hi} on every set at RPE ${fmtRpe(maxRpe)} or less. Go up to ${fmtKg(next)} kg and start back at ${lo}.`,
+        }
       }
     } else if (stalls >= 2 && kg > 0) {
       const next = roundTo(kg * 0.9, ex.increment || 2.5)
@@ -127,7 +131,13 @@ export function suggest(ex: Exercise, history: ExerciseSession[], readinessScore
     }
   }
   if (readinessScore !== undefined && readinessScore < 45 && s.tag !== 'first') {
-    return { ...s, tag: 'easy', kg: s.tag === 'up' ? history[0] && Math.max(...history[0].sets.map((x) => x.kg ?? 0)) : s.kg, rpe: 7, text: `Readiness is ${readinessScore} today, so no heroics: repeat last time's load and cap it at RPE 7.` }
+    return {
+      ...s,
+      tag: 'easy',
+      kg: s.tag === 'up' ? history[0] && Math.max(...history[0].sets.map((x) => x.kg ?? 0)) : s.kg,
+      rpe: 7,
+      text: `Readiness is ${readinessScore} today, so no heroics: repeat last time's load and cap it at RPE 7.`,
+    }
   }
   return s
 }

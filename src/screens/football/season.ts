@@ -23,8 +23,10 @@ export function season(w: World) {
   const ms = w.matches.filter((m) => parseISO(m.date) >= from)
   const rows = rowsFor(w, ms)
   const res = ms.map(result)
-  const physical = rows.filter((r) => r.analysis).map((r) => ({ m: r.match, a: r.analysis! }))
-  const best = <T,>(xs: T[], f: (x: T) => number) => xs.reduce<T | undefined>((b, x) => (b === undefined || f(x) > f(b) ? x : b), undefined)
+  // physical records come from the watch, so games you haven't rated count too
+  const games = w.activities.filter((a) => a.sport === 'football' && parseISO(a.start) >= from)
+  const physical = games.filter((a) => a.football).map((a) => ({ m: w.matchByActivity.get(a.id), act: a, a: a.football! }))
+  const best = <T>(xs: T[], f: (x: T) => number) => xs.reduce<T | undefined>((b, x) => (b === undefined || f(x) > f(b) ? x : b), undefined)
   const top = best(physical, (x) => x.a.topSpeedKmh)
   const sprints = best(physical, (x) => x.a.sprints)
   const far = best(physical, (x) => x.a.distanceM / Math.max(1, x.a.minutes))
@@ -34,6 +36,8 @@ export function season(w: World) {
     label: seasonLabel(w.now),
     matches: ms,
     apps: ms.length,
+    /** games the watch recorded this season, rated or not */
+    games: games.length,
     goals: ms.reduce((a, m) => a + m.goals, 0),
     assists: ms.reduce((a, m) => a + m.assists, 0),
     w: res.filter((r) => r === 'W').length,

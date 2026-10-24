@@ -1,17 +1,9 @@
 import { AnimatePresence, MotionConfig, motion } from 'motion/react'
 import { useEffect } from 'react'
-import {
-  createBrowserRouter,
-  createMemoryRouter,
-  Navigate,
-  RouterProvider,
-  ScrollRestoration,
-  useLocation,
-  useOutlet,
-  type RouteObject,
-} from 'react-router'
+import { createBrowserRouter, createMemoryRouter, Navigate, RouterProvider, ScrollRestoration, useLocation, useOutlet, type RouteObject } from 'react-router'
 import { TabBar } from './components/TabBar'
 import { APP_NAME } from './config'
+import { refresh } from './data/api'
 import { useStore } from './data/store'
 import { useUi } from './data/ui'
 import { BodyScreen } from './screens/body/BodyScreen'
@@ -53,10 +45,7 @@ const routes: RouteObject[] = [
 // so it keeps history in memory. Only a bare #token survives the frame, so
 // #football, #lift, #body or #feed picks the first screen.
 const PREVIEW_START: Record<string, string> = { feed: '/feed', football: '/football', lift: '/lift', body: '/body', prefs: '/settings' }
-const router =
-  import.meta.env.VITE_PREVIEW === '1'
-    ? createMemoryRouter(routes, { initialEntries: [PREVIEW_START[location.hash.slice(1)] ?? '/'] })
-    : createBrowserRouter(routes)
+const router = import.meta.env.VITE_PREVIEW === '1' ? createMemoryRouter(routes, { initialEntries: [PREVIEW_START[location.hash.slice(1)] ?? '/'] }) : createBrowserRouter(routes)
 
 export function App() {
   return (
@@ -79,15 +68,24 @@ function Shell() {
     document.documentElement.style.setProperty('--mini-h', mini ? '60px' : '0px')
   }, [mini])
 
+  // Pick up new Garmin data when the app opens or comes back to the foreground.
+  useEffect(() => {
+    if (!hydrated) return
+    let last = 0
+    const go = () => {
+      if (document.visibilityState !== 'visible' || Date.now() - last < 10 * 60_000) return
+      last = Date.now()
+      void refresh()
+    }
+    go()
+    document.addEventListener('visibilitychange', go)
+    return () => document.removeEventListener('visibilitychange', go)
+  }, [hydrated])
+
   if (!hydrated) return <Splash />
   return (
     <>
-      <motion.main
-        key={loc.pathname}
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.26, ease: [0.2, 0.8, 0.2, 1] }}
-      >
+      <motion.main key={loc.pathname} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.26, ease: [0.2, 0.8, 0.2, 1] }}>
         {outlet}
       </motion.main>
       <MiniWorkoutBar />

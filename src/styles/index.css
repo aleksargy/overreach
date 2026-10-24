@@ -174,14 +174,7 @@
     clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%);
   }
   .spectrum {
-    background: linear-gradient(
-      90deg,
-      rgb(var(--z1)),
-      rgb(var(--z2)),
-      rgb(var(--z3)),
-      rgb(var(--z4)),
-      rgb(var(--z5))
-    );
+    background: linear-gradient(90deg, rgb(var(--z1)), rgb(var(--z2)), rgb(var(--z3)), rgb(var(--z4)), rgb(var(--z5)));
   }
   .no-scrollbar::-webkit-scrollbar {
     display: none;
@@ -216,7 +209,9 @@ input[type='range'].feel::-webkit-slider-thumb {
   border-radius: 50%;
   background: rgb(var(--fg));
   border: 5px solid rgb(var(--ink-2));
-  box-shadow: 0 0 0 1px rgb(var(--line-2)), 0 6px 18px rgb(0 0 0 / 0.5);
+  box-shadow:
+    0 0 0 1px rgb(var(--line-2)),
+    0 6px 18px rgb(0 0 0 / 0.5);
 }
 input[type='range'].feel::-moz-range-thumb {
   width: 22px;

@@ -7,6 +7,8 @@ const preview = process.env.VITE_PREVIEW === '1'
 
 export default defineConfig({
   plugins: [react()],
+  // `npm run dev:api` serves the functions locally against a fake Garmin
+  server: { proxy: { '/api': 'http://127.0.0.1:8788' } },
   base: preview ? './' : '/',
   build: preview
     ? {

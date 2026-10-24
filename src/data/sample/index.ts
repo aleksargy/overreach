@@ -111,9 +111,21 @@ export function sampleStreamFor(a: Activity): Stream | null {
 // ---------- strength ----------
 
 const START_KG: Record<string, number> = {
-  'bench-press': 70, 'overhead-press': 42.5, 'incline-db-press': 24, 'lateral-raise': 9, 'triceps-pushdown': 25,
-  'pull-up': 5, 'barbell-row': 62.5, 'lat-pulldown': 55, 'face-pull': 20, 'barbell-curl': 30,
-  'back-squat': 85, 'romanian-deadlift': 80, 'bulgarian-split-squat': 18, 'leg-curl': 40, 'calf-raise': 60,
+  'bench-press': 70,
+  'overhead-press': 42.5,
+  'incline-db-press': 24,
+  'lateral-raise': 9,
+  'triceps-pushdown': 25,
+  'pull-up': 5,
+  'barbell-row': 62.5,
+  'lat-pulldown': 55,
+  'face-pull': 20,
+  'barbell-curl': 30,
+  'back-squat': 85,
+  'romanian-deadlift': 80,
+  'bulgarian-split-squat': 18,
+  'leg-curl': 40,
+  'calf-raise': 60,
   dips: 7.5,
 }
 
@@ -127,8 +139,8 @@ function simulateWorkout(id: string, routineId: string, start: Date, state: Map<
     const st = state.get(ex.id) ?? { kg: START_KG[ex.id] ?? 0, reps: lo + 1 }
     const sets: SetEntry[] = []
     if (idx === 0 && ex.kind === 'weight') {
-      sets.push({ id: `${id}-${ex.id}-w1`, kind: 'warmup', kg: round(st.kg * 0.5 / 2.5) * 2.5, reps: 8, done: true })
-      sets.push({ id: `${id}-${ex.id}-w2`, kind: 'warmup', kg: round(st.kg * 0.75 / 2.5) * 2.5, reps: 4, done: true })
+      sets.push({ id: `${id}-${ex.id}-w1`, kind: 'warmup', kg: round((st.kg * 0.5) / 2.5) * 2.5, reps: 8, done: true })
+      sets.push({ id: `${id}-${ex.id}-w2`, kind: 'warmup', kg: round((st.kg * 0.75) / 2.5) * 2.5, reps: 4, done: true })
     }
     const rpes: number[] = []
     const vals: number[] = []
@@ -204,7 +216,14 @@ function sampleMatch(a: Activity, analysis: FootballAnalysis, history: { match: 
   }
   const moments: MomentKey[] = []
   const pool: [MomentKey, number][] = [
-    ['nutmeg', 0.25], ['lastDitch', 0.2], ['worldie', goals ? 0.18 : 0], ['bigSave', five ? 0.15 : 0.03], ['sitter', 0.22], ['error', 0.08], ['ownGoal', 0.03], ['lostHead', 0.06],
+    ['nutmeg', 0.25],
+    ['lastDitch', 0.2],
+    ['worldie', goals ? 0.18 : 0],
+    ['bigSave', five ? 0.15 : 0.03],
+    ['sitter', 0.22],
+    ['error', 0.08],
+    ['ownGoal', 0.03],
+    ['lostHead', 0.06],
   ]
   for (const [k, p] of pool) if (r.chance(p)) moments.push(k)
   const res = Math.sign(scoreFor - scoreAgainst)
@@ -412,9 +431,7 @@ function buildBody(first: Date, now: Date): BodyEntry[] {
       date: at.toISOString(),
       weightKg: round(77.9 - t * 1.4 + r.normal(0, 0.32), 1),
       bodyFat: round(15.6 - t * 1.0 + r.normal(0, 0.25), 1),
-      ...(i % 14 === 3
-        ? { waistCm: round(82.5 - t * 1.6, 1), chestCm: round(100 + t * 0.6, 1), armCm: round(35.4 + t * 0.6, 1), thighCm: round(57.2 + t * 0.3, 1) }
-        : {}),
+      ...(i % 14 === 3 ? { waistCm: round(82.5 - t * 1.6, 1), chestCm: round(100 + t * 0.6, 1), armCm: round(35.4 + t * 0.6, 1), thighCm: round(57.2 + t * 0.3, 1) } : {}),
       source: 'sample',
     })
   }

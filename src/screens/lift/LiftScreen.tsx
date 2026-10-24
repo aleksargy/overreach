@@ -27,7 +27,7 @@ export function LiftScreen() {
       title="Lift"
       kicker={
         <span className="flex items-center gap-2">
-          {month.length} sessions in 4 weeks {w.mode === 'sample' && <SampleBadge />}
+          {w.workouts.length ? `${month.length} ${month.length === 1 ? 'session' : 'sessions'} in 4 weeks` : 'Log your first session'} {w.mode === 'sample' && <SampleBadge />}
         </span>
       }
       actions={
@@ -66,7 +66,16 @@ function Train({ w }: { w: World }) {
   const active = useStore((s) => s.active)
   const begin = useBegin()
   const plan = useMemo(
-    () => planNext({ now: w.now, routines: w.routines, workouts: w.workouts, exercises: w.exerciseById, activities: w.activities, nextFootball: w.nextFootball, readiness: w.readiness?.score }),
+    () =>
+      planNext({
+        now: w.now,
+        routines: w.routines,
+        workouts: w.workouts,
+        exercises: w.exerciseById,
+        activities: w.activities,
+        nextFootball: w.nextFootball,
+        readiness: w.readiness?.score,
+      }),
     [w],
   )
   const month = w.workouts.filter((x) => differenceInCalendarDays(w.now, parseISO(x.start)) < 28)
@@ -88,12 +97,19 @@ function Train({ w }: { w: World }) {
                   {st.daysSince === undefined ? 'not done yet' : st.daysSince === 0 ? 'done today' : st.daysSince === 1 ? 'yesterday' : `${st.daysSince} days ago`}
                 </span>
               </span>
-              <button onClick={() => begin(st.routine)} className="press grid h-11 w-11 shrink-0 place-items-center rounded-full border border-line-2 bg-ink-2 text-fg" aria-label={`Start ${st.routine.name}`}>
+              <button
+                onClick={() => begin(st.routine)}
+                className="press grid h-11 w-11 shrink-0 place-items-center rounded-full border border-line-2 bg-ink-2 text-fg"
+                aria-label={`Start ${st.routine.name}`}
+              >
                 <Play size={16} fill="currentColor" />
               </button>
             </div>
           ))}
-          <button onClick={() => begin()} className="press flex h-14 items-center justify-center gap-2 rounded-card border border-dashed border-line-2 text-[14px] font-semibold text-fg-2">
+          <button
+            onClick={() => begin()}
+            className="press flex h-14 items-center justify-center gap-2 rounded-card border border-dashed border-line-2 text-[14px] font-semibold text-fg-2"
+          >
             <Plus size={16} /> Empty workout
           </button>
         </div>
@@ -277,7 +293,10 @@ function Library({ w }: { w: World }) {
           </button>
         ))}
       </div>
-      <button onClick={() => open({ type: 'exercise' })} className="press mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-card border border-dashed border-line-2 text-[14px] font-semibold text-fg-2">
+      <button
+        onClick={() => open({ type: 'exercise' })}
+        className="press mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-card border border-dashed border-line-2 text-[14px] font-semibold text-fg-2"
+      >
         <Plus size={16} /> Custom exercise
       </button>
       <div className="mt-2">

@@ -181,8 +181,8 @@ function ExerciseBlock({ w, we, index, count }: { w: World; we: WorkoutExercise;
       s,
       label: warm ? 'W' : s.kind === 'drop' ? 'D' : s.kind === 'failure' ? 'F' : String(k + 1),
       previous,
-      phKg: warm ? previous?.kg : sug.kg ?? previous?.kg,
-      phCount: warm ? (timed ? previous?.secs : previous?.reps) : targetCount(ex, sug) ?? (timed ? previous?.secs : previous?.reps),
+      phKg: warm ? previous?.kg : (sug.kg ?? previous?.kg),
+      phCount: warm ? (timed ? previous?.secs : previous?.reps) : (targetCount(ex, sug) ?? (timed ? previous?.secs : previous?.reps)),
     }
   })
 
@@ -200,7 +200,7 @@ function ExerciseBlock({ w, we, index, count }: { w: World; we: WorkoutExercise;
       if (s.reps === undefined) p.reps = r.phCount
       if (weighted && s.kg === undefined && r.phKg !== undefined) p.kg = r.phKg
     }
-    const count = timed ? p.secs ?? s.secs : p.reps ?? s.reps
+    const count = timed ? (p.secs ?? s.secs) : (p.reps ?? s.reps)
     if (!count) return say(timed ? 'Add the seconds first' : 'Add your reps first')
     if (ex.kind === 'weight' && !(p.kg ?? s.kg)) return say('Add the weight first')
     patchSet(s.id, p)
@@ -210,7 +210,7 @@ function ExerciseBlock({ w, we, index, count }: { w: World; we: WorkoutExercise;
 
   // the bar for the next set you'll lift, for the plate maths
   const nextUp = rows.find((r) => !r.s.done && r.s.kind !== 'warmup') ?? rows[rows.length - 1]
-  const plateKg = nextUp ? nextUp.s.kg ?? nextUp.phKg : undefined
+  const plateKg = nextUp ? (nextUp.s.kg ?? nextUp.phKg) : undefined
   const cols = timed || ex.kind === 'bodyweight' ? 'grid-cols-[30px_minmax(0,1fr)_76px_46px_40px]' : 'grid-cols-[30px_minmax(0,1fr)_64px_54px_46px_40px]'
 
   return (
@@ -224,7 +224,11 @@ function ExerciseBlock({ w, we, index, count }: { w: World; we: WorkoutExercise;
               {timed ? 's' : ' reps'} · rest {dur(ex.restS).replace('m', ' min')}
             </div>
           </div>
-          <button aria-label="Exercise options" onClick={() => setMenu((m) => !m)} className={`press grid h-9 w-9 place-items-center rounded-full ${menu ? 'bg-fg text-ink-0' : 'bg-ink-3 text-fg-2'}`}>
+          <button
+            aria-label="Exercise options"
+            onClick={() => setMenu((m) => !m)}
+            className={`press grid h-9 w-9 place-items-center rounded-full ${menu ? 'bg-fg text-ink-0' : 'bg-ink-3 text-fg-2'}`}
+          >
             <MoreHorizontal size={18} />
           </button>
         </div>
@@ -280,7 +284,15 @@ function ExerciseBlock({ w, we, index, count }: { w: World; we: WorkoutExercise;
                 '–'
               )}
             </span>
-            {weighted && <NumInput label="Weight in kg" decimal value={r.s.kg} placeholder={r.phKg !== undefined ? fmtKg(r.phKg) : ex.kind === 'weighted-bodyweight' ? '0' : ''} onChange={(v) => patchSet(r.s.id, { kg: v })} />}
+            {weighted && (
+              <NumInput
+                label="Weight in kg"
+                decimal
+                value={r.s.kg}
+                placeholder={r.phKg !== undefined ? fmtKg(r.phKg) : ex.kind === 'weighted-bodyweight' ? '0' : ''}
+                onChange={(v) => patchSet(r.s.id, { kg: v })}
+              />
+            )}
             <NumInput
               label={timed ? 'Seconds' : 'Reps'}
               value={timed ? r.s.secs : r.s.reps}
@@ -304,7 +316,13 @@ function ExerciseBlock({ w, we, index, count }: { w: World; we: WorkoutExercise;
           </div>
           <AnimatePresence initial={false}>
             {rpeFor === r.s.id && (
-              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.18 }} className="overflow-hidden">
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.18 }}
+                className="overflow-hidden"
+              >
                 <RpePicker
                   value={r.s.rpe}
                   onPick={(v) => {
@@ -427,7 +445,9 @@ function RestBar() {
           transition={{ type: 'spring', stiffness: 420, damping: 38 }}
         >
           <div className="gutter pointer-events-auto mx-auto max-w-app">
-            <div className={`relative overflow-hidden rounded-[14px] border shadow-[0_-10px_40px_rgba(0,0,0,0.55)] backdrop-blur-xl ${over ? 'border-z2/60 bg-z2/15' : 'border-line-2 bg-ink-2/95'}`}>
+            <div
+              className={`relative overflow-hidden rounded-[14px] border shadow-[0_-10px_40px_rgba(0,0,0,0.55)] backdrop-blur-xl ${over ? 'border-z2/60 bg-z2/15' : 'border-line-2 bg-ink-2/95'}`}
+            >
               <div className="absolute inset-x-0 top-0 h-[3px] bg-ink-3">
                 <div className="spectrum h-full transition-[width] duration-300 ease-linear" style={{ width: `${Math.min(1, 1 - left / rest.total) * 100}%` }} />
               </div>
@@ -512,7 +532,11 @@ function FinishSheet({ open, onClose }: { open: boolean; onClose: () => void }) 
       </div>
       <div className="mt-2.5 grid grid-cols-5 gap-1.5">
         {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
-          <button key={n} onClick={() => setSrpe(n)} className={`press h-12 rounded-[8px] font-display text-[22px] font-black ${srpe === n ? srpeTone(n) : 'border border-line bg-ink-1 text-fg-2'}`}>
+          <button
+            key={n}
+            onClick={() => setSrpe(n)}
+            className={`press h-12 rounded-[8px] font-display text-[22px] font-black ${srpe === n ? srpeTone(n) : 'border border-line bg-ink-1 text-fg-2'}`}
+          >
             {n}
           </button>
         ))}
@@ -546,7 +570,10 @@ export function MiniWorkoutBar() {
   return (
     <div className="fixed inset-x-0 bottom-[calc(var(--tabbar-h)+env(safe-area-inset-bottom,0px))] z-40">
       <div className="gutter mx-auto max-w-app pb-2">
-        <button onClick={() => setOpen(true)} className="press relative flex h-[52px] w-full items-center gap-3 overflow-hidden rounded-[12px] border border-line-2 bg-ink-2/95 px-3.5 text-left shadow-[0_10px_30px_rgba(0,0,0,0.5)] backdrop-blur-xl">
+        <button
+          onClick={() => setOpen(true)}
+          className="press relative flex h-[52px] w-full items-center gap-3 overflow-hidden rounded-[12px] border border-line-2 bg-ink-2/95 px-3.5 text-left shadow-[0_10px_30px_rgba(0,0,0,0.5)] backdrop-blur-xl"
+        >
           <span className="absolute inset-x-0 top-0 h-[2px] bg-ink-3">
             <span className="spectrum block h-full" style={{ width: `${total ? (done / total) * 100 : 0}%` }} />
           </span>

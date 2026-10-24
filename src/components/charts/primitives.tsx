@@ -56,7 +56,10 @@ export function RangeBar({ min, max, lo, hi, today, good }: { min: number; max: 
     <div className="relative h-5">
       <div className="absolute inset-x-0 top-1/2 h-[4px] -translate-y-1/2 rounded-full bg-ink-3" />
       <div className="absolute top-1/2 h-[4px] -translate-y-1/2 rounded-full bg-fg-4" style={{ left: pct(lo), width: `calc(${pct(hi)} - ${pct(lo)})` }} />
-      <div className="absolute top-1/2 h-4 w-[3px] -translate-x-1/2 -translate-y-1/2 rounded-full" style={{ left: pct(today), background: color, boxShadow: `0 0 10px ${color}` }} />
+      <div
+        className="absolute top-1/2 h-4 w-[3px] -translate-x-1/2 -translate-y-1/2 rounded-full"
+        style={{ left: pct(today), background: color, boxShadow: `0 0 10px ${color}` }}
+      />
     </div>
   )
 }

@@ -69,7 +69,11 @@ export function WorkoutScreen() {
           </div>
         ))}
       </div>
-      {wk.srpe && secs >= 300 && <p className="mt-2 font-mono text-[10.5px] uppercase tracking-[0.06em] text-fg-4">Training load {Math.round(srpeLoad(secs / 60, wk.srpe))}, counted with your runs and games</p>}
+      {wk.srpe && secs >= 300 && (
+        <p className="mt-2 font-mono text-[10.5px] uppercase tracking-[0.06em] text-fg-4">
+          Training load {Math.round(srpeLoad(secs / 60, wk.srpe))}, counted with your runs and games
+        </p>
+      )}
 
       {prs.length > 0 && (
         <Section title={fresh ? 'New records' : 'Records set'}>

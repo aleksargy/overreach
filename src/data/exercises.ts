@@ -1,6 +1,16 @@
 import type { Equipment, Exercise, ExerciseKind, Muscle, Routine } from './types'
 
-type Def = [id: string, name: string, muscle: Muscle, equipment: Equipment, kind: ExerciseKind, range: [number, number], increment: number, restS: number, extra?: Partial<Exercise>]
+type Def = [
+  id: string,
+  name: string,
+  muscle: Muscle,
+  equipment: Equipment,
+  kind: ExerciseKind,
+  range: [number, number],
+  increment: number,
+  restS: number,
+  extra?: Partial<Exercise>,
+]
 
 const DEFS: Def[] = [
   ['bench-press', 'Bench Press', 'chest', 'barbell', 'weight', [6, 10], 2.5, 180, { secondary: ['triceps', 'shoulders'] }],

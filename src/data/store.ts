@@ -3,7 +3,7 @@ import { create } from 'zustand'
 import { BUILTIN_ROUTINES } from './exercises'
 import { SAMPLE_PROFILE } from './sample'
 import { uid } from '../lib/rng'
-import type { Activity, BodyEntry, Daily, Exercise, Match, Profile, Routine, SetEntry, SyncState, Workout } from './types'
+import type { BodyEntry, Daily, Exercise, GarminActivity, Match, Profile, Routine, SetEntry, SyncState, Workout } from './types'
 
 /** Everything you type into the app. Garmin data lives in `garmin`, sample data is generated. */
 export interface UserData {
@@ -21,7 +21,7 @@ export interface UserData {
 }
 
 export interface GarminCache {
-  activities: Activity[]
+  activities: GarminActivity[]
   dailies: Daily[]
   body: BodyEntry[]
 }
@@ -67,33 +67,36 @@ const GARMIN_KEY = 'overreach:garmin:v1'
 
 // IndexedDB first, then localStorage, then memory: the app must work in a
 // private tab or a sandboxed preview where storage throws, or never answers.
-const withTimeout = <T,>(p: Promise<T>, ms: number) =>
-  Promise.race([p, new Promise<never>((_, reject) => setTimeout(() => reject(new Error('storage timeout')), ms))])
+// A slow answer is not an empty one, so nothing is written back until
+// IndexedDB has answered: a slow start can never save defaults over real data.
+const withTimeout = <T>(p: Promise<T>, ms: number) => Promise.race([p, new Promise<never>((_, reject) => setTimeout(() => reject(new Error('storage timeout')), ms))])
 
-const storage = {
-  async get<T>(key: string): Promise<T | undefined> {
+let target: 'idb' | 'local' | 'wait' = 'wait'
+
+function fromLocal<T>(key: string): T | undefined {
+  try {
+    const raw = localStorage.getItem(key)
+    return raw ? (JSON.parse(raw) as T) : undefined
+  } catch {
+    return undefined
+  }
+}
+
+async function save(key: string, value: unknown) {
+  if (target === 'idb') {
     try {
-      return (await withTimeout(idbGet(key), 2000)) as T | undefined
+      return await idbSet(key, value)
     } catch {
-      try {
-        const raw = localStorage.getItem(key)
-        return raw ? (JSON.parse(raw) as T) : undefined
-      } catch {
-        return undefined
-      }
+      target = 'local'
     }
-  },
-  async set(key: string, value: unknown) {
+  }
+  if (target === 'local') {
     try {
-      await idbSet(key, value)
+      localStorage.setItem(key, JSON.stringify(value))
     } catch {
-      try {
-        localStorage.setItem(key, JSON.stringify(value))
-      } catch {
-        /* memory only */
-      }
+      /* memory only */
     }
-  },
+  }
 }
 
 function pickUser(s: State): UserData {
@@ -118,8 +121,23 @@ export const useStore = create<State>()((set, get) => ({
   garmin: null,
 
   hydrate: async () => {
-    const [user, garmin] = await Promise.all([storage.get<UserData>(KEY), storage.get<GarminCache>(GARMIN_KEY)])
-    set({ ...EMPTY, ...(user ?? {}), garmin: garmin ?? null, hydrated: true })
+    const apply = ([user, garmin]: [UserData | undefined, GarminCache | undefined]) => set({ ...EMPTY, ...(user ?? {}), garmin: garmin ?? null, hydrated: true })
+    // IndexedDB can throw before it returns a promise (a sandboxed frame), so start it inside one
+    const read = Promise.resolve().then(() => Promise.all([idbGet<UserData>(KEY), idbGet<GarminCache>(GARMIN_KEY)]))
+    try {
+      apply(await withTimeout(read, 2000))
+      target = 'idb'
+    } catch {
+      apply([fromLocal(KEY), fromLocal(GARMIN_KEY)])
+      // IndexedDB may still answer late; its answer wins, and only then is anything saved there
+      read.then(
+        (r) => {
+          apply(r)
+          target = 'idb'
+        },
+        () => (target = 'local'),
+      )
+    }
   },
 
   setProfile: (p) => set((s) => ({ profile: { ...s.profile, ...p } })),
@@ -163,9 +181,7 @@ export const useStore = create<State>()((set, get) => ({
       ...w,
       end: new Date().toISOString(),
       srpe,
-      exercises: w.exercises
-        .map((we) => ({ ...we, sets: we.sets.filter((x) => x.done) }))
-        .filter((we) => we.sets.length),
+      exercises: w.exercises.map((we) => ({ ...we, sets: we.sets.filter((x) => x.done) })).filter((we) => we.sets.length),
     }
     set((s) => ({ active: null, workouts: [done, ...s.workouts] }))
     return done
@@ -192,7 +208,7 @@ export const useStore = create<State>()((set, get) => ({
 
   setGarmin: (g) => {
     set({ garmin: g })
-    void storage.set(GARMIN_KEY, g)
+    void save(GARMIN_KEY, g)
   },
 
   importWorkouts: (ws, exercises) =>
@@ -203,13 +219,24 @@ export const useStore = create<State>()((set, get) => ({
 
   resetAll: () => {
     set({ ...EMPTY, garmin: null, hydrated: true })
-    void storage.set(GARMIN_KEY, null)
+    void save(GARMIN_KEY, null)
   },
 }))
 
 let saveTimer: ReturnType<typeof setTimeout> | undefined
-useStore.subscribe((s) => {
+const flush = () => {
+  clearTimeout(saveTimer)
+  saveTimer = undefined
+  void save(KEY, pickUser(useStore.getState()))
+}
+useStore.subscribe((s, prev) => {
   if (!s.hydrated) return
   clearTimeout(saveTimer)
-  saveTimer = setTimeout(() => void storage.set(KEY, pickUser(useStore.getState())), 300)
+  // typing into a live workout saves after a pause, anything else straight away
+  saveTimer = setTimeout(flush, s.active !== prev.active ? 300 : 0)
 })
+// iOS can freeze or close a home-screen app right after a tap, so a pending save is written as the app goes away
+if (typeof window !== 'undefined') {
+  window.addEventListener('pagehide', () => saveTimer && flush())
+  document.addEventListener('visibilitychange', () => document.visibilityState === 'hidden' && saveTimer && flush())
+}

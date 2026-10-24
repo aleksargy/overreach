@@ -35,7 +35,7 @@ export function recurringSlots(activities: Activity[], now = new Date()): Slot[]
       sport: list[0].a.sport,
       dow: getDay(d),
       hour: Math.floor(med / 60),
-      minute: Math.round((med % 60) / 15) * 15 % 60,
+      minute: (Math.round((med % 60) / 15) * 15) % 60,
       count: list.length,
       kind: list[0].a.kind,
     })

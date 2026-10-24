@@ -71,7 +71,11 @@ export function Sheet({ open, onClose, title, kicker, children, footer }: Props)
                 </div>
               )}
             </div>
-            <div className={`gutter overflow-y-auto overscroll-contain pt-3 [mask-image:linear-gradient(to_bottom,transparent,black_14px)] ${footer ? 'pb-4' : 'pb-[max(16px,env(safe-area-inset-bottom,0px))]'}`}>{children}</div>
+            <div
+              className={`gutter overflow-y-auto overscroll-contain pt-3 [mask-image:linear-gradient(to_bottom,transparent,black_14px)] ${footer ? 'pb-4' : 'pb-[max(16px,env(safe-area-inset-bottom,0px))]'}`}
+            >
+              {children}
+            </div>
             {footer && <div className="gutter border-t border-line pb-[max(16px,env(safe-area-inset-bottom,0px))] pt-3">{footer}</div>}
           </motion.div>
         </div>

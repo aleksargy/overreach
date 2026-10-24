@@ -13,19 +13,7 @@ export const MOMENTS: { key: MomentKey; label: string; delta: number }[] = [
   { key: 'lostHead', label: 'Lost my head', delta: -0.2 },
 ]
 
-export const FEEL = [
-  '',
-  'Ghost',
-  'Passenger',
-  'Off the pace',
-  'Rusty',
-  'Steady',
-  'Solid shift',
-  'Bossed it',
-  'Ran the show',
-  'Unplayable',
-  'Prime Zidane',
-]
+export const FEEL = ['', 'Ghost', 'Passenger', 'Off the pace', 'Rusty', 'Steady', 'Solid shift', 'Bossed it', 'Ran the show', 'Unplayable', 'Prime Zidane']
 
 export const POSITIONS: { key: Position; label: string }[] = [
   { key: 'GK', label: 'Keeper' },
@@ -190,6 +178,10 @@ export function analyseFootball(stream: Stream): FootballAnalysis {
     }
   }
 
+  // the watch's own distance when it recorded one, so the report agrees with the activity
+  const d = stream.d
+  if (d && d.length === n && d[n - 1] > d[0]) dist = d[n - 1] - d[0]
+
   const hs = hr.filter((x) => x > 0)
   const every = Math.max(1, Math.round(2 / dt))
   const lat = (stream.lat ?? []).filter((_, i) => i % every === 0)
@@ -289,15 +281,14 @@ export function rateMatch(i: RateInput): { rating: number; breakdown: RatingFact
     const a = i.analysis
     const b = i.baseline
     const distPts = clamp((a.mPerMin / b.mPerMin - 1) * 2.5, -0.4, 0.4)
-    const sprintPts = clamp(((a.sprints / a.minutes) * 10 / Math.max(b.sprintsPer10, 0.5) - 1) * 0.8, -0.3, 0.3)
+    const sprintPts = clamp((((a.sprints / a.minutes) * 10) / Math.max(b.sprintsPer10, 0.5) - 1) * 0.8, -0.3, 0.3)
     f.push({
       key: 'workrate',
       label: `Work rate: ${Math.round(a.mPerMin)} m/min, ${a.sprints} sprints`,
       value: distPts + sprintPts,
     })
     if (a.topSpeedKmh > b.topSpeedKmh) f.push({ key: 'topspeed', label: `New top speed, ${a.topSpeedKmh} km/h`, value: 0.1 })
-    if (a.fadeMinute !== undefined && a.fadeMinute < a.minutes * 0.8)
-      f.push({ key: 'fade', label: `Faded from ${a.fadeMinute}'`, value: -0.1 })
+    if (a.fadeMinute !== undefined && a.fadeMinute < a.minutes * 0.8) f.push({ key: 'fade', label: `Faded from ${a.fadeMinute}'`, value: -0.1 })
   }
 
   f.push({ key: 'feel', label: `Your verdict: ${FEEL[i.feel]}`, value: (i.feel - 6) * 0.12 })
@@ -357,10 +348,7 @@ export function headline(
       ...(m.scoreAgainst === 0 ? [`${N} SHUTS UP SHOP`] : []),
       ...(m.goals === 1 && r === 'W' ? [`${N} ON TARGET AS ${T} BEAT ${O}`] : []),
     ],
-    [
-      ...(a && base && a.mPerMin > base.mPerMin * 1.12 ? [`${N} RUNS THE LEGS OFF ${O}`] : []),
-      ...(a && a.fadeMinute !== undefined ? [`${N} FADES AFTER BRIGHT START`] : []),
-    ],
+    [...(a && base && a.mPerMin > base.mPerMin * 1.12 ? [`${N} RUNS THE LEGS OFF ${O}`] : []), ...(a && a.fadeMinute !== undefined ? [`${N} FADES AFTER BRIGHT START`] : [])],
     r === 'W' ? [`${T} EDGE ${O} IN ${s} SCRAP`, `JOB DONE: ${T} SEE OFF ${O}`] : [`${T} FALL ${s} TO ${O}`],
   ]
   const pool = tiers.find((t) => t.length) ?? tiers[tiers.length - 1]
@@ -369,15 +357,12 @@ export function headline(
 
 export function ordinal(n: number): string {
   const v = n % 100
-  const suf = v >= 11 && v <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] ?? 'th'
+  const suf = v >= 11 && v <= 13 ? 'th' : (['th', 'st', 'nd', 'rd'][n % 10] ?? 'th')
   return `${n}${suf}`
 }
 
 export function standfirst(m: Match, a?: Physical): string {
-  const what = [
-    m.goals ? `${m.goals === 1 ? 'A goal' : `${m.goals} goals`}` : '',
-    m.assists ? `${m.assists === 1 ? 'an assist' : `${m.assists} assists`}` : '',
-  ].filter(Boolean)
+  const what = [m.goals ? `${m.goals === 1 ? 'A goal' : `${m.goals} goals`}` : '', m.assists ? `${m.assists === 1 ? 'an assist' : `${m.assists} assists`}` : ''].filter(Boolean)
   const joined = what.join(' and ')
   const contrib = joined ? joined.charAt(0).toUpperCase() + joined.slice(1) : 'No goal involvement'
   const r = result(m)
@@ -418,8 +403,29 @@ export function playerCard(rows: { match: Match; analysis?: Physical }[], positi
   const recent = [...ms].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5)
   const fadeShare = an.length ? an.filter((a) => a.fadeMinute !== undefined).length / an.length : 0
   const attrs: CardAttr[] = [
-    { key: 'PAC', label: 'Pace', value: an.length ? mapRange(quantile(an.map((a) => a.topSpeedKmh), 0.9), 20, 31, 45, 96) : 50, hint: 'Your top speeds' },
-    { key: 'STA', label: 'Stamina', value: an.length ? mapRange(mean(an.map((a) => a.mPerMin)), 70, 125, 45, 95) - fadeShare * 8 : 50, hint: 'Metres per minute, minus late fades' },
+    {
+      key: 'PAC',
+      label: 'Pace',
+      value: an.length
+        ? mapRange(
+            quantile(
+              an.map((a) => a.topSpeedKmh),
+              0.9,
+            ),
+            20,
+            31,
+            45,
+            96,
+          )
+        : 50,
+      hint: 'Your top speeds',
+    },
+    {
+      key: 'STA',
+      label: 'Stamina',
+      value: an.length ? mapRange(mean(an.map((a) => a.mPerMin)), 70, 125, 45, 95) - fadeShare * 8 : 50,
+      hint: 'Metres per minute, minus late fades',
+    },
     { key: 'WRK', label: 'Work rate', value: an.length ? mapRange(mean(an.map((a) => (a.sprints / a.minutes) * 10)), 0.5, 6, 45, 95) : 50, hint: 'Sprints per 10 minutes' },
     { key: 'SHO', label: 'Shooting', value: mapRange(gpg, 0, 2.5, 40, 96), hint: 'Goals per game, adjusted for format' },
     { key: 'PAS', label: 'Passing', value: mapRange(apg, 0, 2, 40, 95), hint: 'Assists per game, adjusted for format' },
