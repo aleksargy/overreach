@@ -21,10 +21,12 @@ export interface SyncStep {
   added: number
   total: number
   message: string
-  /** Garmin rate-limited the server: stop and let the hourly job carry on */
+  /** Garmin rate-limited the server: stop, and carry on next time */
   paused?: boolean
   /** another sync holds the lock: wait a moment and ask again */
   busy?: boolean
+  /** when the server's data last changed */
+  dataAt?: string
 }
 
 export interface ServerData {
@@ -86,14 +88,14 @@ async function pull() {
     setProfile({ ...(hrMax && hrMax > 120 ? { hrMax } : {}), ...(hrRest && hrRest > 30 ? { hrRest } : {}) })
   }
   setGarmin({ activities: data.activities, dailies: data.dailies, body: data.body })
-  setSync({ mode: 'live', status: 'idle', lastSync: new Date().toISOString(), message: `Synced ${data.activities.length} activities` })
+  setSync({ mode: 'live', status: 'idle', lastSync: new Date().toISOString(), dataAt: data.updatedAt ?? undefined, message: `Synced ${data.activities.length} activities` })
   return data
 }
 
 /**
- * Run sync steps until the server says it's caught up, then pull everything down.
- * The first sync walks two years of history, so it can take a few minutes; if you
- * leave, the hourly job on the server finishes it.
+ * Sync now: run steps until the server says it's caught up, then pull everything
+ * down. The first sync walks two years of history, so it can take a few minutes;
+ * if you leave, opening the app again (or the morning job) carries on.
  */
 export async function syncAll(onProgress: (s: SyncStep) => void): Promise<number> {
   const { setSync } = useStore.getState()
@@ -117,13 +119,19 @@ export async function syncAll(onProgress: (s: SyncStep) => void): Promise<number
   }
 }
 
-/** On opening the app: one quick step for anything new, then refresh the local copy. Quiet on failure. */
+/**
+ * On opening the app: let the server catch up, then download only if something
+ * changed. The server calls Garmin at most every 10 minutes however often the
+ * app opens, so this is cheap. Quiet on failure.
+ */
 export async function refresh(): Promise<void> {
   const { sync } = useStore.getState()
   if (sync.mode !== 'live' || !sync.passphrase || sync.status === 'syncing') return
   try {
-    await syncStep(true)
-    await pull()
+    let step = await syncStep()
+    // history still coming in: keep going for a while as the app is open anyway
+    for (let i = 0; i < 10 && !step.done && !step.paused && !step.busy; i++) step = await syncStep()
+    if (!step.dataAt || step.dataAt !== useStore.getState().sync.dataAt) await pull()
   } catch {
     /* offline, or the server is busy: the cached copy stays */
   }

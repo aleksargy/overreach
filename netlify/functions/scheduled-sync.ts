@@ -1,5 +1,7 @@
-// Hourly: fetch the newest data, then spend what's left of the run on history,
-// so the app has everything when you open it.
+// Once a day, early: fetch the newest data, then spend what's left of the run on
+// history. Opening the app is the main trigger; this is the safety net that
+// keeps the history whole when the app isn't opened for a while, and has the
+// night's sleep and HRV waiting in the morning.
 import { garmin } from '../lib/garmin'
 import { apiKey } from '../lib/http'
 import { blobs } from '../lib/kv'
@@ -14,4 +16,5 @@ export default async () => {
   console.log(r.message)
 }
 
-export const config = { schedule: '@hourly' }
+// cron runs in UTC
+export const config = { schedule: '0 5 * * *' }

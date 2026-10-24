@@ -28,7 +28,7 @@ The preview build uses a memory router. A bare hash picks the first screen: `#fo
 - `src/components/` shared UI (`ui/`), charts (`charts/`), the tab bar, the activity row.
 - `src/data/` the store, the derived world, the API client, types, exercises, and generated sample data (`sample/`).
 - `src/lib/` pure logic with no React: football rating and analysis, readiness, training load, lift progression, schedule guessing, Hevy CSV import, formatting.
-- `netlify/functions/` `status`, `sync` (POST), `data`, `stream`, and `scheduled-sync` (hourly).
+- `netlify/functions/` `status`, `sync` (POST), `data`, `stream`, and `scheduled-sync` (once a day, 05:00 UTC).
 - `netlify/lib/` the Garmin client, the sync engine, Garmin-to-app mapping, FIT decoding, the Blobs wrapper, request helpers.
 - `tests/` the fake Garmin (realistic shapes, range limits, FIT files) and the tests.
 - `scripts/` the local API, icon rendering, the preview inliner.
@@ -46,7 +46,8 @@ The preview build uses a memory router. A bare hash picks the first screen: `#fo
 - Environment variables: `GARMIN_PERSONAL_API_KEY` (from connect.garmin.com/app/settings/personalApiToken) and `OVERREACH_PASSPHRASE` (any phrase; the same one is typed into Settings). The Garmin key must never reach browser code.
 - Every endpoint checks the `x-overreach-key` header against the passphrase.
 - Data lives in the Blobs store `overreach` (strong consistency). Keys: `state`, `activities`, `dailies`, `body`, `stream/<id>`, `shapes`, `token`, `lock`.
-- Sync runs in steps that fit Netlify's limits: 25 s per call from the app, 18 s for the hourly job, at most 30 Garmin calls per step. A lock in Blobs stops the hourly job and the app from overlapping. Each step does, in order: the recent pass (every 10 minutes), football FIT files still to read, the activity backfill (two years), the health backfill (180-day chunks; sleep only for 120 days).
+- Opening the app is the main trigger: it runs a step without forcing, and the server only calls Garmin if its last recent pass was more than 10 minutes ago, however often the app opens. The app downloads `/api/data` only when the server's `dataAt` has moved. Sync now in Settings forces a fresh pass. A job at 05:00 UTC is the safety net (Alex asked for few calls, to stay clear of rate limits and junk requests).
+- Sync runs in steps that fit Netlify's limits: 25 s per call from the app, 18 s for the morning job, at most 30 Garmin calls per step. A lock in Blobs stops the job and the app from overlapping. Each step does, in order: the recent pass (health data since the last pass, at least two weeks; if that's over 180 days the health history is walked again), football FIT files still to read, the activity backfill (two years), the health backfill (180-day chunks; sleep only for 120 days).
 - Garmin limits per call: activities 50 per page, daily summaries and HRV 180 days, sleep 28 days, weight 365 days. Over-long ranges come back as empty 400s or 500s.
 - A 429 pauses the sync and keeps what was fetched. A 401 re-exchanges the token once. An endpoint that keeps failing is named in `warnings` and skipped.
 - `/api/status?shapes` returns the field types Garmin actually sent, without any values. Use it to fix `netlify/lib/mapping.ts` against real data; the readers there are deliberately tolerant.
@@ -72,7 +73,7 @@ Change `APP_NAME` in `src/config.ts`, the `<title>` in `index.html`, and `name`/
 1. Netlify: connect the repo. `netlify.toml` already sets the build (`npm run build`), the publish folder (`dist`), the functions folder and the `/api/*` redirect.
 2. Add `GARMIN_PERSONAL_API_KEY` and `OVERREACH_PASSPHRASE` in the site's environment variables, then deploy.
 3. On the iPhone, open the site in Safari, then Share → Add to Home Screen.
-4. In the app: Settings → passphrase → Sync now. The first sync walks two years of history in steps and takes a few minutes. After that the hourly job and app launches keep it fresh.
+4. In the app: Settings → passphrase → Sync now. The first sync walks two years of history in steps and takes a few minutes. After that, opening the app keeps it fresh, with the morning job as a backstop.
 
 ## Status
 
