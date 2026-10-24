@@ -5,17 +5,24 @@
 //   1. recent: newest activities, health data since the last pass (two weeks at
 //      least), weight. Skipped if it ran in the last 10 minutes, unless forced,
 //      so opening the app often doesn't mean calling Garmin often.
-//   2. football games waiting for their FIT file (GPS speed → sprints, top speed)
-//   3. activity history, 50 at a time, back HISTORY_DAYS
-//   4. health history, 180 days at a time, back HISTORY_DAYS
+//   2. runs and football games waiting for their FIT file: a run's minute-by-
+//      minute pace, heart rate and grade for the running analysis; a game's
+//      sprints and top speed
+//   3. the weather for runs that have just been read (best effort, never blocks)
+//   4. activity history, 50 at a time, back HISTORY_DAYS
+//   5. health history, 180 days at a time, back HISTORY_DAYS
 
 import type { BodyEntry, Daily, GarminActivity } from '../../src/data/types'
+import { summariseRun } from '../../src/lib/running'
 import { fitFromDownload, footballSummary, streamFromFit } from './fit'
 import { GarminError, type Garmin } from './garmin'
 import type { KV } from './kv'
 import { foldHrv, foldSleep, foldSummaries, foldWeight, hrProfile, list, mapActivity, shape, type Obj } from './mapping'
+import { weatherFor } from './weather'
 
 export const HISTORY_DAYS = 730
+/** runs this recent get read for the running analysis: a year is plenty, and it spares Garmin a download per older run */
+export const RUN_DAYS = 365
 const RECENT_DAYS = 14
 /** sleep stages only matter for recent months; older nights keep the duration from the daily summary */
 const SLEEP_DAYS = 120
@@ -42,8 +49,14 @@ export interface SyncState {
   /** health backfill: the next chunk ends the day before this */
   dailiesBefore?: string
   dailiesDone: boolean
-  /** football games waiting for their FIT file */
+  /** runs and football games waiting for their FIT file */
   pending: string[]
+  /** runs waiting for their weather */
+  weather?: string[]
+  /** the weather service failed: leave it alone until then */
+  weatherRetryAt?: string
+  /** runs stored before the running analysis existed have been queued for it */
+  runsQueued?: boolean
   profile?: { hrMax?: number; hrRest?: number; at: string }
   error?: { at: string; message: string }
   /** endpoints that failed on the last pass, by name */
@@ -110,6 +123,8 @@ export interface StepOptions {
   /** fetch the newest data even if that ran a minute ago (Sync now, the morning job) */
   forceRecent?: boolean
   now?: Date
+  /** for the weather service; Garmin goes through `api` */
+  fetch?: typeof fetch
 }
 
 export async function runStep(opts: StepOptions): Promise<StepResult> {
@@ -125,10 +140,11 @@ export async function runStep(opts: StepOptions): Promise<StepResult> {
   }
 }
 
-async function step({ kv, api, budgetMs, forceRecent = false, now = new Date() }: StepOptions): Promise<StepResult> {
+async function step({ kv, api, budgetMs, forceRecent = false, now = new Date(), fetch: weatherFetch }: StepOptions): Promise<StepResult> {
   const t0 = Date.now()
   const calls0 = api.calls
-  const left = () => (api.calls - calls0 >= MAX_CALLS ? 0 : budgetMs - (Date.now() - t0))
+  const time = () => budgetMs - (Date.now() - t0)
+  const left = () => (api.calls - calls0 >= MAX_CALLS ? 0 : time())
   const { state, data } = await loadAll(kv)
   const firstEver = Object.keys(data.activities).length === 0 && state.activityOffset === 0
   const dirty = { activities: false, dailies: false, body: false }
@@ -137,8 +153,15 @@ async function step({ kv, api, budgetMs, forceRecent = false, now = new Date() }
   const warnings: Record<string, string> = { ...state.warnings }
   const today = dayOf(now)
   const cutoff = addDays(today, -HISTORY_DAYS)
+  const runCutoff = now.getTime() - RUN_DAYS * 86_400_000
   let added = 0
   let oldestSeen: string | undefined
+  const wantsFit = (a: GarminActivity) =>
+    a.hasStream && ((a.sport === 'football' && !a.football) || (a.sport === 'run' && !a.run && Date.parse(a.start) >= runCutoff)) && !state.pending.includes(a.id)
+  if (!state.runsQueued) {
+    for (const a of Object.values(data.activities).sort((x, y) => y.start.localeCompare(x.start))) if (a.sport === 'run' && wantsFit(a)) state.pending.push(a.id)
+    state.runsQueued = true
+  }
 
   /** a failing endpoint is noted and skipped; rate limits and auth problems stop the step */
   const get = async (label: string, path: string, query?: Record<string, string | number>) => {
@@ -161,9 +184,9 @@ async function step({ kv, api, budgetMs, forceRecent = false, now = new Date() }
       if (!a) continue
       const prev = data.activities[a.id]
       if (!prev) fresh++
-      // the football numbers came from the FIT file, which the list doesn't carry
-      data.activities[a.id] = { ...a, football: prev?.football }
-      if (a.sport === 'football' && a.hasStream && !prev?.football && !state.pending.includes(a.id)) state.pending.push(a.id)
+      // the football and run numbers came from the FIT file, which the list doesn't carry
+      data.activities[a.id] = { ...a, football: prev?.football, run: prev?.run }
+      if (wantsFit(data.activities[a.id])) state.pending.push(a.id)
       if (!oldestSeen || a.start < oldestSeen) oldestSeen = a.start
     }
     if (items.length) dirty.activities = true
@@ -208,7 +231,7 @@ async function step({ kv, api, budgetMs, forceRecent = false, now = new Date() }
       state.recentAt = now.toISOString()
     }
 
-    // 2. football games waiting for their FIT file
+    // 2. runs and football games waiting for their FIT file
     while (state.pending.length && left() > 8_000) {
       const id = state.pending[0]
       const a = data.activities[id]
@@ -216,8 +239,14 @@ async function step({ kv, api, budgetMs, forceRecent = false, now = new Date() }
         try {
           const stream = streamFromFit(fitFromDownload(await api.bytes(`/download-service/files/activity/${a.garminId}`)), id, a.sport)
           await kv.set(`stream/${id}`, stream)
-          const football = footballSummary(stream)
-          if (football) data.activities[id] = { ...a, football }
+          if (a.sport === 'run') {
+            const run = summariseRun(stream)
+            if (run) data.activities[id] = { ...a, run }
+            if (run?.at) state.weather = [...(state.weather ?? []).filter((x) => x !== id), id]
+          } else {
+            const football = footballSummary(stream)
+            if (football) data.activities[id] = { ...a, football }
+          }
           dirty.activities = true
         } catch (e) {
           if (e instanceof GarminError && (e.status === 429 || e.status === 401 || e.status === 403)) throw e
@@ -227,7 +256,30 @@ async function step({ kv, api, budgetMs, forceRecent = false, now = new Date() }
       state.pending.shift()
     }
 
-    // 3. activity history
+    // 3. weather for the runs read so far; it never holds the sync up
+    if (state.weather?.length && time() > 4_000 && (!state.weatherRetryAt || now.getTime() >= Date.parse(state.weatherRetryAt))) {
+      const ids = state.weather.slice(0, 60).filter((id) => data.activities[id]?.run?.at)
+      try {
+        const got = await weatherFor(
+          ids.map((id) => {
+            const a = data.activities[id]
+            return { id, at: a.run!.at!, time: new Date(Date.parse(a.start) + (a.durationS * 1000) / 2).toISOString() }
+          }),
+          { fetch: weatherFetch, now },
+        )
+        for (const [id, w] of got) data.activities[id] = { ...data.activities[id], run: { ...data.activities[id].run!, ...w } }
+        // runs the service had nothing for are dropped rather than asked about forever
+        state.weather = state.weather.length > 60 ? state.weather.slice(60) : undefined
+        state.weatherRetryAt = undefined
+        if (got.size) dirty.activities = true
+        delete warnings.weather
+      } catch (e) {
+        warnings.weather = e instanceof Error ? e.message : String(e)
+        state.weatherRetryAt = new Date(now.getTime() + 30 * 60_000).toISOString()
+      }
+    }
+
+    // 4. activity history
     while (!state.activitiesDone && left() > 5_000) {
       const items = list(await get('activities', SEARCH, { start: state.activityOffset, limit: PAGE }), 'activityList', 'activities')
       added += addActivities(items)
@@ -235,7 +287,7 @@ async function step({ kv, api, budgetMs, forceRecent = false, now = new Date() }
       if (items.length < PAGE || (oldestSeen && oldestSeen.slice(0, 10) < cutoff)) state.activitiesDone = true
     }
 
-    // 4. health history
+    // 5. health history
     while (!state.dailiesDone && left() > 6_000) {
       const end = state.dailiesBefore ? addDays(state.dailiesBefore, -1) : addDays(today, -RECENT_DAYS)
       const start = addDays(end, -(DAILY_CHUNK - 1)) < cutoff ? cutoff : addDays(end, -(DAILY_CHUNK - 1))
@@ -281,7 +333,7 @@ async function step({ kv, api, budgetMs, forceRecent = false, now = new Date() }
 
   function progress(): string {
     if (isCaughtUp(state)) return added ? `${added} new ${added === 1 ? 'activity' : 'activities'}` : 'Up to date'
-    if (state.pending.length) return `Reading your football games: ${state.pending.length} to go`
+    if (state.pending.length) return `Reading your runs and games: ${state.pending.length} to go`
     if (!state.activitiesDone) {
       const oldest = Object.values(data.activities).reduce((min, a) => (a.start < min ? a.start : min), now.toISOString())
       return `Activities back to ${monthYear(oldest)}`

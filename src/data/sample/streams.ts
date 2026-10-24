@@ -99,7 +99,18 @@ function sampleAt(path: { xs: number[]; ys: number[]; cum: number[] }, dist: num
   return { x: path.xs[lo] + (path.xs[hi] - path.xs[lo]) * t, y: path.ys[lo] + (path.ys[hi] - path.ys[lo]) * t }
 }
 
-export function runPlan(kind: string, r: Rng): Seg[] {
+/** What the day brings to a sample run: fitness, weather, legs after football and how long heart rate holds. */
+export interface RunDay {
+  /** threshold speed on the day, m/s */
+  vT: number
+  tempC: number
+  /** hours since football finished, when there was a game in the last three days */
+  afterFootballH?: number
+  /** minutes of steady running before heart rate starts to climb */
+  holdMin: number
+}
+
+export function runPlan(kind: string, r: Rng, day: RunDay): Seg[] {
   const easy = r.range(310, 325)
   switch (kind) {
     case 'tempo':
@@ -111,10 +122,13 @@ export function runPlan(kind: string, r: Rng): Seg[] {
     case 'intervals': {
       const reps = r.pick([5, 6, 8])
       const segs: Seg[] = [{ m: 2000, pace: 330 }]
-      for (let i = 0; i < reps; i++) segs.push({ m: 800, pace: r.range(224, 232) }, { m: 400, pace: 380 })
+      for (let i = 0; i < reps; i++) segs.push({ m: 800, pace: r.range(214, 222) }, { m: 400, pace: 380 })
       segs.push({ m: 1600, pace: 340 })
       return segs
     }
+    case 'race':
+      // flat out over 5 km, so the pace follows fitness
+      return [{ m: 5000, pace: 1000 / (day.vT * r.range(1.025, 1.045)) }]
     case 'long':
       return [{ m: r.pick([14000, 16000, 18000]), pace: r.range(312, 322) }]
     default:
@@ -122,14 +136,31 @@ export function runPlan(kind: string, r: Rng): Seg[] {
   }
 }
 
-export function runStream(id: string, kind: string): { stream: Stream; laps: Lap[] } {
+/**
+ * A run whose heart rate answers to the things the running analysis looks for:
+ * speed, hills (the runner eases off uphill but still pays), heat above 12°C,
+ * legs from football the night before, and drift once past the day's hold time.
+ */
+export function runStream(id: string, kind: string, day: RunDay): { stream: Stream; laps: Lap[] } {
   const r = rng(id)
   const dt = 5
-  const plan = runPlan(kind, r)
+  const plan = runPlan(kind, r, day)
   const total = plan.reduce((a, s) => a + s.m, 0)
-  const shape = kind === 'intervals' ? track() : loop(r, kind === 'long' ? total / 1 : total / r.pick([1, 2]))
+  const onTrack = kind === 'intervals'
+  const shape = onTrack ? track() : loop(r, kind === 'long' ? total / 1 : total / r.pick([1, 2]))
   const path = { ...shape, cum: polyLength(shape.xs, shape.ys) }
-  const vT = 1000 / 248 // threshold pace ~4:08/km
+  // rolling road terrain; the track is flat
+  const hill = onTrack ? null : { a1: r.range(2, 9), l1: r.range(1400, 2600), p1: r.range(0, 6), a2: r.range(0.3, 1.5), l2: r.range(420, 700), p2: r.range(0, 6) }
+  const wave = (x: number, a: number, l: number, p: number) => a * Math.sin((2 * Math.PI * x) / l + p)
+  const altAt = (x: number) => (hill ? 18 + wave(x, hill.a1, hill.l1, hill.p1) + wave(x, hill.a2, hill.l2, hill.p2) : 12)
+  const gradeAt = (x: number) =>
+    hill
+      ? 100 *
+        (((2 * Math.PI * hill.a1) / hill.l1) * Math.cos((2 * Math.PI * x) / hill.l1 + hill.p1) +
+          ((2 * Math.PI * hill.a2) / hill.l2) * Math.cos((2 * Math.PI * x) / hill.l2 + hill.p2))
+      : 0
+  const heat = 0.7 * Math.max(0, day.tempC - 12)
+  const legs = day.afterFootballH !== undefined && day.afterFootballH < 36 ? 4 : 0
   const out: Stream = { activityId: id, dt, hr: [], v: [], d: [], alt: [], lat: [], lon: [], cad: [] }
   let d = 0
   let v = 2.4
@@ -143,11 +174,17 @@ export function runStream(id: string, kind: string): { stream: Stream; laps: Lap
   while (d < total) {
     while (d >= segEnd && seg < plan.length - 1) segEnd += plan[++seg].m
     ou += -0.15 * ou + r.normal(0, 0.06)
-    const target = 1000 / plan[seg].pace + ou
+    const g = gradeAt(d)
+    const up = Math.max(g, 0)
+    const down = Math.max(-g, 0)
+    const target = (1000 / plan[seg].pace + ou) * (1 - 0.022 * up + 0.012 * down)
     v += (target - v) * (dt / 10)
-    const drift = (t / 3600) * 5
-    const frac = Math.min(0.955, 0.3 + 0.55 * clamp(v / vT, 0, 1.12) ** 2.4)
-    const hrT = HR_REST + RESERVE * frac + drift
+    // what the hill makes the effort feel like, in flat-ground speed
+    const vEff = v * (1 + 0.035 * up - 0.018 * down)
+    const mins = t / 60
+    const drift = 0.04 * mins + 0.22 * Math.max(0, mins - day.holdMin)
+    const frac = Math.min(0.97, 0.12 + (0.75 * vEff) / day.vT)
+    const hrT = HR_REST + RESERVE * frac + heat + legs + drift
     hr += (hrT - hr) * (dt / 28) + r.normal(0, 0.8)
     d += v * dt
     t += dt
@@ -156,7 +193,7 @@ export function runStream(id: string, kind: string): { stream: Stream; laps: Lap
     out.v!.push(+v.toFixed(3))
     out.hr!.push(Math.round(clamp(hr, 70, HR_MAX)))
     out.d!.push(Math.round(d))
-    out.alt!.push(+(18 + 6 * Math.sin((2 * Math.PI * d) / 1700) + 3 * Math.sin((2 * Math.PI * d) / 530 + 1)).toFixed(1))
+    out.alt!.push(+(altAt(d) + r.normal(0, 0.1)).toFixed(1))
     out.lat!.push(+ll.lat.toFixed(6))
     out.lon!.push(+ll.lon.toFixed(6))
     out.cad!.push(Math.round(166 + (v - 3) * 9 + r.normal(0, 2)))

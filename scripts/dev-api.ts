@@ -16,8 +16,10 @@ process.env.GARMIN_PERSONAL_API_KEY ??= 'fake-key'
 process.env.OVERREACH_PASSPHRASE ??= 'dev'
 
 const realFetch = globalThis.fetch
+// Garmin and the weather service both answer from the fake, so this works offline
+const faked = ['https://personal.connectapi.garmin.com', 'https://archive-api.open-meteo.com', 'https://api.open-meteo.com']
 globalThis.fetch = ((input: string | URL | Request, init?: RequestInit) =>
-  String(input instanceof Request ? input.url : input).startsWith('https://personal.connectapi.garmin.com') ? fake.fetch(input, init) : realFetch(input, init)) as typeof fetch
+  faked.some((host) => String(input instanceof Request ? input.url : input).startsWith(host)) ? fake.fetch(input, init) : realFetch(input, init)) as typeof fetch
 
 createServer(async (req, res) => {
   const url = new URL(req.url ?? '/', `http://localhost:${PORT}`)

@@ -2,16 +2,17 @@
 // and watch health, generated deterministically per calendar day so the data
 // stays stable as days pass and only new days get added.
 
-import { addDays, addMinutes, differenceInCalendarWeeks, getDay, setHours, setMinutes, startOfDay } from 'date-fns'
+import { addDays, addMinutes, differenceInCalendarWeeks, getDay, getDayOfYear, setHours, setMinutes, startOfDay } from 'date-fns'
 import { analyseFootball, baselineFor, headline, rateMatch, type FootballAnalysis } from '../../lib/football'
 import { isoDay } from '../../lib/format'
 import { srpeLoad, trimp, zoneBounds, zoneSecondsFromAvg, zoneSecondsFromHr } from '../../lib/load'
 import { liftSummary } from '../../lib/lift'
 import { clamp, mean, round } from '../../lib/math'
+import { summariseRun } from '../../lib/running'
 import { rng, type Rng } from '../../lib/rng'
 import { BUILTIN_EXERCISES, BUILTIN_ROUTINES } from '../exercises'
 import type { Activity, BodyEntry, Daily, Format, Match, MomentKey, Profile, SetEntry, Stream, Workout } from '../types'
-import { footballStream, rideStream, runStream, swimStream } from './streams'
+import { footballStream, rideStream, runStream, swimStream, type RunDay } from './streams'
 
 export const SAMPLE_PROFILE: Profile = {
   name: 'Alex',
@@ -50,7 +51,7 @@ function slotsFor(date: Date, week: number, r: Rng): Slot[] {
       if (r.chance(0.6)) s.push({ key: 'ride', sport: 'ride', kind: 'commute', h: 8, m: 10 })
       break
     case 6:
-      if (!skip(0.1)) s.push({ key: 'run', sport: 'run', kind: week % 3 === 2 ? 'easy' : 'long', h: 9, m: 0 })
+      if (!skip(0.1)) s.push({ key: 'run', sport: 'run', kind: week % 4 === 1 ? 'race' : week % 3 === 2 ? 'easy' : 'long', h: 9, m: 0 })
       break
     case 0:
       if (week % 2 === 0) {
@@ -62,7 +63,41 @@ function slotsFor(date: Date, week: number, r: Rng): Slot[] {
   return s
 }
 
-const RUN_NAMES: Record<string, string> = { easy: 'Easy run', tempo: 'Tempo run', intervals: 'Track reps', long: 'Long run' }
+const RUN_NAMES: Record<string, string> = { easy: 'Easy run', tempo: 'Tempo run', intervals: 'Track reps', long: 'Long run', race: 'Parkrun' }
+
+/** Every slot of a day with its start time, drawn exactly as buildSample draws them. */
+function daySlots(day: Date): { slot: Slot; start: Date }[] {
+  const r = rng(`day:${isoDay(day)}`)
+  const week = differenceInCalendarWeeks(day, new Date(2026, 0, 5), { weekStartsOn: 1 })
+  return slotsFor(day, week, r).map((slot) => ({ slot, start: setMinutes(setHours(day, slot.h), slot.m + r.int(-6, 6)) }))
+}
+
+/** London-ish weather for a moment: the season, the time of day and that day's luck. */
+export function sampleWeather(at: Date): { tempC: number; dewC: number } {
+  const r = rng(`weather:${isoDay(at)}`)
+  const season = 11 + 7 * Math.sin((2 * Math.PI * (getDayOfYear(at) - 115)) / 365)
+  const hour = at.getHours() + at.getMinutes() / 60
+  const tempC = round(season + 3.5 * Math.sin((2 * Math.PI * (hour - 9)) / 24) + r.normal(0, 3), 1)
+  return { tempC, dewC: round(tempC - r.range(2, 7), 1) }
+}
+
+/** Fitness builds through the autumn, and so does how long heart rate holds on a long run. */
+export function sampleRunDay(start: Date): RunDay {
+  const s = Math.sin((2 * Math.PI * (getDayOfYear(start) - 244)) / 365)
+  let lastGame: number | undefined
+  for (let back = 0; back <= 3; back++) {
+    for (const { slot, start: at } of daySlots(addDays(startOfDay(start), -back))) {
+      const end = at.getTime() + (slot.mins ?? 60) * 60_000
+      if (slot.sport === 'football' && end <= start.getTime()) lastGame = Math.max(lastGame ?? 0, end)
+    }
+  }
+  return {
+    vT: 4.03 * (1 + 0.022 * s),
+    tempC: sampleWeather(addMinutes(start, 30)).tempC,
+    afterFootballH: lastGame ? (start.getTime() - lastGame) / 3_600_000 : undefined,
+    holdMin: 66 + 12 * s,
+  }
+}
 
 function summarise(a: Activity, stream: Stream, bounds: number[]): Activity {
   const n = stream.v?.length ?? stream.hr?.length ?? 0
@@ -96,7 +131,7 @@ export function sampleStreamFor(a: Activity): Stream | null {
   if (a.source !== 'sample') return null
   switch (a.sport) {
     case 'run':
-      return runStream(a.id, a.kind ?? 'easy').stream
+      return runStream(a.id, a.kind ?? 'easy', sampleRunDay(new Date(a.start))).stream
     case 'ride':
       return rideStream(a.id, a.kind ?? 'endurance')
     case 'swim':
@@ -280,10 +315,7 @@ export function buildSample(now = new Date(), profile: Profile = SAMPLE_PROFILE)
   for (let i = 0; i < DAYS; i++) {
     const day = addDays(first, i)
     const iso = isoDay(day)
-    const r = rng(`day:${iso}`)
-    const week = differenceInCalendarWeeks(day, new Date(2026, 0, 5), { weekStartsOn: 1 })
-    for (const slot of slotsFor(day, week, r)) {
-      const start = setMinutes(setHours(day, slot.h), slot.m + r.int(-6, 6))
+    for (const { slot, start } of daySlots(day)) {
       const id = `s-${iso}-${slot.key}`
       const sr = rng(id)
       const base: Activity = {
@@ -300,8 +332,9 @@ export function buildSample(now = new Date(), profile: Profile = SAMPLE_PROFILE)
       }
       let a: Activity
       if (slot.sport === 'run') {
-        const { stream, laps } = runStream(id, slot.kind)
-        a = { ...summarise(base, stream, bounds), laps, name: RUN_NAMES[slot.kind] }
+        const { stream, laps } = runStream(id, slot.kind, sampleRunDay(start))
+        const run = summariseRun(stream)
+        a = { ...summarise(base, stream, bounds), laps, name: RUN_NAMES[slot.kind], run: run && { ...run, ...sampleWeather(addMinutes(start, 30)) } }
       } else if (slot.sport === 'ride') {
         a = { ...summarise(base, rideStream(id, slot.kind), bounds), name: slot.kind === 'commute' ? 'Commute' : 'Endurance ride' }
       } else if (slot.sport === 'swim') {

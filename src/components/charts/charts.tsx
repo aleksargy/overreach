@@ -116,7 +116,7 @@ export function StreamChart({ values, dt, height = 150, kind, bounds, format = (
           {geo.guides.map((g) => (
             <g key={g.z}>
               <line x1={0} x2={geo.right} y1={g.y} y2={g.y} stroke={zoneColor(g.z, 0.3)} strokeDasharray="2 4" />
-              {g.y > geo.top + 14 && g.y < geo.bottom - 12 && (
+              {g.y > geo.top + 16 && g.y < geo.bottom - 16 && (
                 <text x={geo.right + 4} y={g.y + 3} className="fill-fg-4 font-mono text-[10px]">
                   Z{g.z + 1}
                 </text>
@@ -228,11 +228,13 @@ interface TrendProps {
   format?: (v: number) => string
   xLabel?: (t: number) => string
   color?: string
+  /** smallest range the y axis shows, so a flat series doesn't fill the chart with noise and repeat its labels */
+  minSpan?: number
   children?: ReactNode
 }
 
 /** Raw readings as dots, the rolling average as the line that matters. */
-export function TrendChart({ points, avg, band, height = 170, format = (v) => v.toFixed(1), xLabel, color = 'rgb(var(--fg))' }: TrendProps) {
+export function TrendChart({ points, avg, band, height = 170, format = (v) => v.toFixed(1), xLabel, color = 'rgb(var(--fg))', minSpan = 0 }: TrendProps) {
   const [ref, w] = useMeasure<HTMLDivElement>()
   const geo = useMemo(() => {
     if (!w || points.length < 2) return null
@@ -242,6 +244,11 @@ export function TrendChart({ points, avg, band, height = 170, format = (v) => v.
     const t1 = Math.max(...ts)
     let lo = Math.min(...vs)
     let hi = Math.max(...vs)
+    if (hi - lo < minSpan) {
+      const mid = (hi + lo) / 2
+      lo = mid - minSpan / 2
+      hi = mid + minSpan / 2
+    }
     const pad = (hi - lo) * 0.12 || 1
     lo -= pad
     hi += pad
@@ -255,7 +262,7 @@ export function TrendChart({ points, avg, band, height = 170, format = (v) => v.
     const last = avg?.length ? avg[avg.length - 1] : points[points.length - 1]
     const grid = [0.25, 0.5, 0.75].map((f) => lo + (hi - lo) * f)
     return { X, Y, line, last, t0, t1, lo, hi, right, top, bottom, grid }
-  }, [points, avg, band, w, height])
+  }, [points, avg, band, w, height, minSpan])
 
   return (
     <div ref={ref} className="w-full" style={{ height }}>
@@ -264,7 +271,7 @@ export function TrendChart({ points, avg, band, height = 170, format = (v) => v.
           {geo.grid.map((g, i) => (
             <g key={i}>
               <line x1={0} x2={geo.right} y1={geo.Y(g)} y2={geo.Y(g)} stroke="rgb(var(--line))" />
-              <text x={geo.right + 6} y={geo.Y(g) + 3} className="fill-fg-4 font-mono text-[10px]">
+              <text x={geo.right + 10} y={geo.Y(g) + 3} className="fill-fg-4 font-mono text-[10px]">
                 {format(g)}
               </text>
             </g>

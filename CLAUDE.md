@@ -27,10 +27,10 @@ The preview build uses a memory router. A bare hash picks the first screen: `#ru
 - `src/screens/` one folder per area: today (plus the + log sheet), run, football (log sheet, rating reveal, match report, player card), body, feed ("All activity", opened from Today, plus activity detail), settings, and lift (logger overlay, exercises, history), which is built but hidden from the tab bar.
 - `src/components/` shared UI (`ui/`), charts (`charts/`), the tab bar, the activity row.
 - `src/data/` the store, the derived world, the API client, types, exercises, and generated sample data (`sample/`).
-- `src/lib/` pure logic with no React: football rating and analysis, readiness, training load, lift progression, schedule guessing, Hevy CSV import, formatting.
+- `src/lib/` pure logic with no React: running analysis (`running.ts`), football rating and analysis, readiness, training load, lift progression, schedule guessing, Hevy CSV import, formatting.
 - `netlify/functions/` `status`, `sync` (POST), `data`, `stream`, and `scheduled-sync` (once a day, 05:00 UTC).
-- `netlify/lib/` the Garmin client, the sync engine, Garmin-to-app mapping, FIT decoding, the Blobs wrapper, request helpers.
-- `tests/` the fake Garmin (realistic shapes, range limits, FIT files) and the tests.
+- `netlify/lib/` the Garmin client, the sync engine, Garmin-to-app mapping, FIT decoding, run weather from Open-Meteo, the Blobs wrapper, request helpers.
+- `tests/` the fake Garmin (realistic shapes, range limits, FIT files, plus a fake Open-Meteo) and the tests.
 - `scripts/` the local API, icon rendering, the preview inliner.
 
 ## How data flows
@@ -39,6 +39,8 @@ The preview build uses a memory router. A bare hash picks the first screen: `#ru
 - **World** (`src/data/world.ts`, `useWorld()`) derives everything the screens show: Garmin activities (or sample data before the first sync) merged with logged workouts and matches, plus load, readiness, the weekly schedule and unrated games. Screens read the world and write through store actions.
 - **Sample mode** shows generated data with a "Sample data" badge until the first successful sync. After that the app is in live mode.
 - **Streams** (HR, speed, GPS, laps) load per activity from `/api/stream?id=g-…`. The server decodes the FIT file once and caches it in Blobs.
+- **Run summaries.** During sync the server reads each run's FIT file (runs from the last year, `RUN_DAYS`) and stores a small `run` summary on the activity: speed, heart rate and grade minute by minute, best efforts from 1 to 60 minutes, the start rounded to 0.1° (about 10 km), and the temperature and dew point. So the Run tab never needs a stream download.
+- **Running model** (`src/lib/running.ts`, `useRunModel()`) is fitted in the browser from those summaries. A within-run regression of heart rate on speed, climb, descent and minutes gives shared slopes; backfitting then splits each run's residual into fitness (a 12-day kernel), heat (bpm per °C above 12) and the football hangover (runs within 36 hours of a game). From that come the aerobic engine (pace at a fixed heart rate, 68% of reserve, flat, cool and fresh), hill, heat and football costs in s/km, durability (the minute heart rate drifts 5 bpm in long, even runs), and critical speed and D′ from the upper hull of 90 days of best efforts, with race predictions. Each claim shows only when the data supports it (`clear`, `solid`, the evidence checks), and the screen says why when it doesn't. The sample data has these effects built in, and `tests/running.test.ts` checks the model finds them.
 - Match ratings and the player card are computed in `src/lib/football.ts` from what's logged (score, goals, assists, how it felt, moments) plus the watch's physical numbers when the game was recorded.
 
 ## Server (Netlify)
@@ -47,9 +49,10 @@ The preview build uses a memory router. A bare hash picks the first screen: `#ru
 - Every endpoint checks the `x-overreach-key` header against the passphrase.
 - Data lives in the Blobs store `overreach` (strong consistency). Keys: `state`, `activities`, `dailies`, `body`, `stream/<id>`, `shapes`, `token`, `lock`.
 - Opening the app is the main trigger: it runs a step without forcing, and the server only calls Garmin if its last recent pass was more than 10 minutes ago, however often the app opens. The app downloads `/api/data` only when the server's `dataAt` has moved. Sync now in Settings forces a fresh pass. A job at 05:00 UTC is the safety net (Alex asked for few calls, to stay clear of rate limits and junk requests).
-- Sync runs in steps that fit Netlify's limits: 25 s per call from the app, 18 s for the morning job, at most 30 Garmin calls per step. A lock in Blobs stops the job and the app from overlapping. Each step does, in order: the recent pass (health data since the last pass, at least two weeks; if that's over 180 days the health history is walked again), football FIT files still to read, the activity backfill (two years), the health backfill (180-day chunks; sleep only for 120 days).
+- Sync runs in steps that fit Netlify's limits: 25 s per call from the app, 18 s for the morning job, at most 30 Garmin calls per step. A lock in Blobs stops the job and the app from overlapping. Each step does, in order: the recent pass (health data since the last pass, at least two weeks; if that's over 180 days the health history is walked again), run and football FIT files still to read, weather for new runs, the activity backfill (two years), the health backfill (180-day chunks; sleep only for 120 days).
 - Garmin limits per call: activities 50 per page, daily summaries and HRV 180 days, sleep 28 days, weight 365 days. Over-long ranges come back as empty 400s or 500s.
 - A 429 pauses the sync and keeps what was fetched. A 401 re-exchanges the token once. An endpoint that keeps failing is named in `warnings` and skipped.
+- Weather comes from Open-Meteo (free, no key): the archive API, or the forecast API for runs in the last six days. Only the rounded location and a date range go out, one request per place. A failure waits 30 minutes and never holds up the sync.
 - `/api/status?shapes` returns the field types Garmin actually sent, without any values. Use it to fix `netlify/lib/mapping.ts` against real data; the readers there are deliberately tolerant.
 - The Personal API is pull-only (no webhooks, no pushing workouts), and keys expire after 30 days to a year and must be renewed by hand.
 
@@ -78,6 +81,6 @@ Change `APP_NAME` in `src/config.ts`, the `<title>` in `index.html`, and `name`/
 
 ## Status
 
-Done: Garmin sync (on app open), the minimal redesign, Today (readiness with a week of history, football, the week, load, latest), Run (weekly distance and recent runs), football (log a match, rating reveal, match report with heatmap and engine stats, season, form, records, player card after three rated games), body (weight trend, recovery, last night, measurements), all activity and activity detail, the lift logger (routines, RPE, progression targets, custom exercises, Hevy CSV import; hidden from the tab bar), offline shell.
+Done: Garmin sync (on app open), the minimal redesign, Today (readiness with a week of history, football, the week, load, latest), Run (aerobic engine and its trend, weekly distance, critical speed with race predictions, durability, what slows you down: hills, heat and football legs; plus an analysis block on each run), football (log a match, rating reveal, match report with heatmap and engine stats, season, form, records, player card after three rated games), body (weight trend, recovery, last night, measurements), all activity and activity detail, the lift logger (routines, RPE, progression targets, custom exercises, Hevy CSV import; hidden from the tab bar), offline shell.
 
-Next: the Run tab's analysis, the things Garmin doesn't do: aerobic engine (pace at a fixed heart rate, corrected for heat, hills and fatigue), durability (when heart rate drifts away from pace in long runs), critical speed and D′ from all runs with race predictions, personal hill and heat costs, and the football hangover (how a match affects the next two days of running). Then check the mapping against Alex's real Garmin data with `/api/status?shapes`, pick a name, then ghost replays.
+Next: check the mapping against Alex's real Garmin data with `/api/status?shapes` (and that the running model behaves on it), pick a name, then ghost replays. Maybe later: D′ balance through interval sessions.

@@ -46,6 +46,23 @@ export interface Activity {
   football?: FootballSummary
   /** strength summary, so lists don't need to look up the workout */
   lift?: LiftSummary
+  /** run summary computed at sync time, so the running analysis doesn't need every stream */
+  run?: RunSummary
+}
+
+/** What one run tells the running analysis, worked out from its samples once. */
+export interface RunSummary {
+  /** one entry per minute of moving time: average speed (m/s), heart rate (0 where it dropped out) and grade (%) */
+  spd: number[]
+  hr: number[]
+  grade: number[]
+  /** best average speed (m/s) held for each duration in BEST_S (lib/running); 0 where the run was shorter */
+  best: number[]
+  /** where it started, rounded to about 10 km: enough to look up the weather */
+  at?: [number, number]
+  /** air temperature and dew point (°C) halfway through, from the weather service */
+  tempC?: number
+  dewC?: number
 }
 
 export interface LiftSummary {
