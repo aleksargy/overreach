@@ -228,6 +228,8 @@ export interface SyncState {
   mode: 'sample' | 'live'
   passphrase?: string
   lastSync?: string
+  /** the server's data as of this time is what's stored on the phone */
+  dataAt?: string
   status?: 'idle' | 'syncing' | 'error'
   message?: string
 }

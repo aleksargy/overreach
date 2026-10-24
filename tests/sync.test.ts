@@ -196,3 +196,55 @@ test('a one-off server error on a page is retried by the history pass', async ()
   assert.equal(Object.keys(data.activities).length, fake.activities.length)
   assert.equal(state.warnings, undefined)
 })
+
+const DAY = 86_400_000
+const callsTo = (fake: ReturnType<typeof fakeGarmin>) => Object.values(fake.calls).reduce((a, b) => a + b, 0)
+
+test('opening the app again within 10 minutes costs no Garmin calls', async () => {
+  const fake = fakeGarmin({ years: 0.2 })
+  const kv = memoryKV()
+  await syncToEnd(kv, fake)
+  const { state } = await loadAll(kv)
+  const api = garmin('test-key', kv, { fetch: fake.fetch })
+  const before = callsTo(fake)
+  const r = await runStep({ kv, api, budgetMs: 25_000, now: new Date(fake.now.getTime() + 5 * 60_000) })
+  assert.equal(callsTo(fake), before)
+  assert.equal(r.done, true)
+  // nothing changed, so the phone has nothing to download
+  assert.equal(r.dataAt, state.dataAt)
+  // Sync now still asks Garmin
+  const forced = await runStep({ kv, api, budgetMs: 25_000, now: new Date(fake.now.getTime() + 6 * 60_000), forceRecent: true })
+  assert.ok(callsTo(fake) > before)
+  assert.notEqual(forced.dataAt, state.dataAt)
+})
+
+test('after weeks without opening the app, the next pass fills in every day since', async () => {
+  const fake = fakeGarmin({ years: 0.2 })
+  const kv = memoryKV()
+  await syncToEnd(kv, fake)
+  const later = new Date(fake.now.getTime() + 40 * DAY)
+  const api = garmin('test-key', kv, { fetch: fake.fetch })
+  const r = await runStep({ kv, api, budgetMs: 25_000, now: later })
+  assert.equal(r.done, true)
+  const { data } = await loadAll(kv)
+  for (let t = fake.now.getTime(); t <= later.getTime(); t += DAY) {
+    const day = new Date(t).toISOString().slice(0, 10)
+    assert.ok(data.dailies[day]?.rhr && data.dailies[day].deepS, `missing ${day}`)
+  }
+})
+
+test('after more than six months away, the health history is walked again', async () => {
+  const fake = fakeGarmin({ years: 0.2 })
+  const kv = memoryKV()
+  await syncToEnd(kv, fake)
+  const later = new Date(fake.now.getTime() + 200 * DAY)
+  const api = garmin('test-key', kv, { fetch: fake.fetch })
+  let r: StepResult | undefined
+  for (let i = 0; i < 20 && !r?.done; i++) r = await runStep({ kv, api, budgetMs: 25_000, now: later })
+  assert.equal(r?.done, true)
+  const { data } = await loadAll(kv)
+  for (let t = fake.now.getTime(); t <= later.getTime(); t += DAY) {
+    const day = new Date(t).toISOString().slice(0, 10)
+    assert.ok(data.dailies[day]?.rhr, `missing ${day}`)
+  }
+})

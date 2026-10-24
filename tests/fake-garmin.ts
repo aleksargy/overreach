@@ -200,7 +200,8 @@ export function fakeGarmin(opts: { now?: Date; years?: number } = {}): Fake {
 
     if (path === '/personalapitoken-service/personal-api/personal-api-key/token') {
       if (init?.method !== 'POST' || !String(new Headers(init?.headers).get('authorization')).startsWith('ApiKey ')) return bad(401)
-      return new Response(jwt(Math.floor(now.getTime() / 1000) + 86_400))
+      // tokens live in real time: the client checks them against the clock, not the simulated date
+      return new Response(jwt(Math.floor(Date.now() / 1000) + 86_400))
     }
     if (!String(new Headers(init?.headers).get('authorization')).startsWith('Bearer ')) return bad(401)
     if (broken.some((b) => path.startsWith(b))) return bad(404)

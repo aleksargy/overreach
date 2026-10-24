@@ -81,6 +81,14 @@ test('syncs to the end, then serves the data, streams and status', async () => {
   assert.equal(downloads(), before + 1)
   assert.equal((await call('stream', { query: '?id=nope' })).status, 400)
 
+  // opening the app again straight away doesn't go to Garmin; Sync now does
+  const total = () => Object.values(fake.calls).reduce((a, b) => a + b, 0)
+  const quiet = total()
+  assert.equal((await call('sync', { method: 'POST' })).status, 200)
+  assert.equal(total(), quiet)
+  await call('sync', { method: 'POST', query: '?fresh=1' })
+  assert.ok(total() > quiet)
+
   const status = await call('status', { query: '?shapes' })
   assert.equal(status.body.backfillDone, true)
   assert.equal(status.body.activities, fake.activities.length)

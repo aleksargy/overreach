@@ -232,7 +232,7 @@ function ServerLine({ st }: { st: { ok?: ServerStatus; error?: string } }) {
         <span className="h-1.5 w-1.5 rounded-full bg-z2" />
         Server ready · {s.activities} activities · {s.days} days
       </span>
-      {!s.backfillDone && s.activities > 0 && <span>History is still coming in. The server carries on every hour, so you can close the app.</span>}
+      {!s.backfillDone && s.activities > 0 && <span>History is still coming in. It carries on whenever the app is open and every morning on its own, so you can close it.</span>}
       {s.message && <span className="text-warn">{s.message}</span>}
       {warn.length > 0 && <span className="text-warn">Garmin didn’t send {warn.map((k) => WARN_LABEL[k] ?? k).join(', ')}. The rest synced fine.</span>}
     </div>

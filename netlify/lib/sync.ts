@@ -1,9 +1,10 @@
 // One sync step: a bounded slice of work that leaves the store consistent, so the
-// phone can call it in a loop and the hourly job can pick up where it stopped.
+// phone can call it in a loop and the morning job can pick up where it stopped.
 //
 // Each step, in order, while time is left:
-//   1. recent: newest activities, the last two weeks of health data, weight
-//      (skipped if it ran in the last 10 minutes, unless forced)
+//   1. recent: newest activities, health data since the last pass (two weeks at
+//      least), weight. Skipped if it ran in the last 10 minutes, unless forced,
+//      so opening the app often doesn't mean calling Garmin often.
 //   2. football games waiting for their FIT file (GPS speed → sprints, top speed)
 //   3. activity history, 50 at a time, back HISTORY_DAYS
 //   4. health history, 180 days at a time, back HISTORY_DAYS
@@ -34,6 +35,8 @@ export interface SyncState {
   lastSync?: string
   /** the last time the newest activities and days were fetched */
   recentAt?: string
+  /** the last time any stored data changed, so the phone only downloads it again when it has */
+  dataAt?: string
   activityOffset: number
   activitiesDone: boolean
   /** health backfill: the next chunk ends the day before this */
@@ -60,8 +63,9 @@ export interface StepResult {
   message: string
   /** Garmin rate-limited us: stop calling until later */
   paused?: boolean
-  /** another step is running (the hourly job, or a second phone): try again shortly */
+  /** another step is running (the morning job, or a second phone): try again shortly */
   busy?: boolean
+  dataAt?: string
 }
 
 export const freshState = (): SyncState => ({ v: 1, activityOffset: 0, activitiesDone: false, dailiesDone: false, pending: [] })
@@ -103,7 +107,7 @@ export interface StepOptions {
   api: Garmin
   /** stop starting new work after this long */
   budgetMs: number
-  /** fetch the newest data even if that ran a minute ago (the hourly job, pull-to-refresh) */
+  /** fetch the newest data even if that ran a minute ago (Sync now, the morning job) */
   forceRecent?: boolean
   now?: Date
 }
@@ -111,8 +115,8 @@ export interface StepOptions {
 export async function runStep(opts: StepOptions): Promise<StepResult> {
   const owner = Math.random().toString(36).slice(2)
   if (!(await lock(opts.kv, owner))) {
-    const { data } = await loadAll(opts.kv)
-    return { done: false, added: 0, total: Object.keys(data.activities).length, message: 'Another sync is running…', busy: true }
+    const { state, data } = await loadAll(opts.kv)
+    return { done: false, added: 0, total: Object.keys(data.activities).length, message: 'Another sync is running…', busy: true, dataAt: state.dataAt }
   }
   try {
     return await step(opts)
@@ -178,11 +182,25 @@ async function step({ kv, api, budgetMs, forceRecent = false, now = new Date() }
         // keep paging only while every activity on the page is new (a long time since the last sync)
         if (firstEver || fresh < items.length || items.length < PAGE) break
       }
-      const from = addDays(today, -(RECENT_DAYS - 1))
+      // health: two weeks back, or to the day of the last pass if that was longer ago
+      const since = state.recentAt ? dayOf(new Date(state.recentAt)) : today
+      const floor = addDays(today, -(DAILY_CHUNK - 1))
+      let from = addDays(today, -(RECENT_DAYS - 1))
+      if (since < from) from = since < floor ? floor : since
+      // away for longer than one request covers: walk the health history again from there
+      if (since < floor) {
+        state.dailiesBefore = floor
+        state.dailiesDone = false
+      }
       foldSummaries(data.dailies, await get('dailies', '/usersummary-service/v2/dailysummaries', { startDate: from, endDate: today }))
       foldHrv(data.dailies, await get('hrv', `/hrv-service/hrv/daily/${from}/${today}`))
-      foldSleep(data.dailies, await get('sleep', '/sleep-service/sleep/dailySleepSummariesByDate', { startDate: from, endDate: today }))
-      foldWeight(data.body, await get('weight', `/weight-service/weight/range/${addDays(today, -29)}/${today}`, { includeAll: 'true' }))
+      const sleepFrom = addDays(today, -(SLEEP_DAYS - 1))
+      for (let s = from < sleepFrom ? sleepFrom : from; s <= today; s = addDays(s, SLEEP_CHUNK)) {
+        const e = addDays(s, SLEEP_CHUNK - 1) > today ? today : addDays(s, SLEEP_CHUNK - 1)
+        foldSleep(data.dailies, await get('sleep', '/sleep-service/sleep/dailySleepSummariesByDate', { startDate: s, endDate: e }))
+      }
+      const weightFrom = addDays(today, -29)
+      foldWeight(data.body, await get('weight', `/weight-service/weight/range/${from < weightFrom ? from : weightFrom}/${today}`, { includeAll: 'true' }))
       dirty.dailies = dirty.body = true
       if (!state.profile || now.getTime() - Date.parse(state.profile.at) > 86_400_000) {
         state.profile = { ...hrProfile(await get('zones', '/biometric-service/heartRateZones/v2')), at: now.toISOString() }
@@ -242,16 +260,17 @@ async function step({ kv, api, budgetMs, forceRecent = false, now = new Date() }
       throw e
     }
     await save()
-    return { done: false, added, total: Object.keys(data.activities).length, message: state.error.message, paused: true }
+    return { done: false, added, total: Object.keys(data.activities).length, message: state.error.message, paused: true, dataAt: state.dataAt }
   }
 
   const done = isCaughtUp(state)
   if (done) state.lastSync = now.toISOString()
   await save()
-  return { done, added, total: Object.keys(data.activities).length, message: progress() }
+  return { done, added, total: Object.keys(data.activities).length, message: progress(), dataAt: state.dataAt }
 
   async function save() {
     state.warnings = Object.keys(warnings).length ? warnings : undefined
+    if (dirty.activities || dirty.dailies || dirty.body) state.dataAt = now.toISOString()
     const writes: Promise<unknown>[] = [kv.set('state', state)]
     if (dirty.activities) writes.push(kv.set('activities', data.activities))
     if (dirty.dailies) writes.push(kv.set('dailies', data.dailies))
