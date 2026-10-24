@@ -49,7 +49,14 @@ export function TodayScreen() {
       <WeekStrip w={w} />
       <LoadCard w={w} />
       <QuickActions />
-      <Section title="Latest" action={<Link to="/feed" className="font-mono text-[11px] uppercase tracking-[0.1em] text-fg-3">All activity →</Link>}>
+      <Section
+        title="Latest"
+        action={
+          <Link to="/feed" className="font-mono text-[11px] uppercase tracking-[0.1em] text-fg-3">
+            All activity →
+          </Link>
+        }
+      >
         <div className="flex flex-col gap-2">
           {w.activities.slice(0, 3).map((a) => (
             <ActivityRow key={a.id} a={a} match={w.matchByActivity.get(a.id)} />
@@ -105,10 +112,15 @@ function FootballStrip({ w }: { w: World }) {
   const open = useUi((s) => s.open)
   const last = w.matches[0]
   const unrated = w.unrated[0]
+  // with only one of the two cards, it takes the full row
+  const span = last && w.nextFootball ? '' : 'col-span-2'
   return (
     <section className="mt-3 grid grid-cols-2 gap-2">
       {unrated ? (
-        <button onClick={() => open({ type: 'logMatch', activityId: unrated.id })} className="press card relative col-span-2 flex items-center gap-3 overflow-hidden p-3.5 text-left">
+        <button
+          onClick={() => open({ type: 'logMatch', activityId: unrated.id })}
+          className="press card relative col-span-2 flex items-center gap-3 overflow-hidden p-3.5 text-left"
+        >
           <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-football/15 text-football">
             <Ball size={24} />
           </span>
@@ -125,7 +137,7 @@ function FootballStrip({ w }: { w: World }) {
         </button>
       ) : null}
       {last && (
-        <Link to={`/match/${last.id}`} className="press card flex flex-col justify-between gap-3 p-3.5">
+        <Link to={`/match/${last.id}`} className={`press card flex flex-col justify-between gap-3 p-3.5 ${span}`}>
           <span className="label">Last match</span>
           <span className="flex items-end justify-between">
             <span>
@@ -139,7 +151,7 @@ function FootballStrip({ w }: { w: World }) {
         </Link>
       )}
       {w.nextFootball && (
-        <div className="card flex flex-col justify-between gap-3 p-3.5">
+        <div className={`card flex flex-col justify-between gap-3 p-3.5 ${span}`}>
           <span className="label">Next game</span>
           <span>
             <span className="block font-display text-[24px] font-extrabold uppercase leading-[0.95]">{w.nextFootball.label}</span>
@@ -159,7 +171,14 @@ function WeekStrip({ w }: { w: World }) {
   const weekActs = days.flatMap(byDay)
   const total = weekActs.reduce((a, x) => a + x.durationS, 0)
   return (
-    <Section title="This week" action={<span className="font-mono text-[11px] text-fg-3">{weekActs.length} sessions · {dur(total)}</span>}>
+    <Section
+      title="This week"
+      action={
+        <span className="font-mono text-[11px] text-fg-3">
+          {weekActs.length} sessions · {dur(total)}
+        </span>
+      }
+    >
       <div className="grid grid-cols-7 gap-1.5">
         {days.map((d) => {
           const acts = byDay(d)
@@ -168,7 +187,10 @@ function WeekStrip({ w }: { w: World }) {
           const planned = future || isToday ? w.slots.filter((s) => s.dow === getDay(d) && !acts.some((a) => a.sport === s.sport)) : []
           const load = acts.reduce((a, x) => a + x.load, 0)
           return (
-            <div key={d.toISOString()} className={`flex flex-col items-center rounded-[8px] border px-1 pb-2 pt-2 ${isToday ? 'border-fg/70 bg-ink-1' : 'border-line bg-ink-1/50'}`}>
+            <div
+              key={d.toISOString()}
+              className={`flex flex-col items-center rounded-[8px] border px-1 pb-2 pt-2 ${isToday ? 'border-fg/70 bg-ink-1' : 'border-line bg-ink-1/50'}`}
+            >
               <span className={`font-mono text-[9.5px] uppercase ${isToday ? 'text-fg' : 'text-fg-3'}`}>{format(d, 'EEEEE')}</span>
               <span className={`num text-[19px] ${future ? 'text-fg-4' : ''}`}>{format(d, 'd')}</span>
               <div className="mt-1.5 flex min-h-[44px] flex-col items-center gap-1">
@@ -243,9 +265,7 @@ function StackedLoad({ days, sports }: { days: World['load']['days']; sports: Sp
       {days.map((d, i) => (
         <div key={d.date} className="flex h-full flex-1 flex-col justify-end">
           <div className="flex flex-col-reverse overflow-hidden rounded-[2px]" style={{ height: `${(d.load / max) * 80}%` }}>
-            {sports.map((s) =>
-              d.bySport[s] ? <span key={s} style={{ height: `${((d.bySport[s] ?? 0) / (d.load || 1)) * 100}%`, background: SPORT_COLOR[s] }} /> : null,
-            )}
+            {sports.map((s) => (d.bySport[s] ? <span key={s} style={{ height: `${((d.bySport[s] ?? 0) / (d.load || 1)) * 100}%`, background: SPORT_COLOR[s] }} /> : null))}
           </div>
           <span className={`mt-1 text-center font-mono text-[9px] ${i === days.length - 1 ? 'text-fg' : 'text-fg-4'}`}>{format(parseISO(d.date), 'EEEEE')}</span>
         </div>

@@ -99,12 +99,7 @@ export function readiness(dailies: Daily[], acwr: number, plan?: string): Readin
       ...b,
       score: clamp(55 + 20 * z, 0, 100),
       better: 'down',
-      note:
-        delta >= 3
-          ? `resting HR is up ${delta} bpm on your baseline`
-          : delta <= -2
-            ? `resting HR is ${-delta} bpm under your baseline`
-            : `resting HR is normal`,
+      note: delta >= 3 ? `resting HR is up ${delta} bpm on your baseline` : delta <= -2 ? `resting HR is ${-delta} bpm under your baseline` : `resting HR is normal`,
     })
   }
 
@@ -113,7 +108,10 @@ export function readiness(dailies: Daily[], acwr: number, plan?: string): Readin
     const h = today.sleepS / 3600
     const durScore = mapRange(h, 5, 8, 15, 95)
     const score = today.sleepScore ? 0.5 * durScore + 0.5 * today.sleepScore : durScore
-    const b = band(sleepBase.map((s) => s / 3600), h)
+    const b = band(
+      sleepBase.map((s) => s / 3600),
+      h,
+    )
     factors.push({
       key: 'sleep',
       label: 'Sleep',

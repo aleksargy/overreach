@@ -4,11 +4,11 @@ import { fetchStream } from './api'
 import { BUILTIN_EXERCISES } from './exercises'
 import { buildSample, sampleStreamFor, type SampleData } from './sample'
 import { useStore } from './store'
-import type { Activity, BodyEntry, Daily, Exercise, Match, Profile, Routine, Stream, Workout } from './types'
+import type { Activity, BodyEntry, Daily, Exercise, GarminActivity, Match, Profile, Routine, Stream, Workout } from './types'
 import { analyseFootball, type FootballAnalysis } from '../lib/football'
 import { liftSummary } from '../lib/lift'
 import { isoDay } from '../lib/format'
-import { loadModel, srpeLoad, zoneBounds, zoneSecondsFromAvg, type LoadModel } from '../lib/load'
+import { loadModel, srpeLoad, trimp, zoneBounds, zoneSecondsFromAvg, type LoadModel } from '../lib/load'
 import { readiness, type Readiness } from '../lib/readiness'
 import { nextOccurrence, recurringSlots, type Slot } from '../lib/schedule'
 import { differenceInCalendarDays, format } from 'date-fns'
@@ -66,6 +66,24 @@ export function workoutToActivity(w: Workout, p: Profile): Activity {
   }
 }
 
+/**
+ * Garmin activities get zones from your profile when Garmin didn't split them,
+ * and load from those zones. A lifting session you logged here that the watch
+ * also recorded is one session: it links to the workout and counts its
+ * session-RPE load once.
+ */
+export function fromGarmin(list: GarminActivity[], p: Profile, workouts: Workout[]): Activity[] {
+  const bounds = zoneBounds(p)
+  return list.map((g) => {
+    const zoneS = g.zoneS ?? zoneSecondsFromAvg(g.avgHr ?? 0, g.durationS, bounds)
+    const a: Activity = { ...g, zoneS, load: trimp(zoneS) }
+    if (a.sport !== 'strength') return a
+    const w = workouts.find((x) => x.end && Math.abs(Date.parse(x.start) - Date.parse(a.start)) < 45 * 60_000)
+    if (!w) return a
+    return { ...a, name: w.name, workoutId: w.id, lift: liftSummary(w), load: w.srpe ? srpeLoad(a.durationS / 60, w.srpe) : a.load }
+  })
+}
+
 const SPORT_PLAN: Record<string, string> = { football: 'football', run: 'your run', ride: 'your ride', swim: 'your swim', strength: 'the gym' }
 
 export interface Upcoming {
@@ -83,7 +101,7 @@ function upcoming(slots: Slot[], now: Date, pick: (s: Slot) => boolean = () => t
     if (next && at >= next.at) continue
     const days = differenceInCalendarDays(at, now)
     const when = days === 0 ? (at.getHours() >= 18 ? 'tonight' : 'today') : days === 1 ? 'tomorrow' : format(at, 'EEEE')
-    const what = slot.sport === 'football' ? (slot.kind && Number(slot.kind) ? `${slot.kind}-a-side` : 'football') : SPORT_PLAN[slot.sport] ?? slot.sport
+    const what = slot.sport === 'football' ? (slot.kind && Number(slot.kind) ? `${slot.kind}-a-side` : 'football') : (SPORT_PLAN[slot.sport] ?? slot.sport)
     next = { slot, at, label: `${what} ${when}` }
   }
   return next
@@ -114,27 +132,22 @@ export function useWorld(): World {
     const live = s.sync.mode === 'live' && !!s.garmin
     const sample = live ? null : getSample(now, s.profile)
 
-    const exercises = [
-      ...BUILTIN_EXERCISES.map((e) => ({ ...e, ...s.edits[e.id] })),
-      ...s.custom,
-    ]
+    const exercises = [...BUILTIN_EXERCISES.map((e) => ({ ...e, ...s.edits[e.id] })), ...s.custom]
     const exerciseById = new Map(exercises.map((e) => [e.id, e]))
 
     const workouts = [...s.workouts, ...(sample?.workouts ?? [])].filter((w) => w.end).sort((a, b) => b.start.localeCompare(a.start))
 
-    const base = live ? s.garmin!.activities : sample!.activities
+    const base = live ? fromGarmin(s.garmin!.activities, s.profile, s.workouts) : sample!.activities
     const linkedWorkouts = new Set(base.map((a) => a.workoutId).filter(Boolean))
-    const activities = [
-      ...base,
-      ...s.workouts.filter((w) => w.end && !linkedWorkouts.has(w.id)).map((w) => workoutToActivity(w, s.profile)),
-    ].sort((a, b) => b.start.localeCompare(a.start))
+    const activities = [...base, ...s.workouts.filter((w) => w.end && !linkedWorkouts.has(w.id)).map((w) => workoutToActivity(w, s.profile))].sort((a, b) =>
+      b.start.localeCompare(a.start),
+    )
     const byId = new Map(activities.map((a) => [a.id, a]))
 
     const userByActivity = new Set(s.matches.map((m) => m.activityId).filter(Boolean))
-    const matches = [
-      ...s.matches,
-      ...(sample?.matches ?? []).filter((m) => !s.hidden.includes(m.id) && !userByActivity.has(m.activityId)),
-    ].sort((a, b) => b.date.localeCompare(a.date))
+    const matches = [...s.matches, ...(sample?.matches ?? []).filter((m) => !s.hidden.includes(m.id) && !userByActivity.has(m.activityId))].sort((a, b) =>
+      b.date.localeCompare(a.date),
+    )
     const matchByActivity = new Map(matches.filter((m) => m.activityId).map((m) => [m.activityId!, m]))
 
     const dailies = live ? s.garmin!.dailies : sample!.dailies
@@ -201,7 +214,6 @@ export async function loadFootballAnalysis(a: Activity, w: World): Promise<Footb
   analysisCache.set(a.id, an)
   return an
 }
-
 
 export function useStream(a: Activity | undefined): Stream | null {
   const [st, setSt] = useState<Stream | null>(() => (a && streamCache.get(a.id)) || null)

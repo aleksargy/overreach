@@ -40,7 +40,9 @@ const TAG: Record<Suggestion['tag'], { label: string; cls: string; icon: ReactNo
 export function SuggestionTag({ s, compact, timed }: { s: Suggestion; compact?: boolean; timed?: boolean }) {
   const t = s.tag === 'reps' && timed ? { ...TAG.reps, label: 'Add time' } : TAG[s.tag]
   return (
-    <span className={`inline-flex shrink-0 items-center gap-1 rounded-full border font-mono font-semibold uppercase ${compact ? 'h-5 px-1.5 text-[9px] tracking-[0.06em]' : 'h-6 px-2 text-[10px] tracking-[0.1em]'} ${t.cls}`}>
+    <span
+      className={`inline-flex shrink-0 items-center gap-1 rounded-full border font-mono font-semibold uppercase ${compact ? 'h-5 px-1.5 text-[9px] tracking-[0.06em]' : 'h-6 px-2 text-[10px] tracking-[0.1em]'} ${t.cls}`}
+    >
       {t.icon}
       {t.label}
     </span>
@@ -59,9 +61,7 @@ export function WorkoutRow({ w, prs }: { w: Workout; prs?: number }) {
   const mins = w.end ? (Date.parse(w.end) - Date.parse(w.start)) / 1000 : 0
   return (
     <Link to={`/lift/history/${w.id}`} className="press card flex items-center gap-3 p-3 pr-2.5">
-      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[8px] bg-ink-2 font-display text-[17px] font-black uppercase text-fg-2">
-        {fmt(w.start, 'd')}
-      </span>
+      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[8px] bg-ink-2 font-display text-[17px] font-black uppercase text-fg-2">{fmt(w.start, 'd')}</span>
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-2">
           <span className="truncate text-[15px] font-semibold">{w.name}</span>

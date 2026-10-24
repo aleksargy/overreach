@@ -29,7 +29,17 @@ export function ExerciseSheet() {
   )
 }
 
-function Chips<T extends string | number>({ value, options, onChange, format = String }: { value: T; options: readonly T[] | { key: T; label: string }[]; onChange: (v: T) => void; format?: (v: T) => string }) {
+function Chips<T extends string | number>({
+  value,
+  options,
+  onChange,
+  format = String,
+}: {
+  value: T
+  options: readonly T[] | { key: T; label: string }[]
+  onChange: (v: T) => void
+  format?: (v: T) => string
+}) {
   const list = (options as (T | { key: T; label: string })[]).map((o) => (typeof o === 'object' ? o : { key: o, label: format(o) }))
   return (
     <div className="flex flex-wrap gap-2">
@@ -81,7 +91,11 @@ function ExerciseForm({ exerciseId, initialName, onSaved }: { exerciseId?: strin
       close()
       return
     }
-    const id = `custom-${name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}-${uid().slice(0, 4)}`
+    const id = `custom-${name
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')}-${uid().slice(0, 4)}`
     saveExercise({ id, custom: true, ...(patch as Omit<Exercise, 'id'>) })
     say(`${patch.name} added`)
     close()
@@ -99,7 +113,12 @@ function ExerciseForm({ exerciseId, initialName, onSaved }: { exerciseId?: strin
         <div className="label mb-2">Tracked as</div>
         <div className="grid grid-cols-2 gap-2">
           {KINDS.map((k) => (
-            <button key={k.key} type="button" onClick={() => setKind(k.key)} className={`press rounded-[10px] border p-3 text-left text-[13.5px] font-semibold leading-snug ${kind === k.key ? 'border-fg bg-ink-3' : 'border-line-2 bg-ink-1 text-fg-2'}`}>
+            <button
+              key={k.key}
+              type="button"
+              onClick={() => setKind(k.key)}
+              className={`press rounded-[10px] border p-3 text-left text-[13.5px] font-semibold leading-snug ${kind === k.key ? 'border-fg bg-ink-3' : 'border-line-2 bg-ink-1 text-fg-2'}`}
+            >
               {k.label}
             </button>
           ))}

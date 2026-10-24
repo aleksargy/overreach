@@ -44,7 +44,8 @@ export function StreamChart({ values, dt, height = 150, kind, bounds, format = (
   const id = useRef(`s${Math.random().toString(36).slice(2, 8)}`).current
   const geo = useMemo(() => {
     if (!w || values.length < 2) return null
-    const ys = downsample(values, Math.min(420, Math.max(60, Math.floor(w / 1.2))))
+    // a heart rate of 0 is the strap or watch dropping out, not a reading
+    const ys = downsample(kind === 'hr' ? values.map((v) => (v > 0 ? v : NaN)) : values, Math.min(420, Math.max(60, Math.floor(w / 1.2))))
     const fin = ys.filter(Number.isFinite)
     let lo = Math.min(...fin)
     let hi = Math.max(...fin)
@@ -60,24 +61,22 @@ export function StreamChart({ values, dt, height = 150, kind, bounds, format = (
     const right = w - 34
     const X = (i: number) => left + (i / (ys.length - 1)) * (right - left)
     const Y = (v: number) => (kind === 'pace' ? top + ((v - lo) / (hi - lo)) * (bottom - top) : bottom - ((v - lo) / (hi - lo)) * (bottom - top))
-    const pts = ys.map((v, i) => (Number.isFinite(v) ? ([X(i), Y(v)] as const) : null))
-    let d = ''
-    let pen = false
-    for (const p of pts) {
-      if (!p) {
-        pen = false
-        continue
-      }
-      d += `${pen ? 'L' : 'M'}${p[0].toFixed(1)},${p[1].toFixed(1)}`
-      pen = true
-    }
-    const valid = pts.filter((p): p is readonly [number, number] => !!p)
-    const area = valid.length ? `${d}L${valid[valid.length - 1][0]},${bottom}L${valid[0][0]},${bottom}Z` : ''
+    // a gap in the recording (a paused watch, half-time) breaks the line rather than diving to zero
+    const runs: [number, number][][] = [[]]
+    ys.forEach((v, i) => (Number.isFinite(v) ? runs[runs.length - 1].push([X(i), Y(v)]) : runs[runs.length - 1].length && runs.push([])))
+    const line = (r: [number, number][]) => r.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`).join('')
+    const filled = runs.filter((r) => r.length)
+    const d = filled.map(line).join('')
+    const area = filled.map((r) => `${line(r)}L${r[r.length - 1][0].toFixed(1)},${bottom}L${r[0][0].toFixed(1)},${bottom}Z`).join('')
     const segs: { z: number; d: string }[] = []
     if (kind === 'hr' && bounds) {
       let cur: { z: number; d: string } | null = null
       ys.forEach((v, i) => {
-        if (!Number.isFinite(v)) return
+        if (!Number.isFinite(v)) {
+          if (cur) segs.push(cur)
+          cur = null
+          return
+        }
         const z = zoneOf(v, bounds)
         const p = `${X(i).toFixed(1)},${Y(v).toFixed(1)}`
         if (!cur || cur.z !== z) {
@@ -94,7 +93,10 @@ export function StreamChart({ values, dt, height = 150, kind, bounds, format = (
     const ticks = timeTicks(totalMin).map((m) => ({ m, x: left + (m / totalMin) * (right - left) }))
     const guides =
       kind === 'hr' && bounds
-        ? bounds.slice(1).map((b, i) => ({ z: i + 1, y: Y(b) })).filter((g) => g.y > top && g.y < bottom)
+        ? bounds
+            .slice(1)
+            .map((b, i) => ({ z: i + 1, y: Y(b) }))
+            .filter((g) => g.y > top && g.y < bottom)
         : []
     const mk = (markers ?? []).map((m) => ({ ...m, x: left + (m.min / totalMin) * (right - left) }))
     return { d, area, segs, ticks, guides, lo, hi, top, bottom, right, mk, Y }
@@ -114,9 +116,11 @@ export function StreamChart({ values, dt, height = 150, kind, bounds, format = (
           {geo.guides.map((g) => (
             <g key={g.z}>
               <line x1={0} x2={geo.right} y1={g.y} y2={g.y} stroke={zoneColor(g.z, 0.35)} strokeDasharray="2 4" />
-              <text x={geo.right + 4} y={g.y + 3} className="fill-fg-4 font-mono text-[9px]">
-                Z{g.z + 1}
-              </text>
+              {g.y > geo.top + 14 && g.y < geo.bottom - 12 && (
+                <text x={geo.right + 4} y={g.y + 3} className="fill-fg-4 font-mono text-[9px]">
+                  Z{g.z + 1}
+                </text>
+              )}
             </g>
           ))}
           <path d={geo.area} fill={`url(#${id})`} />
@@ -180,14 +184,7 @@ export function Bars({ values, labels, colors, height = 120, highlight, marker, 
             const x = i * (bw + gap)
             return (
               <g key={i}>
-                <rect
-                  x={x}
-                  y={topH + plot - bh}
-                  width={bw}
-                  height={bh}
-                  rx={Math.min(2, bw / 3)}
-                  fill={colors?.[i] ?? (i === highlight ? 'rgb(var(--fg))' : 'rgb(var(--fg-4))')}
-                />
+                <rect x={x} y={topH + plot - bh} width={bw} height={bh} rx={Math.min(2, bw / 3)} fill={colors?.[i] ?? (i === highlight ? 'rgb(var(--fg))' : 'rgb(var(--fg-4))')} />
                 {valueLabels && v > 0 && (
                   <text x={x + bw / 2} y={topH + plot - bh - 4} textAnchor="middle" className="fill-fg-3 font-mono text-[9px]">
                     {format(v)}
@@ -203,14 +200,7 @@ export function Bars({ values, labels, colors, height = 120, highlight, marker, 
           })}
           {marker && (
             <g>
-              <line
-                x1={marker.index * (bw + gap) - gap / 2}
-                x2={marker.index * (bw + gap) - gap / 2}
-                y1={0}
-                y2={topH + plot}
-                stroke="rgb(var(--bad))"
-                strokeDasharray="3 3"
-              />
+              <line x1={marker.index * (bw + gap) - gap / 2} x2={marker.index * (bw + gap) - gap / 2} y1={0} y2={topH + plot} stroke="rgb(var(--bad))" strokeDasharray="3 3" />
               <text x={marker.index * (bw + gap) + 2} y={8} className="fill-bad font-mono text-[9px] font-semibold uppercase">
                 {marker.label}
               </text>

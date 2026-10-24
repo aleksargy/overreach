@@ -135,14 +135,24 @@ function Form({ activityId, matchId }: { activityId?: string; matchId?: string }
       <div className="rounded-card border border-line bg-ink-1 p-4">
         <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-2">
           <div className="flex flex-col items-center gap-2">
-            <input aria-label="Your team" value={team} onChange={(e) => setTeam(e.target.value)} className="w-full bg-transparent text-center font-display text-[18px] font-extrabold uppercase tracking-wide text-fg focus:outline-none" />
+            <input
+              aria-label="Your team"
+              value={team}
+              onChange={(e) => setTeam(e.target.value)}
+              className="w-full bg-transparent text-center font-display text-[18px] font-extrabold uppercase tracking-wide text-fg focus:outline-none"
+            />
             <Stepper value={scoreFor} onChange={setFor} big stack />
           </div>
           <button aria-label="Swap team names" onClick={() => (setTeam(opponent), setOpponent(team))} className="press mt-1 grid h-8 w-8 place-items-center rounded-full text-fg-3">
             <ArrowLeftRight size={15} />
           </button>
           <div className="flex flex-col items-center gap-2">
-            <input aria-label="Opponent" value={opponent} onChange={(e) => setOpponent(e.target.value)} className="w-full bg-transparent text-center font-display text-[18px] font-extrabold uppercase tracking-wide text-fg-2 focus:outline-none" />
+            <input
+              aria-label="Opponent"
+              value={opponent}
+              onChange={(e) => setOpponent(e.target.value)}
+              className="w-full bg-transparent text-center font-display text-[18px] font-extrabold uppercase tracking-wide text-fg-2 focus:outline-none"
+            />
             <Stepper value={scoreAgainst} onChange={setAgainst} big stack />
           </div>
         </div>
@@ -203,7 +213,13 @@ function Form({ activityId, matchId }: { activityId?: string; matchId?: string }
 
       <div>
         <div className="label mb-2">Notes</div>
-        <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Calf was tight, keeper rotation killed us…" className={`${inputCls} h-auto py-3`} />
+        <textarea
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          rows={2}
+          placeholder="Calf was tight, keeper rotation killed us…"
+          className={`${inputCls} h-auto py-3`}
+        />
       </div>
 
       <button onClick={submit} disabled={busy} className="btn-primary h-14 w-full text-[17px] disabled:opacity-60">

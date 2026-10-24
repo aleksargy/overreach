@@ -33,21 +33,13 @@ export function Screen({ title, kicker, actions, back, hero, children, bottomPad
         <div className="gutter mx-auto grid h-12 max-w-app grid-cols-[1fr_auto_1fr] items-center">
           <div className="flex">
             {back && (
-              <button
-                onClick={() => (window.history.length > 1 ? nav(-1) : nav('/'))}
-                className="press -ml-2 flex h-10 items-center gap-0.5 pr-3 text-fg-2"
-                aria-label="Back"
-              >
+              <button onClick={() => (window.history.length > 1 ? nav(-1) : nav('/'))} className="press -ml-2 flex h-10 items-center gap-0.5 pr-3 text-fg-2" aria-label="Back">
                 <ChevronLeft size={22} strokeWidth={2.25} />
                 <span className="text-[15px] font-medium">Back</span>
               </button>
             )}
           </div>
-          <span
-            className={`truncate font-display text-[19px] font-extrabold uppercase tracking-wide transition-opacity duration-200 ${
-              scrolled ? 'opacity-100' : 'opacity-0'
-            }`}
-          >
+          <span className={`truncate font-display text-[19px] font-extrabold uppercase tracking-wide transition-opacity duration-200 ${scrolled ? 'opacity-100' : 'opacity-0'}`}>
             {title}
           </span>
           <div className="flex justify-end gap-1.5">{actions}</div>

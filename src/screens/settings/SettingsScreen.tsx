@@ -1,9 +1,9 @@
 import { Check, Download, ExternalLink, RefreshCw, Upload } from 'lucide-react'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Screen } from '../../components/ui/Screen'
 import { Field, NumInput, Section, Segmented, Toggle, inputCls } from '../../components/ui/bits'
 import { APP_NAME, APP_TAGLINE } from '../../config'
-import { syncAll } from '../../data/api'
+import { ApiError, getStatus, syncAll, type ServerStatus } from '../../data/api'
 import { useStore } from '../../data/store'
 import type { Format, Position } from '../../data/types'
 import { useUi } from '../../data/ui'
@@ -94,6 +94,32 @@ function Football() {
   )
 }
 
+const OFFLINE = 'Can’t reach the sync functions. They go live once the app is deployed to Netlify.'
+const PREVIEW = import.meta.env.VITE_PREVIEW === '1'
+
+/** What the server says about itself, checked whenever the passphrase settles. */
+function useServerStatus(pass: string | undefined, bump: number) {
+  const [st, setSt] = useState<{ ok?: ServerStatus; error?: string } | null>(null)
+  useEffect(() => {
+    if (!pass || PREVIEW) return setSt(null)
+    let alive = true
+    const t = setTimeout(() => {
+      getStatus()
+        .then((ok) => alive && setSt({ ok }))
+        .catch((e: unknown) => {
+          if (!alive) return
+          const offline = !(e instanceof ApiError) || e.status === 404
+          setSt({ error: offline ? OFFLINE : e.message })
+        })
+    }, 500)
+    return () => {
+      alive = false
+      clearTimeout(t)
+    }
+  }, [pass, bump])
+  return st
+}
+
 function Garmin() {
   const sync = useStore((s) => s.sync)
   const setSync = useStore((s) => s.setSync)
@@ -101,20 +127,23 @@ function Garmin() {
   const w = useWorld()
   const [busy, setBusy] = useState(false)
   const [progress, setProgress] = useState<string | null>(null)
+  const [bump, setBump] = useState(0)
+  const server = useServerStatus(sync.passphrase, bump)
   const live = w.mode === 'live'
 
   const run = async () => {
     setBusy(true)
     setProgress('Connecting…')
     try {
-      const added = await syncAll((s) => setProgress(s.message))
-      setProgress(added ? `Done: ${added} new activities` : 'Up to date')
+      const added = await syncAll((s) => setProgress(s.done ? 'Loading it into the app…' : s.message))
+      setProgress(added ? `Done: ${added} new ${added === 1 ? 'activity' : 'activities'}` : 'Up to date')
     } catch (e) {
       setProgress(null)
-      const msg = e instanceof Error ? e.message : String(e)
-      setSync({ status: 'error', message: /fetch|network|404|Failed/i.test(msg) ? 'Can’t reach the sync functions. They go live once the app is deployed to Netlify.' : msg })
+      const offline = !(e instanceof ApiError) || e.status === 404
+      setSync({ status: 'error', message: offline ? OFFLINE : e.message })
     } finally {
       setBusy(false)
+      setBump((n) => n + 1)
     }
   }
 
@@ -130,19 +159,18 @@ function Garmin() {
               {garmin ? ` · ${garmin.activities.length} activities` : ''}
             </span>
           </span>
-          {garmin && (
-            <Toggle
-              label="Use Garmin data"
-              on={sync.mode === 'live'}
-              onChange={(on) => setSync({ mode: on ? 'live' : 'sample' })}
-            />
-          )}
+          {garmin && <Toggle label="Use Garmin data" on={sync.mode === 'live'} onChange={(on) => setSync({ mode: on ? 'live' : 'sample' })} />}
         </div>
         <ol className="border-t border-line px-4 py-3 text-[13.5px] leading-snug text-fg-2">
           {[
             <>
               Get a Personal API key from the{' '}
-              <a href="https://developer.garmin.com/gc-developer-program/overview/" target="_blank" rel="noreferrer" className="inline-flex items-center gap-0.5 text-fg underline decoration-fg-4 underline-offset-2">
+              <a
+                href="https://developer.garmin.com/gc-developer-program/overview/"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-0.5 text-fg underline decoration-fg-4 underline-offset-2"
+              >
                 Garmin developer programme <ExternalLink size={12} />
               </a>
               .
@@ -175,9 +203,39 @@ function Garmin() {
           </button>
           {progress && <p className="font-mono text-[11px] text-fg-3">{progress}</p>}
           {sync.status === 'error' && sync.message && !busy && <p className="text-[13px] leading-snug text-warn">{sync.message}</p>}
+          {PREVIEW && <p className="text-[12.5px] leading-snug text-fg-3">This preview runs on sample data. Sync works once the app is on Netlify.</p>}
+          {server && !busy && <ServerLine st={server} />}
         </div>
       </div>
     </Section>
+  )
+}
+
+const WARN_LABEL: Record<string, string> = {
+  activities: 'activities',
+  dailies: 'daily summaries',
+  hrv: 'HRV',
+  sleep: 'sleep',
+  weight: 'weight',
+  zones: 'heart rate zones',
+  fit: 'a FIT file',
+}
+
+function ServerLine({ st }: { st: { ok?: ServerStatus; error?: string } }) {
+  if (st.error) return <p className="text-[13px] leading-snug text-warn">{st.error}</p>
+  const s = st.ok!
+  if (!s.hasKey) return <p className="text-[13px] leading-snug text-warn">The passphrase works. Now add GARMIN_PERSONAL_API_KEY in Netlify and redeploy.</p>
+  const warn = Object.keys(s.warnings ?? {})
+  return (
+    <div className="flex flex-col gap-1 font-mono text-[11px] leading-snug text-fg-3">
+      <span className="flex items-center gap-1.5">
+        <span className="h-1.5 w-1.5 rounded-full bg-z2" />
+        Server ready · {s.activities} activities · {s.days} days
+      </span>
+      {!s.backfillDone && s.activities > 0 && <span>History is still coming in. The server carries on every hour, so you can close the app.</span>}
+      {s.message && <span className="text-warn">{s.message}</span>}
+      {warn.length > 0 && <span className="text-warn">Garmin didn’t send {warn.map((k) => WARN_LABEL[k] ?? k).join(', ')}. The rest synced fine.</span>}
+    </div>
   )
 }
 

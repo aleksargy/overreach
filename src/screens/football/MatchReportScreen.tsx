@@ -30,10 +30,25 @@ export function MatchReportScreen() {
   const [half, setHalf] = useState<'all' | '1' | '2'>('all')
   const [confirmDelete, setConfirmDelete] = useState(false)
 
-  const base = useMemo(() => (m ? baselineFor(m.format, rowsFor(w, w.matches.filter((x) => x.id !== m.id))) : null), [m, w])
+  const base = useMemo(
+    () =>
+      m
+        ? baselineFor(
+            m.format,
+            rowsFor(
+              w,
+              w.matches.filter((x) => x.id !== m.id),
+            ),
+          )
+        : null,
+    [m, w],
+  )
   const seasonMedian = useMemo(() => {
     if (!m) return null
-    const others = rowsFor(w, w.matches.filter((x) => x.id !== m.id && x.format === m.format)).filter((r) => r.analysis)
+    const others = rowsFor(
+      w,
+      w.matches.filter((x) => x.id !== m.id && x.format === m.format),
+    ).filter((r) => r.analysis)
     if (!others.length) return null
     return {
       dist: median(others.map((r) => r.analysis!.distanceM)),
@@ -140,7 +155,9 @@ export function MatchReportScreen() {
                       style={{ width: `${Math.min(50, Math.abs(f.value) * 30)}%` }}
                     />
                   </span>
-                  <span className={`w-12 text-right font-mono text-[13px] font-semibold ${f.value > 0 ? 'text-good' : f.value < 0 ? 'text-bad' : 'text-fg-3'}`}>{signed(f.value, 2)}</span>
+                  <span className={`w-12 text-right font-mono text-[13px] font-semibold ${f.value > 0 ? 'text-good' : f.value < 0 ? 'text-bad' : 'text-fg-3'}`}>
+                    {signed(f.value, 2)}
+                  </span>
                 </span>
               </div>
             ))}
@@ -153,17 +170,23 @@ export function MatchReportScreen() {
           <Section
             title="Heatmap"
             action={
-              <button
-                onClick={() => saveMatch({ ...m, flip: !m.flip })}
-                className="flex items-center gap-1.5 font-mono text-[10.5px] uppercase tracking-[0.1em] text-fg-3"
-              >
+              <button onClick={() => saveMatch({ ...m, flip: !m.flip })} className="flex items-center gap-1.5 font-mono text-[10.5px] uppercase tracking-[0.1em] text-fg-3">
                 <FlipHorizontal2 size={14} /> Flip
               </button>
             }
           >
             <PitchHeatmap points={heat} format={m.format} flip={m.flip} />
             <div className="mt-2">
-              <Segmented size="sm" value={half} onChange={setHalf} options={[{ value: 'all', label: 'Full game' }, { value: '1', label: '1st half' }, { value: '2', label: '2nd half' }]} />
+              <Segmented
+                size="sm"
+                value={half}
+                onChange={setHalf}
+                options={[
+                  { value: 'all', label: 'Full game' },
+                  { value: '1', label: '1st half' },
+                  { value: '2', label: '2nd half' },
+                ]}
+              />
             </div>
             <p className="mt-2 text-[12px] text-fg-4">Pitch framed from your GPS. Tap flip if you were attacking the other way.</p>
           </Section>
@@ -186,7 +209,9 @@ export function MatchReportScreen() {
               </div>
               <div className="card p-3">
                 <div className="label">Legs went</div>
-                <div className={`num mt-1 text-[26px] ${an.fadeMinute !== undefined ? 'text-bad' : 'text-good'}`}>{an.fadeMinute !== undefined ? `${ordinal(an.fadeMinute)} min` : 'Never'}</div>
+                <div className={`num mt-1 text-[26px] ${an.fadeMinute !== undefined ? 'text-bad' : 'text-good'}`}>
+                  {an.fadeMinute !== undefined ? `${ordinal(an.fadeMinute)} min` : 'Never'}
+                </div>
               </div>
             </div>
           </Section>

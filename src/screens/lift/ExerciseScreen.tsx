@@ -103,11 +103,16 @@ export function ExerciseScreen() {
           </div>
 
           {points.length > 1 && (
-            <Section title={e1 ? 'Estimated 1RM' : ex.kind === 'weighted-bodyweight' ? 'Most added weight' : ex.kind === 'duration' ? 'Longest hold' : 'Most reps'} action={<span className="font-mono text-[10.5px] uppercase text-fg-3">{points.length} sessions</span>}>
+            <Section
+              title={e1 ? 'Estimated 1RM' : ex.kind === 'weighted-bodyweight' ? 'Most added weight' : ex.kind === 'duration' ? 'Longest hold' : 'Most reps'}
+              action={<span className="font-mono text-[10.5px] uppercase text-fg-3">{points.length} sessions</span>}
+            >
               <div className="card p-4">
                 <TrendChart points={points} avg={avg} format={(v) => `${fmtKg(Math.round(v))}`} xLabel={(t) => fmt(new Date(t).toISOString(), 'd MMM')} />
                 <p className="mt-2 text-[12px] leading-snug text-fg-3">
-                  {e1 ? 'Dots are each session’s best set, as a one-rep max worked out from weight, reps and RPE. The line is your best so far.' : 'Dots are each session, the line is your best so far.'}
+                  {e1
+                    ? 'Dots are each session’s best set, as a one-rep max worked out from weight, reps and RPE. The line is your best so far.'
+                    : 'Dots are each session, the line is your best so far.'}
                 </p>
               </div>
             </Section>
@@ -123,7 +128,10 @@ export function ExerciseScreen() {
                   </div>
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {h.sets.map((x) => (
-                      <span key={x.id} className={`inline-flex items-center gap-1.5 rounded-[6px] border px-2 py-1 font-mono text-[11.5px] ${x.kind === 'warmup' ? 'border-line text-fg-4' : 'border-line-2 text-fg'}`}>
+                      <span
+                        key={x.id}
+                        className={`inline-flex items-center gap-1.5 rounded-[6px] border px-2 py-1 font-mono text-[11.5px] ${x.kind === 'warmup' ? 'border-line text-fg-4' : 'border-line-2 text-fg'}`}
+                      >
                         {setText(ex, x)}
                         {x.rpe ? <span className={`rounded-[3px] px-1 text-[10px] font-semibold ${rpeTone(x.rpe)}`}>{fmtRpe(x.rpe)}</span> : null}
                       </span>

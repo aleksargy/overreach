@@ -28,6 +28,9 @@ export function ActivityScreen() {
   }
   if (a.sport === 'strength' && a.workoutId) return <Navigate to={`/lift/history/${a.workoutId}`} replace />
   const bounds = zoneBounds(w.profile)
+  // Garmin activities get their laps with the stream, and the climb from it when the summary had none
+  const withLaps = a.laps || !stream?.laps ? a : { ...a, laps: stream.laps }
+  const act = withLaps.elevGainM === undefined && stream?.alt ? { ...withLaps, elevGainM: climb(stream.alt) } : withLaps
   return (
     <Screen title={a.name} back>
       <div className="flex items-center gap-2 pt-1">
@@ -45,7 +48,7 @@ export function ActivityScreen() {
         </div>
       )}
 
-      <HeadStats a={a} />
+      <HeadStats a={act} />
 
       {a.sport === 'football' && <FootballCta a={a} />}
 
@@ -55,10 +58,10 @@ export function ActivityScreen() {
         </div>
       </Section>
 
-      {stream && <Charts a={a} s={stream} bounds={bounds} />}
+      {stream && <Charts a={act} s={stream} bounds={bounds} />}
 
-      {a.sport === 'run' && a.laps && a.laps.length > 1 && <Splits a={a} />}
-      {a.sport === 'swim' && a.laps && <Lengths a={a} />}
+      {act.sport === 'run' && act.laps && act.laps.length > 1 && <Splits a={act} />}
+      {act.sport === 'swim' && act.laps && <Lengths a={act} />}
     </Screen>
   )
 }
@@ -67,16 +70,45 @@ function HeadStats({ a }: { a: Activity }) {
   const items: { label: string; value: string; unit?: string }[] = []
   if (a.sport === 'run') {
     items.push({ label: 'Distance', value: km(a.distanceM), unit: 'km' }, { label: 'Time', value: clock(a.durationS) }, { label: 'Pace', value: pace(a.avgSpeed), unit: '/km' })
-    items.push({ label: 'Avg HR', value: String(a.avgHr ?? '–'), unit: 'bpm' }, { label: 'Climb', value: String(a.elevGainM ?? 0), unit: 'm' }, { label: 'Cadence', value: String(a.avgCadence ?? '–'), unit: 'spm' })
+    items.push(
+      { label: 'Avg HR', value: String(a.avgHr ?? '–'), unit: 'bpm' },
+      { label: 'Climb', value: String(a.elevGainM ?? 0), unit: 'm' },
+      { label: 'Cadence', value: String(a.avgCadence ?? '–'), unit: 'spm' },
+    )
   } else if (a.sport === 'ride') {
-    items.push({ label: 'Distance', value: km(a.distanceM), unit: 'km' }, { label: 'Time', value: clock(a.durationS) }, { label: 'Speed', value: kmh(a.avgSpeed).toFixed(1), unit: 'km/h' })
-    items.push({ label: 'Power', value: String(a.avgPower ?? '–'), unit: 'W' }, { label: 'Climb', value: String(a.elevGainM ?? 0), unit: 'm' }, { label: 'Avg HR', value: String(a.avgHr ?? '–'), unit: 'bpm' })
+    items.push(
+      { label: 'Distance', value: km(a.distanceM), unit: 'km' },
+      { label: 'Time', value: clock(a.durationS) },
+      { label: 'Speed', value: kmh(a.avgSpeed).toFixed(1), unit: 'km/h' },
+    )
+    items.push(
+      { label: 'Power', value: String(a.avgPower ?? '–'), unit: 'W' },
+      { label: 'Climb', value: String(a.elevGainM ?? 0), unit: 'm' },
+      { label: 'Avg HR', value: String(a.avgHr ?? '–'), unit: 'bpm' },
+    )
   } else if (a.sport === 'swim') {
-    items.push({ label: 'Distance', value: String(a.distanceM ?? 0), unit: 'm' }, { label: 'Time', value: clock(a.durationS) }, { label: 'Pace', value: swimPace(a.distanceM && a.laps ? a.distanceM / a.laps.reduce((s, l) => s + l.durationS, 0) : a.avgSpeed), unit: '/100m' })
-    items.push({ label: 'SWOLF', value: String(a.swim?.swolf ?? '–') }, { label: 'Lengths', value: String(a.swim?.lengths ?? '–') }, { label: 'Avg HR', value: String(a.avgHr ?? '–'), unit: 'bpm' })
+    items.push(
+      { label: 'Distance', value: String(a.distanceM ?? 0), unit: 'm' },
+      { label: 'Time', value: clock(a.durationS) },
+      { label: 'Pace', value: swimPace(a.distanceM && a.laps ? a.distanceM / a.laps.reduce((s, l) => s + l.durationS, 0) : a.avgSpeed), unit: '/100m' },
+    )
+    items.push(
+      { label: 'SWOLF', value: a.swim?.swolf ? String(a.swim.swolf) : '–' },
+      { label: 'Lengths', value: String(a.swim?.lengths ?? '–') },
+      { label: 'Avg HR', value: String(a.avgHr ?? '–'), unit: 'bpm' },
+    )
   } else {
-    items.push({ label: 'Time', value: dur(a.durationS) }, { label: 'Distance', value: km(a.distanceM, 1), unit: 'km' }, { label: 'Avg HR', value: String(a.avgHr ?? '–'), unit: 'bpm' })
-    if (a.football) items.push({ label: 'Sprints', value: String(a.football.sprints) }, { label: 'Top speed', value: a.football.topSpeedKmh.toFixed(1), unit: 'km/h' }, { label: 'Max HR', value: String(a.maxHr ?? '–'), unit: 'bpm' })
+    items.push(
+      { label: 'Time', value: dur(a.durationS) },
+      a.distanceM || a.football ? { label: 'Distance', value: km(a.distanceM, 1), unit: 'km' } : { label: 'Max HR', value: String(a.maxHr ?? '–'), unit: 'bpm' },
+      { label: 'Avg HR', value: String(a.avgHr ?? '–'), unit: 'bpm' },
+    )
+    if (a.football)
+      items.push(
+        { label: 'Sprints', value: String(a.football.sprints) },
+        { label: 'Top speed', value: a.football.topSpeedKmh.toFixed(1), unit: 'km/h' },
+        { label: 'Max HR', value: String(a.maxHr ?? '–'), unit: 'bpm' },
+      )
   }
   return (
     <div className="card mt-4 grid grid-cols-3 gap-y-4 p-4">
@@ -111,7 +143,14 @@ function Charts({ a, s, bounds }: { a: Activity; s: Stream; bounds: number[] }) 
   return (
     <>
       {s.hr && (
-        <Section title="Heart rate" action={<span className="font-mono text-[10.5px] text-fg-3">avg {a.avgHr} · max {a.maxHr}</span>}>
+        <Section
+          title="Heart rate"
+          action={
+            <span className="font-mono text-[10.5px] text-fg-3">
+              avg {a.avgHr} · max {a.maxHr}
+            </span>
+          }
+        >
           <div className="card p-4">
             <StreamChart values={s.hr} dt={s.dt} kind="hr" bounds={bounds} />
           </div>
@@ -142,6 +181,20 @@ function Charts({ a, s, bounds }: { a: Activity; s: Stream; bounds: number[] }) 
   )
 }
 
+/** Metres climbed, ignoring wobbles under 2 m so barometer noise doesn't add up. */
+function climb(alt: number[]): number {
+  let gain = 0
+  let low = alt[0] ?? 0
+  for (const x of alt) {
+    if (x < low) low = x
+    else if (x - low >= 2) {
+      gain += x - low
+      low = x
+    }
+  }
+  return Math.round(gain)
+}
+
 function smooth(xs: number[], k: number) {
   return xs.map((_, i) => mean(xs.slice(Math.max(0, i - k), i + 1)))
 }
@@ -170,9 +223,7 @@ function Splits({ a }: { a: Activity }) {
               <span className="h-2 rounded-full bg-ink-3">
                 <span className={`block h-full rounded-full ${best ? 'bg-fg' : 'bg-fg-4'}`} style={{ width: `${30 + t * 70}%` }} />
               </span>
-              <span className={`num text-right text-[18px] ${best ? '' : 'text-fg-2'}`}>
-                {l.distanceM < 950 ? pace(l.avgSpeed) + '*' : pace(l.avgSpeed)}
-              </span>
+              <span className={`num text-right text-[18px] ${best ? '' : 'text-fg-2'}`}>{l.distanceM < 950 ? pace(l.avgSpeed) + '*' : pace(l.avgSpeed)}</span>
               <span className="text-right font-mono text-[12px] text-fg-3">{l.avgHr}</span>
             </div>
           )
@@ -185,7 +236,14 @@ function Splits({ a }: { a: Activity }) {
 function Lengths({ a }: { a: Activity }) {
   const laps = a.laps!
   return (
-    <Section title="Lengths" action={<span className="font-mono text-[10.5px] text-fg-3">{a.swim?.poolM} m pool · {a.swim?.stroke}</span>}>
+    <Section
+      title="Lengths"
+      action={
+        <span className="font-mono text-[10.5px] text-fg-3">
+          {a.swim?.poolM} m pool{a.swim?.stroke ? ` · ${a.swim.stroke}` : ''}
+        </span>
+      }
+    >
       <div className="card p-4">
         <Bars values={laps.map((l) => l.durationS)} height={110} highlight={laps.reduce((b, l, i) => (l.durationS < laps[b].durationS ? i : b), 0)} />
         <p className="mt-2 text-[12px] text-fg-3">Seconds per {a.swim?.poolM} m length. Shorter is faster. Fastest length highlighted.</p>

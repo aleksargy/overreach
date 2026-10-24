@@ -66,7 +66,14 @@ function Form() {
 
       <label className="block">
         <span className="label mb-1.5 block">Body fat %</span>
-        <NumInput label="Body fat percent" decimal value={fat} onChange={setFat} placeholder={lastFat ? lastFat.toFixed(1) : 'optional'} className={`${inputCls} num text-[20px]`} />
+        <NumInput
+          label="Body fat percent"
+          decimal
+          value={fat}
+          onChange={setFat}
+          placeholder={lastFat ? lastFat.toFixed(1) : 'optional'}
+          className={`${inputCls} num text-[20px]`}
+        />
       </label>
 
       <div>

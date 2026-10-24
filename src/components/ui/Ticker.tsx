@@ -3,7 +3,21 @@ import { useEffect, useRef, useState } from 'react'
 const reduced = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 
 /** Counts up to `value` when it first renders (and eases to new values after). */
-export function Ticker({ value, dp = 0, duration = 900, delay = 0, format, className }: { value: number; dp?: number; duration?: number; delay?: number; format?: (v: number) => string; className?: string }) {
+export function Ticker({
+  value,
+  dp = 0,
+  duration = 900,
+  delay = 0,
+  format,
+  className,
+}: {
+  value: number
+  dp?: number
+  duration?: number
+  delay?: number
+  format?: (v: number) => string
+  className?: string
+}) {
   const [shown, setShown] = useState(() => (reduced() ? value : 0))
   const from = useRef(shown)
   useEffect(() => {

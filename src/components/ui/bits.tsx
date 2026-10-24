@@ -15,7 +15,21 @@ export function Section({ title, action, children, className = '' }: { title?: R
   )
 }
 
-export function Stat({ label, value, unit, sub, size = 'md', tone }: { label: string; value: ReactNode; unit?: string; sub?: ReactNode; size?: 'sm' | 'md' | 'lg'; tone?: string }) {
+export function Stat({
+  label,
+  value,
+  unit,
+  sub,
+  size = 'md',
+  tone,
+}: {
+  label: string
+  value: ReactNode
+  unit?: string
+  sub?: ReactNode
+  size?: 'sm' | 'md' | 'lg'
+  tone?: string
+}) {
   const cls = size === 'lg' ? 'text-[44px]' : size === 'sm' ? 'text-[24px]' : 'text-[32px]'
   return (
     <div className="min-w-0">
@@ -91,7 +105,23 @@ export function Segmented<T extends string | number>({
  * Big tappable counter used for scores, goals and assists.
  * `stack` puts the buttons under the number, for narrow columns like a scoreboard.
  */
-export function Stepper({ value, onChange, min = 0, max = 99, label, big, stack }: { value: number; onChange: (v: number) => void; min?: number; max?: number; label?: string; big?: boolean; stack?: boolean }) {
+export function Stepper({
+  value,
+  onChange,
+  min = 0,
+  max = 99,
+  label,
+  big,
+  stack,
+}: {
+  value: number
+  onChange: (v: number) => void
+  min?: number
+  max?: number
+  label?: string
+  big?: boolean
+  stack?: boolean
+}) {
   const dec = (
     <button
       aria-label={`Decrease ${label ?? ''}`}
@@ -103,7 +133,11 @@ export function Stepper({ value, onChange, min = 0, max = 99, label, big, stack 
     </button>
   )
   const inc = (
-    <button aria-label={`Increase ${label ?? ''}`} onClick={() => onChange(Math.min(max, value + 1))} className="press grid h-11 w-11 place-items-center rounded-full bg-fg text-ink-0">
+    <button
+      aria-label={`Increase ${label ?? ''}`}
+      onClick={() => onChange(Math.min(max, value + 1))}
+      className="press grid h-11 w-11 place-items-center rounded-full bg-fg text-ink-0"
+    >
       <Plus size={18} />
     </button>
   )
@@ -172,11 +206,24 @@ export function Field({ label, children, hint }: { label: string; children: Reac
   )
 }
 
-export const inputCls =
-  'h-12 w-full rounded-[10px] border border-line-2 bg-ink-1 px-3.5 text-[16px] text-fg placeholder:text-fg-4 focus:border-fg focus:outline-none'
+export const inputCls = 'h-12 w-full rounded-[10px] border border-line-2 bg-ink-1 px-3.5 text-[16px] text-fg placeholder:text-fg-4 focus:border-fg focus:outline-none'
 
 /** Numeric field that lets you type "72." on the way to "72.5". */
-export function NumInput({ value, placeholder, onChange, decimal, label, className = numInputCls }: { value?: number; placeholder?: string; onChange: (v: number | undefined) => void; decimal?: boolean; label: string; className?: string }) {
+export function NumInput({
+  value,
+  placeholder,
+  onChange,
+  decimal,
+  label,
+  className = numInputCls,
+}: {
+  value?: number
+  placeholder?: string
+  onChange: (v: number | undefined) => void
+  decimal?: boolean
+  label: string
+  className?: string
+}) {
   const [draft, setDraft] = useState(value === undefined ? '' : String(value))
   const focused = useRef(false)
   useEffect(() => {
@@ -208,4 +255,5 @@ export function NumInput({ value, placeholder, onChange, decimal, label, classNa
   )
 }
 
-export const numInputCls = 'num h-9 w-full min-w-0 rounded-[7px] bg-ink-2 text-center text-[18px] placeholder:text-fg-4 focus:bg-ink-3 focus:outline-none focus:ring-1 focus:ring-fg/60'
+export const numInputCls =
+  'num h-9 w-full min-w-0 rounded-[7px] bg-ink-2 text-center text-[18px] placeholder:text-fg-4 focus:bg-ink-3 focus:outline-none focus:ring-1 focus:ring-fg/60'

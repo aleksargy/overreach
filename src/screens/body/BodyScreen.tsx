@@ -45,7 +45,14 @@ function WeightCard({ body, now }: { body: BodyEntry[]; now: Date }) {
   }, [body, now])
   if (!data.ws.length) {
     return (
-      <Empty title="No weigh-ins yet" action={<button className="btn-primary mt-2" onClick={() => open({ type: 'logBody' })}>Weigh in</button>}>
+      <Empty
+        title="No weigh-ins yet"
+        action={
+          <button className="btn-primary mt-2" onClick={() => open({ type: 'logBody' })}>
+            Weigh in
+          </button>
+        }
+      >
         Weigh in a few mornings a week. The 7-day average smooths out water and salt.
       </Empty>
     )
@@ -67,8 +74,7 @@ function WeightCard({ body, now }: { body: BodyEntry[]; now: Date }) {
           <Ticker value={last.v} dp={1} className="num text-[84px] leading-[0.8]" duration={1000} />
           <span className="mb-1 font-mono text-[12px] text-fg-3">kg</span>
           <span className="mb-1 ml-auto text-right font-mono text-[11px] leading-snug text-fg-3">
-            {change <= 0 ? '−' : '+'}
-            {Math.abs(change / weeks).toFixed(2)} kg a week
+            {Math.abs(change / weeks) < 0.005 ? 'Steady' : `${change < 0 ? '−' : '+'}${Math.abs(change / weeks).toFixed(2)} kg a week`}
             <br />
             over {Math.round(weeks)} weeks
           </span>

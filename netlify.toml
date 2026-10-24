@@ -6,6 +6,12 @@
   directory = "netlify/functions"
   node_bundler = "esbuild"
 
+# the app calls /api/<name>; functions live at /.netlify/functions/<name>
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
