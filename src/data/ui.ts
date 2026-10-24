@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 
 export type SheetState =
+  | { type: 'log' }
   | { type: 'logMatch'; activityId?: string; matchId?: string }
   | { type: 'logBody' }
   | { type: 'exercise'; exerciseId?: string; name?: string; onSaved?: (id: string) => void }

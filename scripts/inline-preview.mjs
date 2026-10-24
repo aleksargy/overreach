@@ -29,8 +29,9 @@ const safeJs = js.replace(/<\/script/gi, '<\\/script')
 if (/<!--/.test(safeJs)) console.warn('warning: bundle contains "<!--"; check the inline script parses')
 
 const page = `<title>${title}</title>
+<meta charset="utf-8">
 <meta name="claude:viewport-fit-sides" content="cover">
-<meta name="theme-color" content="#08090c">
+<meta name="theme-color" content="#08080a">
 <style>${slimCss}</style>
 <div id="root"></div>
 <script type="module">${safeJs}</script>

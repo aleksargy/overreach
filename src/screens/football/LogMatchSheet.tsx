@@ -16,7 +16,7 @@ export function LogMatchSheet() {
   const close = useUi((s) => s.close)
   const open = sheet?.type === 'logMatch'
   return (
-    <Sheet open={open} onClose={close} title={sheet?.type === 'logMatch' && sheet.matchId ? 'Edit match' : 'Log a match'} kicker="Match report">
+    <Sheet open={open} onClose={close} title={sheet?.type === 'logMatch' && sheet.matchId ? 'Edit match' : 'Log a match'}>
       {open && <Form key={(sheet.activityId ?? '') + (sheet.matchId ?? '')} activityId={sheet.activityId} matchId={sheet.matchId} />}
     </Sheet>
   )
@@ -97,90 +97,99 @@ function Form({ activityId, matchId }: { activityId?: string; matchId?: string }
   }
 
   return (
-    <div className="flex flex-col gap-6 pb-2">
+    <div className="flex flex-col gap-7 pb-2">
       <div>
-        <div className="label mb-2">Watch recording</div>
+        <div className="label mb-2.5">Watch recording</div>
         <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4">
           {candidates.map((a) => (
             <button
               key={a.id}
               onClick={() => setLinked(a.id)}
-              className={`press min-w-[148px] shrink-0 rounded-[10px] border p-3 text-left ${linked === a.id ? 'border-fg bg-ink-3' : 'border-line-2 bg-ink-1'}`}
+              className={`press min-w-[150px] shrink-0 rounded-[16px] p-3.5 text-left ring-inset transition-shadow ${linked === a.id ? 'bg-ink-3 ring-[1.5px] ring-fg' : 'bg-ink-2 ring-1 ring-fg/[0.05]'}`}
             >
               <span className="flex items-center justify-between">
-                <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-fg-3">{fmt(a.start, 'EEE d MMM')}</span>
-                {linked === a.id && <Check size={14} />}
+                <span className="text-[12px] font-medium text-fg-3">{fmt(a.start, 'EEE d MMM')}</span>
+                {linked === a.id && <Check size={14} strokeWidth={2.25} />}
               </span>
-              <span className="mt-1 block font-display text-[20px] font-extrabold uppercase leading-none">{a.name}</span>
-              <span className="mt-1 block font-mono text-[10.5px] text-fg-3">
+              <span className="mt-1.5 block truncate text-[15px] font-semibold leading-tight">{a.name}</span>
+              <span className="meta mt-0.5 block">
                 {dur(a.durationS)} · {km(a.distanceM, 1)} km
               </span>
             </button>
           ))}
           <button
             onClick={() => setLinked(undefined)}
-            className={`press min-w-[120px] shrink-0 rounded-[10px] border p-3 text-left ${!linked ? 'border-fg bg-ink-3' : 'border-dashed border-line-2'}`}
+            className={`press min-w-[130px] shrink-0 rounded-[16px] p-3.5 text-left ring-inset ${!linked ? 'bg-ink-3 ring-[1.5px] ring-fg' : 'ring-1 ring-fg/[0.12]'}`}
           >
-            <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-fg-3">No watch</span>
-            <span className="mt-1 block text-[13px] text-fg-2">Rate it from what you log</span>
+            <span className="text-[12px] font-medium text-fg-3">No watch</span>
+            <span className="mt-1.5 block text-[13px] leading-snug text-fg-2">Rate it from what you log</span>
           </button>
         </div>
       </div>
 
       <div>
-        <div className="label mb-2">Format</div>
+        <div className="label mb-2.5">Format</div>
         <Segmented size="sm" value={format} onChange={setFormat} options={FORMATS.map((f) => ({ value: f, label: `${f}s` }))} />
       </div>
 
-      <div className="rounded-card border border-line bg-ink-1 p-4">
+      <div className="rounded-card bg-ink-2 p-4">
         <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-2">
-          <div className="flex flex-col items-center gap-2">
+          <div className="flex flex-col items-center gap-3">
             <input
               aria-label="Your team"
               value={team}
               onChange={(e) => setTeam(e.target.value)}
-              className="w-full bg-transparent text-center font-display text-[18px] font-extrabold uppercase tracking-wide text-fg focus:outline-none"
+              className="w-full bg-transparent text-center text-[15px] font-semibold text-fg focus:outline-none"
             />
             <Stepper value={scoreFor} onChange={setFor} big stack />
           </div>
-          <button aria-label="Swap team names" onClick={() => (setTeam(opponent), setOpponent(team))} className="press mt-1 grid h-8 w-8 place-items-center rounded-full text-fg-3">
-            <ArrowLeftRight size={15} />
+          <button
+            aria-label="Swap team names"
+            onClick={() => (setTeam(opponent), setOpponent(team))}
+            className="press -mt-1 grid h-8 w-8 place-items-center rounded-full text-fg-3"
+          >
+            <ArrowLeftRight size={15} strokeWidth={1.75} />
           </button>
-          <div className="flex flex-col items-center gap-2">
+          <div className="flex flex-col items-center gap-3">
             <input
               aria-label="Opponent"
               value={opponent}
               onChange={(e) => setOpponent(e.target.value)}
-              className="w-full bg-transparent text-center font-display text-[18px] font-extrabold uppercase tracking-wide text-fg-2 focus:outline-none"
+              className="w-full bg-transparent text-center text-[15px] font-semibold text-fg-2 focus:outline-none"
             />
             <Stepper value={scoreAgainst} onChange={setAgainst} big stack />
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
-        <div className="rounded-card border border-line bg-ink-1 py-4">
+      <div className="-mt-5 grid grid-cols-2 gap-2">
+        <div className="rounded-card bg-ink-2 py-4">
           <Stepper label="Your goals" value={goals} onChange={setGoals} />
         </div>
-        <div className="rounded-card border border-line bg-ink-1 py-4">
+        <div className="rounded-card bg-ink-2 py-4">
           <Stepper label="Assists" value={assists} onChange={setAssists} />
         </div>
       </div>
-      {tooMany && <p className="-mt-4 text-[13px] text-warn">That's more goals and assists than your team scored. Check the score.</p>}
+      {tooMany && <p className="-mt-5 text-[13px] text-warn">That’s more goals and assists than your team scored. Check the score.</p>}
 
       <div>
-        <div className="label mb-2">Where you played</div>
+        <div className="label mb-2.5">Where you played</div>
         <Segmented size="sm" value={position} onChange={setPosition} options={POSITIONS.map((x) => ({ value: x.key, label: x.label }))} />
       </div>
 
       <div>
-        <div className="label mb-2">Moments</div>
+        <div className="label mb-2.5">Moments</div>
         <div className="flex flex-wrap gap-2">
           {MOMENTS.map((m) => {
             const on = moments.includes(m.key)
             return (
-              <button key={m.key} onClick={() => toggle(m.key)} className={`chip ${on ? (m.delta > 0 ? 'border-z2 bg-z2 text-ink-0' : 'border-z5 bg-z5 text-ink-0') : ''}`}>
-                <span className={`font-mono text-[11px] ${on ? '' : m.delta > 0 ? 'text-z2' : 'text-z5'}`}>{m.delta > 0 ? '+' : '−'}</span>
+              <button
+                key={m.key}
+                onClick={() => toggle(m.key)}
+                aria-pressed={on}
+                className={`chip ${on ? (m.delta > 0 ? 'bg-z2/15 text-z2 ring-1 ring-inset ring-z2/50' : 'bg-z5/15 text-z5 ring-1 ring-inset ring-z5/50') : ''}`}
+              >
+                <span className={`text-[13px] font-semibold ${on ? '' : m.delta > 0 ? 'text-z2' : 'text-z5'}`}>{m.delta > 0 ? '+' : '−'}</span>
                 {m.label}
               </button>
             )
@@ -189,9 +198,9 @@ function Form({ activityId, matchId }: { activityId?: string; matchId?: string }
       </div>
 
       <div>
-        <div className="flex items-end justify-between">
+        <div className="flex items-baseline justify-between gap-3">
           <span className="label">How did you play?</span>
-          <span className="font-display text-[26px] font-black uppercase leading-none">{FEEL[feel]}</span>
+          <span className="text-[17px] font-semibold tracking-[-0.01em]">{FEEL[feel]}</span>
         </div>
         <input
           type="range"
@@ -204,7 +213,7 @@ function Form({ activityId, matchId }: { activityId?: string; matchId?: string }
           className="feel mt-3 w-full"
           style={{ ['--p' as string]: `${((feel - 1) / 9) * 100}%` }}
         />
-        <div className="mt-1 flex justify-between font-mono text-[10px] text-fg-4">
+        <div className="mt-1 flex justify-between text-[12px] tabular-nums text-fg-4">
           <span>1</span>
           <span>{feel}/10</span>
           <span>10</span>
@@ -212,7 +221,7 @@ function Form({ activityId, matchId }: { activityId?: string; matchId?: string }
       </div>
 
       <div>
-        <div className="label mb-2">Notes</div>
+        <div className="label mb-2.5">Notes</div>
         <textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
@@ -222,7 +231,7 @@ function Form({ activityId, matchId }: { activityId?: string; matchId?: string }
         />
       </div>
 
-      <button onClick={submit} disabled={busy} className="btn-primary h-14 w-full text-[17px] disabled:opacity-60">
+      <button onClick={submit} disabled={busy} className="btn-primary h-14 w-full text-[16px] disabled:opacity-60">
         {busy ? 'Crunching…' : editing ? 'Save and re-rate' : 'Rate my game'}
       </button>
     </div>

@@ -1,52 +1,49 @@
-@import '@fontsource/big-shoulders-display/latin-700';
-@import '@fontsource/big-shoulders-display/latin-800';
-@import '@fontsource/big-shoulders-display/latin-900';
-@import '@fontsource-variable/figtree/wght';
-@import '@fontsource/jetbrains-mono/latin-400';
-@import '@fontsource/jetbrains-mono/latin-600';
+@import '@fontsource-variable/geist/wght.css';
+@import '@fontsource-variable/geist-mono/wght.css';
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 /*
-  Overreach design tokens. Dark only, on purpose: the chrome is monochrome
-  and colour is reserved for data (HR zones, ratings, readiness).
-  Values are RGB triplets so Tailwind opacity modifiers work (bg-z4/20).
+  Overreach design tokens. Dark only, quiet on purpose: the chrome is
+  near-black and grey, and colour is reserved for data (HR zones, ratings,
+  readiness, sports). Values are RGB triplets so Tailwind opacity modifiers
+  work (bg-z4/20).
 */
 :root {
   color-scheme: dark;
-  --ink-0: 8 9 12;
-  --ink-1: 15 17 22;
-  --ink-2: 22 25 32;
-  --ink-3: 30 34 43;
-  --line: 34 38 47;
-  --line-2: 48 53 65;
-  --fg: 243 245 248;
-  --fg-2: 184 190 201;
-  --fg-3: 125 132 148;
-  --fg-4: 75 81 97;
+  --ink-0: 8 8 10;
+  --ink-1: 20 20 23;
+  --ink-2: 29 29 33;
+  --ink-3: 42 42 48;
+  --line: 36 36 41;
+  --line-2: 54 54 61;
+  --fg: 245 245 247;
+  --fg-2: 190 190 198;
+  --fg-3: 132 132 142;
+  --fg-4: 82 82 92;
 
-  /* intensity spectrum, easy → max */
-  --z1: 78 164 255;
-  --z2: 47 211 160;
-  --z3: 244 210 60;
-  --z4: 255 138 52;
-  --z5: 255 71 102;
+  /* intensity, easy to max */
+  --z1: 96 165 250;
+  --z2: 52 211 153;
+  --z3: 245 197 66;
+  --z4: 251 146 60;
+  --z5: 248 113 113;
 
-  /* categorical, only for charts that split by sport */
-  --run: 255 107 61;
-  --ride: 34 211 197;
-  --swim: 76 125 255;
-  --football: 155 230 75;
-  --strength: 180 140 255;
-  --other: 154 163 178;
+  /* categorical, for anything that splits by sport */
+  --run: 255 122 89;
+  --football: 163 230 53;
+  --ride: 45 212 191;
+  --swim: 99 152 255;
+  --strength: 167 139 250;
+  --other: 148 163 184;
 
-  --good: 47 211 160;
-  --warn: 244 178 60;
-  --bad: 255 71 102;
+  --good: 52 211 153;
+  --warn: 251 191 36;
+  --bad: 248 113 113;
 
-  --tabbar-h: 64px;
+  --tabbar-h: 58px;
   --mini-h: 0px;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -89,16 +86,6 @@
     background: rgb(var(--ink-0));
     z-index: 40;
   }
-  /* film grain: a tiny tiled noise texture keeps the blacks from looking flat */
-  body::after {
-    content: '';
-    position: fixed;
-    inset: 0;
-    pointer-events: none;
-    z-index: 100;
-    opacity: 0.035;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  }
   button,
   input,
   textarea,
@@ -122,7 +109,7 @@
   :focus-visible {
     outline: 2px solid rgb(var(--fg));
     outline-offset: 2px;
-    border-radius: 4px;
+    border-radius: 6px;
   }
   ::selection {
     background: rgb(var(--fg) / 0.25);
@@ -135,46 +122,59 @@
     padding-left: max(16px, env(safe-area-inset-left, 0px));
     padding-right: max(16px, env(safe-area-inset-right, 0px));
   }
+  /* small sentence-case caption above a value */
   .label {
-    @apply font-mono text-micro uppercase text-fg-3;
+    @apply text-[13px] font-medium leading-4 text-fg-3;
+  }
+  /* secondary line: dates, units, context */
+  .meta {
+    @apply text-[13px] leading-[18px] text-fg-3;
   }
   .num {
-    @apply font-display font-extrabold leading-none tracking-tight;
+    @apply font-medium leading-none tracking-[-0.03em];
+    font-variant-numeric: tabular-nums;
+  }
+  /* hero numbers: big and light */
+  .num-hero {
+    @apply font-light leading-[0.82] tracking-[-0.055em];
     font-variant-numeric: tabular-nums;
   }
   .card {
-    @apply rounded-card border border-line bg-ink-1;
+    @apply rounded-card bg-ink-1 ring-1 ring-inset ring-fg/[0.045];
   }
-  .hairline {
-    @apply border-line;
+  /* rows inside a card, split by hairlines that start after the icon */
+  .list > * {
+    position: relative;
+  }
+  .list > * + *::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: var(--inset, 16px);
+    height: 1px;
+    background: rgb(var(--line));
   }
   .press {
-    @apply transition-transform duration-150 ease-snap active:scale-[0.97];
+    @apply transition duration-150 ease-snap active:scale-[0.98] active:opacity-80;
   }
   .btn {
-    @apply press inline-flex h-12 items-center justify-center gap-2 rounded-[10px] px-5 text-[15px] font-semibold;
+    @apply press inline-flex h-12 items-center justify-center gap-2 rounded-full px-5 text-[15px] font-semibold;
   }
   .btn-primary {
     @apply btn bg-fg text-ink-0;
   }
   .btn-ghost {
-    @apply btn border border-line-2 bg-ink-2 text-fg;
+    @apply btn bg-ink-2 text-fg;
   }
   .chip {
-    @apply press inline-flex h-8 items-center gap-1.5 rounded-full border border-line-2 px-3 text-[13px] font-medium text-fg-2;
+    @apply press inline-flex h-8 items-center gap-1.5 rounded-full bg-ink-2 px-3.5 text-[13px] font-medium text-fg-2;
   }
   .chip-on {
-    @apply border-fg bg-fg text-ink-0;
+    @apply bg-fg text-ink-0;
   }
-  /* chamfered corner: the one sharp edge in the system, used on hero cards */
-  .chamfer {
-    clip-path: polygon(0 0, calc(100% - 18px) 0, 100% 18px, 100% 100%, 0 100%);
-  }
-  .chamfer-sm {
-    clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%);
-  }
-  .spectrum {
-    background: linear-gradient(90deg, rgb(var(--z1)), rgb(var(--z2)), rgb(var(--z3)), rgb(var(--z4)), rgb(var(--z5)));
+  .link {
+    @apply press inline-flex items-center gap-0.5 text-[14px] font-medium text-fg-3;
   }
   .no-scrollbar::-webkit-scrollbar {
     display: none;
@@ -184,41 +184,43 @@
   }
 }
 
-/* the "how did you play" slider: a spectrum from shocker to world class */
+/* the "how did you play" slider: a plain track that fills to the thumb */
 input[type='range'].feel {
   -webkit-appearance: none;
   appearance: none;
-  height: 30px;
+  height: 32px;
   background: transparent;
 }
 input[type='range'].feel::-webkit-slider-runnable-track {
-  height: 6px;
+  height: 4px;
   border-radius: 99px;
-  background: linear-gradient(90deg, rgb(var(--z5)), rgb(var(--z4)) 28%, rgb(var(--z3)) 50%, rgb(var(--z2)) 72%, rgb(var(--z1)));
+  background: linear-gradient(90deg, rgb(var(--fg)) var(--p, 50%), rgb(var(--ink-3)) var(--p, 50%));
 }
 input[type='range'].feel::-moz-range-track {
-  height: 6px;
+  height: 4px;
   border-radius: 99px;
-  background: linear-gradient(90deg, rgb(var(--z5)), rgb(var(--z4)) 28%, rgb(var(--z3)) 50%, rgb(var(--z2)) 72%, rgb(var(--z1)));
+  background: rgb(var(--ink-3));
+}
+input[type='range'].feel::-moz-range-progress {
+  height: 4px;
+  border-radius: 99px;
+  background: rgb(var(--fg));
 }
 input[type='range'].feel::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   margin-top: -12px;
   border-radius: 50%;
   background: rgb(var(--fg));
-  border: 5px solid rgb(var(--ink-2));
-  box-shadow:
-    0 0 0 1px rgb(var(--line-2)),
-    0 6px 18px rgb(0 0 0 / 0.5);
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.5);
 }
 input[type='range'].feel::-moz-range-thumb {
-  width: 22px;
-  height: 22px;
+  width: 28px;
+  height: 28px;
+  border: 0;
   border-radius: 50%;
   background: rgb(var(--fg));
-  border: 5px solid rgb(var(--ink-2));
 }
 
 /* player card tiers: three metal stops per tier */

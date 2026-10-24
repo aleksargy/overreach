@@ -90,9 +90,9 @@ function Train({ w }: { w: World }) {
           {plan?.statuses.map((st) => (
             <div key={st.routine.id} className="card flex items-center gap-3 p-3.5">
               <span className="min-w-0 flex-1">
-                <span className="block font-display text-[22px] font-extrabold uppercase leading-none">{st.routine.name}</span>
+                <span className="block text-[17px] font-semibold tracking-[-0.02em] leading-none">{st.routine.name}</span>
                 <span className="mt-1 block truncate text-[13px] text-fg-3">{st.routine.focus}</span>
-                <span className="mt-1.5 block font-mono text-[10.5px] uppercase tracking-[0.04em] text-fg-3">
+                <span className="mt-1.5 block text-[13px] tabular-nums text-fg-3">
                   {st.routine.items.length} exercises · {st.sets} sets ·{' '}
                   {st.daysSince === undefined ? 'not done yet' : st.daysSince === 0 ? 'done today' : st.daysSince === 1 ? 'yesterday' : `${st.daysSince} days ago`}
                 </span>
@@ -142,8 +142,7 @@ function ActiveCard() {
   const done = active.exercises.reduce((a, we) => a + we.sets.filter((s) => s.done).length, 0)
   const total = active.exercises.reduce((a, we) => a + we.sets.length, 0)
   return (
-    <button onClick={() => setOpen(true)} className="press chamfer relative mt-4 block w-full overflow-hidden rounded-card border border-line bg-ink-1 p-4 text-left">
-      <div className="spectrum absolute inset-x-0 top-0 h-[2px]" />
+    <button onClick={() => setOpen(true)} className="press relative mt-4 block w-full overflow-hidden card p-4 text-left">
       <span className="flex items-center gap-2">
         <span className="relative flex h-2 w-2">
           <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-z5 opacity-60" />
@@ -151,8 +150,8 @@ function ActiveCard() {
         </span>
         <span className="label text-fg-2">In progress</span>
       </span>
-      <span className="mt-2 block font-display text-[40px] font-black uppercase leading-[0.86]">{active.name}</span>
-      <span className="mt-2 block font-mono text-[11px] uppercase text-fg-3">
+      <span className="mt-2 block text-[26px] font-semibold tracking-[-0.02em] leading-[1.1]">{active.name}</span>
+      <span className="mt-2 block text-[13px] tabular-nums text-fg-3">
         {done} of {total} sets done · started {format(parseISO(active.start), 'HH:mm')}
       </span>
       <span className="btn-primary mt-4 w-full">Resume</span>
@@ -165,14 +164,13 @@ function UpNext({ w, routine, reasons, onStart }: { w: World; routine: Routine; 
   const tone = r ? toneFor(r.score).tone : null
   const toneCls = tone === 'good' ? 'text-z2' : tone === 'ok' ? 'text-z3' : tone === 'warn' ? 'text-z4' : 'text-z5'
   return (
-    <section className="chamfer relative mt-4 overflow-hidden rounded-card border border-line bg-ink-1">
-      <div className="spectrum absolute inset-x-0 top-0 h-[2px] opacity-80" />
+    <section className="relative mt-4 overflow-hidden card">
       <div className="p-4">
         <div className="flex items-center justify-between">
           <span className="label">Up next</span>
-          {r && <span className={`font-mono text-[10.5px] font-semibold uppercase tracking-[0.12em] ${toneCls}`}>Readiness {r.score}</span>}
+          {r && <span className={`text-[13px] tabular-nums font-semibold ${toneCls}`}>Readiness {r.score}</span>}
         </div>
-        <h2 className="mt-2 font-display text-[48px] font-black uppercase leading-[0.84]">{routine.name}</h2>
+        <h2 className="mt-2 text-[28px] font-semibold tracking-[-0.02em] leading-[1.1]">{routine.name}</h2>
         <div className="mt-1.5 text-[13px] text-fg-3">{routine.focus}</div>
         <ul className="mt-3 flex flex-col gap-1.5">
           {reasons.map((x) => (
@@ -192,7 +190,7 @@ function UpNext({ w, routine, reasons, onStart }: { w: World; routine: Routine; 
             <div key={it.exerciseId} className="flex items-center gap-3 border-b border-line px-4 py-2.5 last:border-b-0">
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-[14.5px] font-semibold">{ex.name}</span>
-                <span className="block font-mono text-[10.5px] text-fg-3">
+                <span className="block text-[13px] tabular-nums text-fg-3">
                   {it.sets} sets · {targetText(ex, s)}
                 </span>
               </span>
@@ -217,14 +215,14 @@ function MuscleSets({ w }: { w: World }) {
   const sets = useMemo(() => setsByMuscle(w.workouts, w.exerciseById, w.now), [w])
   const max = 24
   return (
-    <Section title="Sets this week" action={<span className="font-mono text-[10.5px] uppercase tracking-[0.08em] text-fg-3">target 10–20</span>}>
+    <Section title="Sets this week" action={<span className="text-[13px] tabular-nums text-fg-3">target 10–20</span>}>
       <div className="card px-4 py-3">
         {TRACKED.map((m) => {
           const v = sets.get(m) ?? 0
           const color = v >= 20.5 ? 'bg-z4' : v >= 10 ? 'bg-z2' : v > 0 ? 'bg-fg-3' : 'bg-transparent'
           return (
             <div key={m} className="grid grid-cols-[84px_1fr_30px] items-center gap-3 py-[5px]">
-              <span className="font-mono text-[10.5px] uppercase tracking-[0.06em] text-fg-3">{MUSCLE_LABEL[m]}</span>
+              <span className="text-[13px] tabular-nums text-fg-3">{MUSCLE_LABEL[m]}</span>
               <span className="relative h-2.5 rounded-full bg-ink-3">
                 <span className="absolute inset-y-0 rounded-[2px] bg-fg/[0.07]" style={{ left: `${(10 / max) * 100}%`, width: `${(10 / max) * 100}%` }} />
                 <span className={`absolute inset-y-0 left-0 rounded-full ${color}`} style={{ width: `${Math.min(1, v / max) * 100}%` }} />
@@ -253,7 +251,7 @@ function History({ w }: { w: World }) {
   return (
     <div className="mt-2">
       {groups.map(([k, list]) => (
-        <Section key={k} title={k} action={<span className="font-mono text-[10.5px] text-fg-3">{list.length} sessions</span>} className="!mt-6">
+        <Section key={k} title={k} action={<span className="text-[13px] tabular-nums text-fg-3">{list.length} sessions</span>} className="!mt-6">
           <div className="flex flex-col gap-2">
             {list.map((x) => (
               <WorkoutRow key={x.id} w={x} prs={prs.get(x.id)} />
@@ -307,9 +305,9 @@ function Library({ w }: { w: World }) {
               <span className="min-w-0 flex-1">
                 <span className="flex items-center gap-2">
                   <span className="truncate text-[15px] font-semibold">{e.name}</span>
-                  {e.custom && <span className="rounded-full border border-line-2 px-1.5 py-px font-mono text-[9px] uppercase tracking-[0.08em] text-fg-3">Custom</span>}
+                  {e.custom && <span className="rounded-full border border-line-2 px-1.5 py-px text-[11px] tabular-nums text-fg-3">Custom</span>}
                 </span>
-                <span className="mt-0.5 block font-mono text-[10.5px] uppercase tracking-[0.05em] text-fg-3">
+                <span className="mt-0.5 block text-[13px] tabular-nums text-fg-3">
                   {MUSCLE_LABEL[e.muscle]} · {EQUIPMENT_LABEL[e.equipment]}
                 </span>
               </span>
@@ -321,10 +319,10 @@ function Library({ w }: { w: World }) {
                       <span className="ml-0.5 font-sans text-[10px] font-medium text-fg-3">e1RM</span>
                     </span>
                   ) : null}
-                  <span className="block font-mono text-[10px] text-fg-4">{format(parseISO(st.last), 'd MMM')}</span>
+                  <span className="block text-[12px] tabular-nums text-fg-4">{format(parseISO(st.last), 'd MMM')}</span>
                 </span>
               ) : (
-                <span className="font-mono text-[10px] uppercase text-fg-4">New</span>
+                <span className="text-[12px] tabular-nums text-fg-4">New</span>
               )}
             </Link>
           )

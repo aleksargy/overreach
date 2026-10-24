@@ -1,6 +1,7 @@
 import { differenceInCalendarWeeks, endOfISOWeek, format, parseISO, startOfISOWeek } from 'date-fns'
 import { useState } from 'react'
-import { ActivityRow } from '../../components/ActivityRow'
+import { useSearchParams } from 'react-router'
+import { ActivityList } from '../../components/ActivityRow'
 import { SportIcon } from '../../components/icons/SportIcon'
 import { Screen } from '../../components/ui/Screen'
 import { SampleBadge } from '../../components/ui/bits'
@@ -22,7 +23,9 @@ const FILTERS: { key: Sport | 'all'; label: string }[] = [
 
 export function FeedScreen() {
   const w = useWorld()
-  const [f, setF] = useState<Sport | 'all'>('all')
+  const [params] = useSearchParams()
+  const initial = FILTERS.find((x) => x.key === params.get('sport'))?.key ?? 'all'
+  const [f, setF] = useState<Sport | 'all'>(initial)
   const [shown, setShown] = useState(PAGE)
   const list = w.activities.filter((a) => f === 'all' || a.sport === f)
   const weeks = new Map<string, Activity[]>()
@@ -32,18 +35,21 @@ export function FeedScreen() {
   }
   const oldest = w.activities.at(-1)
   const span = oldest ? differenceInCalendarWeeks(w.now, parseISO(oldest.start), { weekStartsOn: 1 }) + 1 : 0
+  // only offer the sports that are actually in the history
+  const filters = FILTERS.filter((x) => x.key === 'all' || x.key === f || w.activities.some((a) => a.sport === x.key))
   return (
     <Screen
-      title="Feed"
+      title="All activity"
+      back
       kicker={
         <span className="flex items-center gap-2">
-          {w.activities.length} sessions{oldest && (span <= 26 ? `, ${span} weeks` : ` since ${format(parseISO(oldest.start), 'MMM yyyy')}`)}{' '}
+          {w.activities.length} sessions{oldest && (span <= 26 ? ` in ${span} weeks` : ` since ${format(parseISO(oldest.start), 'MMMM yyyy')}`)}
           {w.mode === 'sample' && <SampleBadge />}
         </span>
       }
     >
-      <div className="no-scrollbar -mx-4 mb-4 flex gap-2 overflow-x-auto px-4">
-        {FILTERS.map((x) => (
+      <div className="no-scrollbar -mx-4 mb-6 flex gap-2 overflow-x-auto px-4">
+        {filters.map((x) => (
           <button
             key={x.key}
             onClick={() => {
@@ -57,27 +63,23 @@ export function FeedScreen() {
           </button>
         ))}
       </div>
-      <div className="flex flex-col gap-7">
+      <div className="flex flex-col gap-8">
         {[...weeks.entries()].slice(0, shown).map(([k, acts]) => {
           const start = parseISO(k)
           const dist = acts.reduce((s, a) => s + (a.sport === 'swim' ? 0 : (a.distanceM ?? 0)), 0)
           const time = acts.reduce((s, a) => s + a.durationS, 0)
-          const load = acts.reduce((s, a) => s + a.load, 0)
           return (
             <section key={k}>
-              <div className="mb-2.5 flex items-baseline justify-between border-b border-line pb-2">
-                <h2 className="font-display text-[20px] font-extrabold uppercase">
+              <div className="mb-2.5 flex items-baseline justify-between gap-3 px-1">
+                <h2 className="text-[15px] font-semibold tracking-[-0.01em]">
                   {format(start, 'd MMM')} – {format(endOfISOWeek(start), 'd MMM')}
                 </h2>
-                <span className="font-mono text-[10.5px] text-fg-3">
-                  {dur(time)} · {km(dist, 0)} km · load {Math.round(load)}
+                <span className="meta">
+                  {dur(time)}
+                  {dist > 0 && ` · ${km(dist, 0)} km`}
                 </span>
               </div>
-              <div className="flex flex-col gap-2">
-                {acts.map((a) => (
-                  <ActivityRow key={a.id} a={a} match={w.matchByActivity.get(a.id)} />
-                ))}
-              </div>
+              <ActivityList items={acts} matchFor={(a) => w.matchByActivity.get(a.id)} />
             </section>
           )
         })}

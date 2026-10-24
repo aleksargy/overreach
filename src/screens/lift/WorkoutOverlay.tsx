@@ -93,8 +93,8 @@ function Live() {
             <ChevronDown size={26} />
           </button>
           <div className="min-w-0 flex-1">
-            <div className="truncate font-display text-[22px] font-extrabold uppercase leading-none">{active.name}</div>
-            <div className="mt-1 font-mono text-[11px] text-fg-3">
+            <div className="truncate text-[17px] font-semibold tracking-[-0.02em] leading-none">{active.name}</div>
+            <div className="mt-1 text-[13px] tabular-nums text-fg-3">
               <span className="text-fg">{clock(elapsed)}</span> · {doneSets}/{total} sets · {tonnes(volume(active))}
             </div>
           </div>
@@ -103,7 +103,7 @@ function Live() {
           </button>
         </div>
         <div className="absolute inset-x-0 bottom-[-1px] h-[2px] bg-ink-3">
-          <div className="spectrum h-full transition-[width] duration-500" style={{ width: `${total ? (doneSets / total) * 100 : 0}%` }} />
+          <div className="h-full rounded-full bg-fg transition-[width] duration-500" style={{ width: `${total ? (doneSets / total) * 100 : 0}%` }} />
         </div>
       </header>
 
@@ -218,8 +218,8 @@ function ExerciseBlock({ w, we, index, count }: { w: World; we: WorkoutExercise;
       <div className="p-3.5 pb-3">
         <div className="flex items-start gap-2">
           <div className="min-w-0 flex-1">
-            <h3 className="font-display text-[24px] font-extrabold uppercase leading-[0.95]">{ex.name}</h3>
-            <div className="mt-1 font-mono text-[10.5px] uppercase tracking-[0.05em] text-fg-3">
+            <h3 className="text-[18px] font-semibold tracking-[-0.02em] leading-tight">{ex.name}</h3>
+            <div className="mt-1 text-[13px] tabular-nums text-fg-3">
               {MUSCLE_LABEL[ex.muscle]} · {ex.repRange[0]}–{ex.repRange[1]}
               {timed ? 's' : ' reps'} · rest {dur(ex.restS).replace('m', ' min')}
             </div>
@@ -255,7 +255,7 @@ function ExerciseBlock({ w, we, index, count }: { w: World; we: WorkoutExercise;
         </div>
       </div>
 
-      <div className={`grid ${cols} items-center gap-1.5 px-3 pb-1.5 font-mono text-[9.5px] uppercase tracking-[0.08em] text-fg-4`}>
+      <div className={`grid ${cols} items-center gap-1.5 px-3 pb-1.5 text-[11px] tabular-nums text-fg-4`}>
         <span className="text-center">Set</span>
         <span>Last time</span>
         {weighted && <span className="text-center">{ex.kind === 'weighted-bodyweight' ? '+kg' : 'kg'}</span>}
@@ -270,11 +270,11 @@ function ExerciseBlock({ w, we, index, count }: { w: World; we: WorkoutExercise;
             <button
               aria-label="Change set type"
               onClick={() => patchSet(r.s.id, { kind: KIND_ORDER[(KIND_ORDER.indexOf(r.s.kind) + 1) % KIND_ORDER.length] })}
-              className={`press h-9 rounded-[7px] font-display text-[17px] font-black ${KIND_STYLE[r.s.kind]}`}
+              className={`press h-9 rounded-[7px] text-[15px] font-semibold tracking-[-0.02em] ${KIND_STYLE[r.s.kind]}`}
             >
               {r.label}
             </button>
-            <span className="min-w-0 font-mono text-[11px] leading-tight text-fg-3">
+            <span className="min-w-0 text-[13px] tabular-nums leading-tight text-fg-3">
               {r.previous ? (
                 <>
                   <span className="block truncate">{setText(ex, r.previous).replace(' × ', '×').replace(' reps', '')}</span>
@@ -302,7 +302,7 @@ function ExerciseBlock({ w, we, index, count }: { w: World; we: WorkoutExercise;
             <button
               aria-label="Set RPE"
               onClick={() => setRpeFor(rpeFor === r.s.id ? null : r.s.id)}
-              className={`press h-9 rounded-[7px] font-mono text-[13px] font-semibold ${r.s.rpe ? rpeTone(r.s.rpe) : rpeFor === r.s.id ? 'bg-fg text-ink-0' : 'bg-ink-2 text-fg-4'}`}
+              className={`press h-9 rounded-[7px] text-[14px] tabular-nums font-semibold ${r.s.rpe ? rpeTone(r.s.rpe) : rpeFor === r.s.id ? 'bg-fg text-ink-0' : 'bg-ink-2 text-fg-4'}`}
             >
               {r.s.rpe ? fmtRpe(r.s.rpe) : '–'}
             </button>
@@ -363,7 +363,7 @@ function RpePicker({ value, onPick }: { value?: number; onPick: (v: number | und
     <div className="mx-3 mb-2 mt-1 rounded-[10px] border border-line-2 bg-ink-2 p-2.5">
       <div className="mb-2 flex items-baseline justify-between px-0.5">
         <span className="label">How hard was that?</span>
-        <span className="font-mono text-[11px] text-fg-2">{label ?? 'Reps in reserve'}</span>
+        <span className="text-[13px] tabular-nums text-fg-2">{label ?? 'Reps in reserve'}</span>
       </div>
       <div className="grid grid-cols-8 gap-1">
         {PICKS.map((v) => (
@@ -372,14 +372,14 @@ function RpePicker({ value, onPick }: { value?: number; onPick: (v: number | und
             onPointerEnter={() => setHover(v)}
             onFocus={() => setHover(v)}
             onClick={() => onPick(v)}
-            className={`press h-10 rounded-[7px] font-display text-[17px] font-black ${value === v ? rpeTone(v) : 'bg-ink-3 text-fg-2'}`}
+            className={`press h-10 rounded-[7px] text-[15px] font-semibold tracking-[-0.02em] ${value === v ? rpeTone(v) : 'bg-ink-3 text-fg-2'}`}
           >
             {fmtRpe(v)}
           </button>
         ))}
       </div>
       {value !== undefined && (
-        <button onClick={() => onPick(undefined)} className="mt-2 w-full text-center font-mono text-[10.5px] uppercase tracking-[0.08em] text-fg-3">
+        <button onClick={() => onPick(undefined)} className="mt-2 w-full text-center text-[13px] tabular-nums text-fg-3">
           Clear
         </button>
       )}
@@ -411,7 +411,7 @@ function Plates({ kg }: { kg: number }) {
         ))}
         <span className="h-[5px] w-4 rounded-r-sm bg-fg-4" />
       </span>
-      <span className="ml-auto truncate font-mono text-[11px] text-fg-2">
+      <span className="ml-auto truncate text-[13px] tabular-nums text-fg-2">
         {ps.map(fmtKg).join(' + ')} <span className="text-fg-4">for {fmtKg(kg)}</span>
       </span>
     </div>
@@ -449,7 +449,7 @@ function RestBar() {
               className={`relative overflow-hidden rounded-[14px] border shadow-[0_-10px_40px_rgba(0,0,0,0.55)] backdrop-blur-xl ${over ? 'border-z2/60 bg-z2/15' : 'border-line-2 bg-ink-2/95'}`}
             >
               <div className="absolute inset-x-0 top-0 h-[3px] bg-ink-3">
-                <div className="spectrum h-full transition-[width] duration-300 ease-linear" style={{ width: `${Math.min(1, 1 - left / rest.total) * 100}%` }} />
+                <div className="h-full rounded-full bg-fg transition-[width] duration-300 ease-linear" style={{ width: `${Math.min(1, 1 - left / rest.total) * 100}%` }} />
               </div>
               <div className="flex items-center gap-3 px-3.5 pb-3 pt-3.5">
                 <div className="min-w-0">
@@ -458,10 +458,10 @@ function RestBar() {
                 </div>
                 <span className={`num ml-auto text-[40px] leading-none ${over ? 'text-z2' : ''}`}>{clock(left)}</span>
                 <div className="flex gap-1.5">
-                  <button onClick={() => nudge(-15)} className="press h-10 rounded-[8px] bg-ink-3 px-2.5 font-mono text-[12px] font-semibold text-fg-2">
+                  <button onClick={() => nudge(-15)} className="press h-10 rounded-[8px] bg-ink-3 px-2.5 text-[13px] tabular-nums font-semibold text-fg-2">
                     −15
                   </button>
-                  <button onClick={() => nudge(15)} className="press h-10 rounded-[8px] bg-ink-3 px-2.5 font-mono text-[12px] font-semibold text-fg-2">
+                  <button onClick={() => nudge(15)} className="press h-10 rounded-[8px] bg-ink-3 px-2.5 text-[13px] tabular-nums font-semibold text-fg-2">
                     +15
                   </button>
                   <button onClick={stop} className="press h-10 rounded-[8px] bg-fg px-3 text-[13px] font-semibold text-ink-0">
@@ -512,7 +512,7 @@ function FinishSheet({ open, onClose }: { open: boolean; onClose: () => void }) 
 
   return (
     <Sheet open={open} onClose={onClose} title="Finish" kicker={active.name}>
-      <div className="grid grid-cols-3 divide-x divide-line rounded-card border border-line bg-ink-1">
+      <div className="grid grid-cols-3 divide-x divide-line card">
         {[
           { label: 'Time', value: dur(mins * 60) },
           { label: 'Sets', value: String(done) },
@@ -528,20 +528,20 @@ function FinishSheet({ open, onClose }: { open: boolean; onClose: () => void }) 
 
       <div className="mt-6 flex items-end justify-between">
         <span className="label">How hard was the whole session?</span>
-        <span className="font-mono text-[11px] text-fg-3">load +{srpeLoad(mins, srpe)}</span>
+        <span className="text-[13px] tabular-nums text-fg-3">load +{srpeLoad(mins, srpe)}</span>
       </div>
       <div className="mt-2.5 grid grid-cols-5 gap-1.5">
         {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
           <button
             key={n}
             onClick={() => setSrpe(n)}
-            className={`press h-12 rounded-[8px] font-display text-[22px] font-black ${srpe === n ? srpeTone(n) : 'border border-line bg-ink-1 text-fg-2'}`}
+            className={`press h-12 rounded-[8px] text-[17px] font-semibold tracking-[-0.02em] ${srpe === n ? srpeTone(n) : 'border border-line bg-ink-1 text-fg-2'}`}
           >
             {n}
           </button>
         ))}
       </div>
-      <div className="mt-3 font-display text-[26px] font-black uppercase leading-none">
+      <div className="mt-3 text-[20px] font-semibold tracking-[-0.02em] leading-none">
         <Bump value={SRPE_WORD[srpe]} />
       </div>
 
@@ -575,15 +575,15 @@ export function MiniWorkoutBar() {
           className="press relative flex h-[52px] w-full items-center gap-3 overflow-hidden rounded-[12px] border border-line-2 bg-ink-2/95 px-3.5 text-left shadow-[0_10px_30px_rgba(0,0,0,0.5)] backdrop-blur-xl"
         >
           <span className="absolute inset-x-0 top-0 h-[2px] bg-ink-3">
-            <span className="spectrum block h-full" style={{ width: `${total ? (done / total) * 100 : 0}%` }} />
+            <span className="block h-full rounded-full bg-fg" style={{ width: `${total ? (done / total) * 100 : 0}%` }} />
           </span>
           <span className="relative flex h-2 w-2 shrink-0">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-z5 opacity-60" />
             <span className="relative inline-flex h-2 w-2 rounded-full bg-z5" />
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block truncate font-display text-[17px] font-extrabold uppercase leading-none">{active.name}</span>
-            <span className="mt-0.5 block font-mono text-[10.5px] text-fg-3">
+            <span className="block truncate text-[15px] font-semibold tracking-[-0.02em] leading-none">{active.name}</span>
+            <span className="mt-0.5 block text-[13px] tabular-nums text-fg-3">
               {done}/{total} sets{rest ? (left ? ` · rest ${clock(left)}` : ' · go') : ''}
             </span>
           </span>

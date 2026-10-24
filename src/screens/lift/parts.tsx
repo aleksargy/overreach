@@ -40,9 +40,7 @@ const TAG: Record<Suggestion['tag'], { label: string; cls: string; icon: ReactNo
 export function SuggestionTag({ s, compact, timed }: { s: Suggestion; compact?: boolean; timed?: boolean }) {
   const t = s.tag === 'reps' && timed ? { ...TAG.reps, label: 'Add time' } : TAG[s.tag]
   return (
-    <span
-      className={`inline-flex shrink-0 items-center gap-1 rounded-full border font-mono font-semibold uppercase ${compact ? 'h-5 px-1.5 text-[9px] tracking-[0.06em]' : 'h-6 px-2 text-[10px] tracking-[0.1em]'} ${t.cls}`}
-    >
+    <span className={`inline-flex shrink-0 items-center gap-1 rounded-full border font-medium ${compact ? 'h-5 px-1.5 text-[9px]' : 'h-6 px-2 text-[10px]'} ${t.cls}`}>
       {t.icon}
       {t.label}
     </span>
@@ -61,18 +59,18 @@ export function WorkoutRow({ w, prs }: { w: Workout; prs?: number }) {
   const mins = w.end ? (Date.parse(w.end) - Date.parse(w.start)) / 1000 : 0
   return (
     <Link to={`/lift/history/${w.id}`} className="press card flex items-center gap-3 p-3 pr-2.5">
-      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[8px] bg-ink-2 font-display text-[17px] font-black uppercase text-fg-2">{fmt(w.start, 'd')}</span>
+      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[8px] bg-ink-2 text-[15px] font-semibold tracking-[-0.02em] text-fg-2">{fmt(w.start, 'd')}</span>
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-2">
           <span className="truncate text-[15px] font-semibold">{w.name}</span>
           {!!prs && (
-            <span className="inline-flex items-center gap-0.5 rounded-full bg-z3/15 px-1.5 py-0.5 font-mono text-[9.5px] font-semibold text-z3">
+            <span className="inline-flex items-center gap-0.5 rounded-full bg-z3/15 px-1.5 py-0.5 text-[11px] tabular-nums font-semibold text-z3">
               <Trophy size={10} strokeWidth={2.5} />
               {prs}
             </span>
           )}
         </span>
-        <span className="mt-0.5 block truncate font-mono text-[10.5px] uppercase tracking-[0.06em] text-fg-3">
+        <span className="mt-0.5 block truncate text-[13px] tabular-nums text-fg-3">
           {fmt(w.start, 'EEE d MMM')} · {dur(mins)}
           {w.srpe ? ` · RPE ${w.srpe}` : ''}
         </span>
@@ -82,7 +80,7 @@ export function WorkoutRow({ w, prs }: { w: Workout; prs?: number }) {
           {workingSets(w)}
           <span className="ml-0.5 font-sans text-[11px] font-medium text-fg-3">sets</span>
         </span>
-        <span className="block font-mono text-[10px] text-fg-3">{tonnes(volume(w))}</span>
+        <span className="block text-[12px] tabular-nums text-fg-3">{tonnes(volume(w))}</span>
       </span>
       <ChevronRight size={16} className="text-fg-4" />
     </Link>

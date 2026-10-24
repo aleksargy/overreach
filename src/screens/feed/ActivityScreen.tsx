@@ -2,7 +2,7 @@ import { Navigate, useNavigate, useParams } from 'react-router'
 import { Bars, StreamChart } from '../../components/charts/charts'
 import { RouteArt } from '../../components/charts/RouteArt'
 import { ZoneBar } from '../../components/charts/primitives'
-import { SportIcon, SPORT_LABEL } from '../../components/icons/SportIcon'
+import { SportIcon, SPORT_LABEL, sportColor } from '../../components/icons/SportIcon'
 import { Screen } from '../../components/ui/Screen'
 import { Empty, Section, Stat } from '../../components/ui/bits'
 import type { Activity, Stream } from '../../data/types'
@@ -32,19 +32,21 @@ export function ActivityScreen() {
   const withLaps = a.laps || !stream?.laps ? a : { ...a, laps: stream.laps }
   const act = withLaps.elevGainM === undefined && stream?.alt ? { ...withLaps, elevGainM: climb(stream.alt) } : withLaps
   return (
-    <Screen title={a.name} back>
-      <div className="flex items-center gap-2 pt-1">
-        <SportIcon sport={a.sport} size={16} className="text-fg-3" />
-        <span className="font-mono text-[10.5px] uppercase tracking-[0.08em] text-fg-3">
+    <Screen title={a.name} back bare>
+      <div className="flex items-center gap-2 pt-2">
+        <span style={{ color: sportColor(a.sport) }}>
+          <SportIcon sport={a.sport} size={16} />
+        </span>
+        <span className="meta">
           {SPORT_LABEL[a.sport]}
-          {a.kind && KIND[a.kind] ? ` · ${KIND[a.kind]}` : ''} · {fmt(a.start, 'EEE d MMM yyyy · HH:mm')}
+          {a.kind && KIND[a.kind] ? `, ${KIND[a.kind].toLowerCase()}` : ''} · {fmt(a.start, 'EEE d MMM yyyy, HH:mm')}
         </span>
       </div>
-      <h1 className="mt-2 font-display text-[46px] font-black uppercase leading-[0.88]">{a.name}</h1>
+      <h1 className="mt-2 text-[28px] font-semibold leading-[1.12] tracking-[-0.03em]">{a.name}</h1>
 
       {stream?.lat && (a.sport === 'run' || a.sport === 'ride') && (
-        <div className="-mx-4 mt-4 border-y border-line bg-ink-1/60">
-          <RouteArt stream={stream} bounds={bounds} height={250} />
+        <div className="card mt-5 overflow-hidden">
+          <RouteArt stream={stream} bounds={bounds} height={240} />
         </div>
       )}
 
@@ -52,7 +54,7 @@ export function ActivityScreen() {
 
       {a.sport === 'football' && <FootballCta a={a} />}
 
-      <Section title="Zones" action={<span className="font-mono text-[10.5px] uppercase text-fg-3">load {Math.round(a.load)}</span>}>
+      <Section title="Zones" action={<span className="meta">Load {Math.round(a.load)}</span>}>
         <div className="card p-4">
           <ZoneBar zones={a.zoneS} height={10} labels />
         </div>
@@ -111,7 +113,7 @@ function HeadStats({ a }: { a: Activity }) {
       )
   }
   return (
-    <div className="card mt-4 grid grid-cols-3 gap-y-4 p-4">
+    <div className="card mt-3 grid grid-cols-3 gap-y-5 p-4">
       {items.map((it) => (
         <Stat key={it.label} label={it.label} value={it.value} unit={it.unit} size="sm" />
       ))}
@@ -146,8 +148,8 @@ function Charts({ a, s, bounds }: { a: Activity; s: Stream; bounds: number[] }) 
         <Section
           title="Heart rate"
           action={
-            <span className="font-mono text-[10.5px] text-fg-3">
-              avg {a.avgHr} · max {a.maxHr}
+            <span className="meta">
+              Avg {a.avgHr} · max {a.maxHr}
             </span>
           }
         >
@@ -157,21 +159,21 @@ function Charts({ a, s, bounds }: { a: Activity; s: Stream; bounds: number[] }) 
         </Section>
       )}
       {a.sport === 'run' && s.v && (
-        <Section title="Pace" action={<span className="font-mono text-[10.5px] text-fg-3">avg {pace(a.avgSpeed)} /km</span>}>
+        <Section title="Pace" action={<span className="meta">Avg {pace(a.avgSpeed)} /km</span>}>
           <div className="card p-4">
             <StreamChart values={smooth(s.v, 8).map((v) => (v > 1.2 ? 1000 / v : NaN))} dt={s.dt} kind="pace" format={(x) => pace(1000 / x)} />
           </div>
         </Section>
       )}
       {a.sport === 'ride' && s.pwr && (
-        <Section title="Power" action={<span className="font-mono text-[10.5px] text-fg-3">avg {a.avgPower} W</span>}>
+        <Section title="Power" action={<span className="meta">Avg {a.avgPower} W</span>}>
           <div className="card p-4">
             <StreamChart values={smooth(s.pwr, 6)} dt={s.dt} kind="power" format={(x) => `${Math.round(x)}`} />
           </div>
         </Section>
       )}
       {s.alt && (a.sport === 'run' || a.sport === 'ride') && (
-        <Section title="Elevation" action={<span className="font-mono text-[10.5px] text-fg-3">+{a.elevGainM} m</span>}>
+        <Section title="Elevation" action={<span className="meta">+{a.elevGainM} m</span>}>
           <div className="card p-4">
             <StreamChart values={s.alt} dt={s.dt} kind="alt" height={100} format={(x) => `${Math.round(x)} m`} />
           </div>
@@ -207,7 +209,7 @@ function Splits({ a }: { a: Activity }) {
   return (
     <Section title="Splits">
       <div className="card overflow-hidden">
-        <div className="grid grid-cols-[36px_1fr_64px_48px] gap-2 border-b border-line px-4 py-2 font-mono text-[10px] uppercase tracking-[0.08em] text-fg-4">
+        <div className="grid grid-cols-[32px_1fr_60px_44px] gap-3 border-b border-line px-4 py-2.5 text-[12px] font-medium text-fg-4">
           <span>Km</span>
           <span />
           <span className="text-right">Pace</span>
@@ -218,13 +220,13 @@ function Splits({ a }: { a: Activity }) {
           const t = slowest === fastest ? 1 : 1 - (p - fastest) / (slowest - fastest)
           const best = p === fastest
           return (
-            <div key={i} className="grid grid-cols-[36px_1fr_64px_48px] items-center gap-2 border-b border-line px-4 py-2 last:border-0">
-              <span className="num text-[17px] text-fg-3">{i + 1}</span>
-              <span className="h-2 rounded-full bg-ink-3">
+            <div key={i} className="grid grid-cols-[32px_1fr_60px_44px] items-center gap-3 border-b border-line px-4 py-2.5 last:border-0">
+              <span className="text-[14px] tabular-nums text-fg-3">{i + 1}</span>
+              <span className="h-1.5 rounded-full bg-ink-3">
                 <span className={`block h-full rounded-full ${best ? 'bg-fg' : 'bg-fg-4'}`} style={{ width: `${30 + t * 70}%` }} />
               </span>
-              <span className={`num text-right text-[18px] ${best ? '' : 'text-fg-2'}`}>{l.distanceM < 950 ? pace(l.avgSpeed) + '*' : pace(l.avgSpeed)}</span>
-              <span className="text-right font-mono text-[12px] text-fg-3">{l.avgHr}</span>
+              <span className={`text-right text-[15px] font-medium tabular-nums ${best ? '' : 'text-fg-2'}`}>{l.distanceM < 950 ? pace(l.avgSpeed) + '*' : pace(l.avgSpeed)}</span>
+              <span className="text-right text-[14px] tabular-nums text-fg-3">{l.avgHr}</span>
             </div>
           )
         })}
@@ -239,14 +241,14 @@ function Lengths({ a }: { a: Activity }) {
     <Section
       title="Lengths"
       action={
-        <span className="font-mono text-[10.5px] text-fg-3">
+        <span className="meta">
           {a.swim?.poolM} m pool{a.swim?.stroke ? ` · ${a.swim.stroke}` : ''}
         </span>
       }
     >
       <div className="card p-4">
         <Bars values={laps.map((l) => l.durationS)} height={110} highlight={laps.reduce((b, l, i) => (l.durationS < laps[b].durationS ? i : b), 0)} />
-        <p className="mt-2 text-[12px] text-fg-3">Seconds per {a.swim?.poolM} m length. Shorter is faster. Fastest length highlighted.</p>
+        <p className="mt-3 text-[12px] text-fg-4">Seconds per {a.swim?.poolM} m length. Shorter is faster. Fastest length highlighted.</p>
       </div>
     </Section>
   )

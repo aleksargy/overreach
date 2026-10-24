@@ -1,8 +1,9 @@
-import { ChevronRight, Info, Plus } from 'lucide-react'
+import { differenceInCalendarDays, parseISO } from 'date-fns'
+import { Info, Plus } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { RatingBadge } from '../../components/ActivityRow'
-import { Ball } from '../../components/icons/SportIcon'
+import { SportDot } from '../../components/icons/SportIcon'
 import { IconButton, Screen } from '../../components/ui/Screen'
 import { Empty, SampleBadge, Section } from '../../components/ui/bits'
 import { Ticker } from '../../components/ui/Ticker'
@@ -14,6 +15,8 @@ import { ratingTone, result } from '../../lib/football'
 import { PlayerCard } from './PlayerCard'
 import { season } from './season'
 
+const RESULT_CLS = { W: 'bg-z2/15 text-z2', D: 'bg-fg/10 text-fg-2', L: 'bg-z5/15 text-z5' } as const
+
 export function FootballScreen() {
   const w = useWorld()
   const open = useUi((s) => s.open)
@@ -22,11 +25,12 @@ export function FootballScreen() {
   const form = [...s.matches].slice(0, 8).reverse()
   const { top, sprints, bestRating, ga } = s.records
   const records = [
-    top && <Record key="top" label="Top speed" value={`${top.a.topSpeedKmh}`} unit="km/h" m={top.m} act={top.act} />,
+    top && <Record key="top" label="Top speed" value={top.a.topSpeedKmh.toFixed(1)} unit="km/h" m={top.m} act={top.act} />,
     sprints && <Record key="sprints" label="Most sprints" value={`${sprints.a.sprints}`} m={sprints.m} act={sprints.act} />,
     bestRating && <Record key="rating" label="Best rating" value={bestRating.rating.toFixed(1)} m={bestRating} />,
-    ga && <Record key="ga" label="Most G+A" value={`${ga.goals + ga.assists}`} m={ga} />,
+    ga && ga.goals + ga.assists > 0 && <Record key="ga" label="Most goals and assists" value={`${ga.goals + ga.assists}`} m={ga} />,
   ].filter(Boolean)
+  const unrated = w.unrated.slice(0, s.apps ? 2 : 3)
   return (
     <Screen
       title="Football"
@@ -37,45 +41,36 @@ export function FootballScreen() {
       }
       actions={
         <IconButton label="Log a match" onClick={() => open({ type: 'logMatch' })}>
-          <Plus size={18} />
+          <Plus size={19} strokeWidth={2} />
         </IconButton>
       }
     >
-      {w.unrated.slice(0, s.apps ? 2 : 3).map((a) => (
-        <button key={a.id} onClick={() => open({ type: 'logMatch', activityId: a.id })} className="press card mb-3 flex w-full items-center gap-3 border-warn/40 p-3.5 text-left">
-          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-warn/15 text-warn">
-            <Ball size={22} />
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="label block text-warn">Unrated game</span>
-            <span className="block truncate text-[15px] font-semibold">
-              {a.name} · {fmt(a.start, 'EEE d MMM')}
-            </span>
-            <span className="font-mono text-[11px] text-fg-3">
-              {dur(a.durationS)} · {km(a.distanceM, 1)} km{a.football ? ` · ${a.football.sprints} sprints` : ''}
-            </span>
-          </span>
-          <span className="btn-primary h-10 shrink-0 px-4 text-[14px]">Rate</span>
-        </button>
-      ))}
+      {unrated.length > 0 && (
+        <div className="card list mb-8 overflow-hidden [--inset:68px]">
+          {unrated.map((a) => (
+            <UnratedRow key={a.id} a={a} now={w.now} onRate={() => open({ type: 'logMatch', activityId: a.id })} />
+          ))}
+        </div>
+      )}
 
       {s.card ? (
-        <div className="pt-2">
+        <div>
           <PlayerCard card={s.card} name={w.profile.name} apps={s.apps} goals={s.goals} assists={s.assists} />
-          <button onClick={() => setExplain((x) => !x)} className="mx-auto mt-3 flex items-center gap-1.5 font-mono text-[10.5px] uppercase tracking-[0.1em] text-fg-3">
-            <Info size={13} /> How the card is built
+          <button onClick={() => setExplain((x) => !x)} className="link mx-auto mt-4 flex text-[13px]">
+            <Info size={14} strokeWidth={1.75} className="mr-1" /> How the card is built
           </button>
           {explain && (
-            <div className="card mt-3 grid grid-cols-1 gap-2 p-4 text-[13px] text-fg-2">
+            <div className="card list mt-3 overflow-hidden">
               {s.card.attrs.map((a) => (
-                <div key={a.key} className="flex justify-between gap-3">
-                  <span>
-                    <b className="font-mono text-fg">{a.key}</b> {a.label}
+                <div key={a.key} className="flex items-baseline justify-between gap-3 px-4 py-2.5 text-[14px]">
+                  <span className="text-fg-2">
+                    <span className="mr-2 font-semibold tracking-[0.02em] text-fg">{a.key}</span>
+                    {a.label}
                   </span>
-                  <span className="text-right text-fg-3">{a.hint}</span>
+                  <span className="text-right text-[13px] text-fg-3">{a.hint}</span>
                 </div>
               ))}
-              <p className="mt-1 text-fg-3">
+              <p className="px-4 py-3 text-[13px] leading-snug text-fg-3">
                 Pace, stamina and work rate come from your watch. Shooting and passing come from what you log. Tiers: bronze under 65, silver 65+, gold 75+, in form 85+.
               </p>
             </div>
@@ -91,55 +86,53 @@ export function FootballScreen() {
 
       {s.apps > 0 && (
         <Section title="Season">
-          <div className="card grid grid-cols-3 divide-x divide-line">
-            {[
-              { k: 'Apps', v: s.apps },
-              { k: 'Goals', v: s.goals },
-              { k: 'Assists', v: s.assists },
-            ].map((x) => (
-              <div key={x.k} className="p-3.5">
-                <div className="label">{x.k}</div>
-                <Ticker value={x.v} className="num mt-1 block text-[40px]" />
-              </div>
-            ))}
-          </div>
-          <div className="card mt-2 grid grid-cols-3 divide-x divide-line">
-            <div className="p-3.5">
-              <div className="label">Record</div>
-              <div className="num mt-1 text-[24px]">
-                <span className="text-z2">{s.w}</span>
-                <span className="text-fg-4">-</span>
-                <span>{s.d}</span>
-                <span className="text-fg-4">-</span>
-                <span className="text-z5">{s.l}</span>
-              </div>
-              <div className="font-mono text-[9.5px] uppercase text-fg-4">W-D-L</div>
+          <div className="card overflow-hidden">
+            <div className="grid grid-cols-3">
+              {[
+                { k: 'Apps', v: s.apps },
+                { k: 'Goals', v: s.goals },
+                { k: 'Assists', v: s.assists },
+              ].map((x) => (
+                <div key={x.k} className="px-4 pb-4 pt-4">
+                  <div className="label">{x.k}</div>
+                  <Ticker value={x.v} className="num-hero mt-3 block text-[44px]" />
+                </div>
+              ))}
             </div>
-            <div className="p-3.5">
-              <div className="label">Win rate</div>
-              <div className="num mt-1 text-[24px]">{s.apps ? Math.round((s.w / s.apps) * 100) : 0}%</div>
-            </div>
-            <div className="p-3.5">
-              <div className="label">Avg rating</div>
-              <div className={`num mt-1 text-[24px] ${ratingTone(s.avgRating).text}`}>{s.avgRating.toFixed(2)}</div>
+            <div className="mx-4 h-px bg-line" />
+            <div className="grid grid-cols-3">
+              <div className="px-4 py-4">
+                <div className="label">Record</div>
+                <div className="num mt-2.5 text-[20px]">
+                  <span className="text-z2">{s.w}</span>
+                  <span className="text-fg-4"> · </span>
+                  <span className="text-fg-2">{s.d}</span>
+                  <span className="text-fg-4"> · </span>
+                  <span className="text-z5">{s.l}</span>
+                </div>
+              </div>
+              <div className="px-4 py-4">
+                <div className="label">Win rate</div>
+                <div className="num mt-2.5 text-[20px]">{s.apps ? Math.round((s.w / s.apps) * 100) : 0}%</div>
+              </div>
+              <div className="px-4 py-4">
+                <div className="label">Avg rating</div>
+                <div className={`num mt-2.5 text-[20px] ${ratingTone(s.avgRating).text}`}>{s.avgRating.toFixed(2)}</div>
+              </div>
             </div>
           </div>
         </Section>
       )}
 
       {form.length > 0 && (
-        <Section title="Form" action={<span className="font-mono text-[10.5px] uppercase text-fg-3">oldest → latest</span>}>
+        <Section title="Form" action={<span className="meta">Last {form.length}, oldest first</span>}>
           <div className="grid grid-cols-8 gap-1.5">
             {form.map((m) => {
               const r = result(m)
               return (
-                <Link key={m.id} to={`/match/${m.id}`} className="press flex flex-col items-center gap-1.5">
-                  <span
-                    className={`grid aspect-square w-full place-items-center rounded-[6px] font-display text-[20px] font-black ${r === 'W' ? 'bg-z2 text-ink-0' : r === 'D' ? 'bg-ink-3 text-fg' : 'bg-z5 text-ink-0'}`}
-                  >
-                    {r}
-                  </span>
-                  <span className={`num text-[14px] ${ratingTone(m.rating).text}`}>{m.rating.toFixed(1)}</span>
+                <Link key={m.id} to={`/match/${m.id}`} className="press flex flex-col items-center gap-2">
+                  <span className={`grid aspect-square w-full place-items-center rounded-[10px] text-[15px] font-semibold ${RESULT_CLS[r]}`}>{r}</span>
+                  <span className={`text-[13px] font-medium tabular-nums ${ratingTone(m.rating).text}`}>{m.rating.toFixed(1)}</span>
                 </Link>
               )
             })}
@@ -155,7 +148,7 @@ export function FootballScreen() {
 
       {s.matches.length > 0 && (
         <Section title="Matches">
-          <div className="flex flex-col gap-2">
+          <div className="card list overflow-hidden [--inset:60px]">
             {s.matches.map((m) => (
               <MatchRow key={m.id} m={m} />
             ))}
@@ -166,49 +159,59 @@ export function FootballScreen() {
   )
 }
 
+function UnratedRow({ a, now, onRate }: { a: Activity; now: Date; onRate: () => void }) {
+  const ago = differenceInCalendarDays(now, parseISO(a.start))
+  const when = ago === 0 ? 'Today’s game' : ago === 1 ? 'Yesterday’s game' : fmt(a.start, 'EEEE d MMM')
+  return (
+    <button onClick={onRate} className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors duration-150 active:bg-ink-2">
+      <SportDot sport="football" size={40} />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[15px] font-medium leading-5">{when}</span>
+        <span className="meta block truncate">
+          {dur(a.durationS)} · {km(a.distanceM, 1)} km{a.football ? ` · ${a.football.sprints} sprints` : ''}
+        </span>
+      </span>
+      <span className="rounded-full bg-fg px-4 py-2 text-[14px] font-semibold leading-none text-ink-0">Rate</span>
+    </button>
+  )
+}
+
 function Record({ label, value, unit, m, act }: { label: string; value: string; unit?: string; m?: Match; act?: Activity }) {
   const inner = (
     <>
-      <div className="label">{label}</div>
-      <div className="num mt-1.5 text-[34px]">
+      <div className="label truncate">{label}</div>
+      <div className="num mt-3 text-[28px]">
         {value}
-        {unit && <span className="ml-1 font-sans text-[12px] font-medium text-fg-3">{unit}</span>}
+        {unit && <span className="ml-1 text-[13px] font-normal tracking-normal text-fg-3">{unit}</span>}
       </div>
-      <div className="mt-1 truncate font-mono text-[10px] uppercase text-fg-4">
-        {m ? `${fmt(m.date, 'd MMM')} vs ${m.opponent}` : act ? `${fmt(act.start, 'd MMM')} · not rated` : ''}
-      </div>
+      <div className="meta mt-1.5 truncate">{m ? `${fmt(m.date, 'd MMM')} · ${m.opponent}` : act ? `${fmt(act.start, 'd MMM')} · not rated` : ''}</div>
     </>
   )
   return m || act ? (
-    <Link to={m ? `/match/${m.id}` : `/activity/${act!.id}`} className="press card p-3.5">
+    <Link to={m ? `/match/${m.id}` : `/activity/${act!.id}`} className="press card p-4">
       {inner}
     </Link>
   ) : (
-    <div className="card p-3.5">{inner}</div>
+    <div className="card p-4">{inner}</div>
   )
 }
 
 export function MatchRow({ m }: { m: Match }) {
   const r = result(m)
   return (
-    <Link to={`/match/${m.id}`} className="press card flex items-center gap-3 p-3 pr-2.5">
-      <span
-        className={`grid h-10 w-7 shrink-0 place-items-center rounded-[6px] font-display text-[17px] font-black ${r === 'W' ? 'bg-z2/15 text-z2' : r === 'D' ? 'bg-ink-3 text-fg-2' : 'bg-z5/15 text-z5'}`}
-      >
-        {r}
-      </span>
+    <Link to={`/match/${m.id}`} className="flex items-center gap-3 px-4 py-3 transition-colors duration-150 active:bg-ink-2">
+      <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-[9px] text-[13px] font-semibold ${RESULT_CLS[r]}`}>{r}</span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[15px] font-semibold">
+        <span className="block truncate text-[15px] font-medium leading-5">
           {m.scoreFor}–{m.scoreAgainst} vs {m.opponent}
         </span>
-        <span className="block truncate font-mono text-[10.5px] uppercase tracking-[0.05em] text-fg-3">
+        <span className="meta block truncate">
           {fmt(m.date, 'EEE d MMM')} · {m.format}-a-side
-          {m.goals ? ` · ${m.goals}G` : ''}
-          {m.assists ? ` · ${m.assists}A` : ''}
+          {m.goals ? ` · ${m.goals} ${m.goals === 1 ? 'goal' : 'goals'}` : ''}
+          {m.assists ? ` · ${m.assists} ${m.assists === 1 ? 'assist' : 'assists'}` : ''}
         </span>
       </span>
       <RatingBadge rating={m.rating} size="row" />
-      <ChevronRight size={16} className="text-fg-4" />
     </Link>
   )
 }

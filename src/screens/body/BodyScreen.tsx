@@ -12,7 +12,10 @@ import { useWorld } from '../../data/world'
 import { fmt, thousands } from '../../lib/format'
 import { mean, quantile, round } from '../../lib/math'
 
-const hm = (s: number) => `${Math.floor(s / 3600)}h${String(Math.round((s % 3600) / 60)).padStart(2, '0')}`
+const hm = (s: number) => {
+  const m = Math.round(s / 60)
+  return m < 60 ? `${m}m` : `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`
+}
 
 export function BodyScreen() {
   const w = useWorld()
@@ -20,21 +23,21 @@ export function BodyScreen() {
   return (
     <Screen
       title="Body"
-      kicker={<span className="flex items-center gap-2">Weight, recovery, measurements {w.mode === 'sample' && <SampleBadge />}</span>}
+      kicker={<span className="flex items-center gap-2">Weight, recovery and sleep {w.mode === 'sample' && <SampleBadge />}</span>}
       actions={
         <IconButton label="Weigh in" onClick={() => open({ type: 'logBody' })}>
-          <Plus size={18} />
+          <Plus size={19} strokeWidth={2} />
         </IconButton>
       }
     >
-      <WeightCard body={w.body} now={w.now} />
+      <Weight body={w.body} now={w.now} />
       <Recovery dailies={w.dailies} />
       <Measurements body={w.body} />
     </Screen>
   )
 }
 
-function WeightCard({ body, now }: { body: BodyEntry[]; now: Date }) {
+function Weight({ body, now }: { body: BodyEntry[]; now: Date }) {
   const open = useUi((s) => s.open)
   const data = useMemo(() => {
     const ws = body.filter((b) => b.weightKg && differenceInCalendarDays(now, parseISO(b.date)) <= 84).sort((a, b) => a.date.localeCompare(b.date))
@@ -48,7 +51,7 @@ function WeightCard({ body, now }: { body: BodyEntry[]; now: Date }) {
       <Empty
         title="No weigh-ins yet"
         action={
-          <button className="btn-primary mt-2" onClick={() => open({ type: 'logBody' })}>
+          <button className="btn-primary mt-3 h-10 px-4 text-[14px]" onClick={() => open({ type: 'logBody' })}>
             Weigh in
           </button>
         }
@@ -60,34 +63,33 @@ function WeightCard({ body, now }: { body: BodyEntry[]; now: Date }) {
   const last = data.avg[data.avg.length - 1]
   const monthAgo = [...data.avg].reverse().find((p) => p.t <= last.t - 28 * 86_400_000) ?? data.avg[0]
   const change = last.v - monthAgo.v
-  const weeks = Math.max(1, (last.t - monthAgo.t) / (7 * 86_400_000))
+  const weeks = Math.max(1, Math.round((last.t - monthAgo.t) / (7 * 86_400_000)))
   const latest = data.ws[data.ws.length - 1]
+  const perWeek = change / weeks
   return (
-    <section className="chamfer relative overflow-hidden rounded-card border border-line bg-ink-1">
-      <div className="spectrum absolute inset-x-0 top-0 h-[2px] opacity-80" />
-      <div className="p-4">
-        <div className="flex items-center justify-between">
-          <span className="label">Weight · 7-day average</span>
-          <Delta value={change} unit=" kg" better="down" />
-        </div>
-        <div className="mt-2 flex items-end gap-2">
-          <Ticker value={last.v} dp={1} className="num text-[84px] leading-[0.8]" duration={1000} />
-          <span className="mb-1 font-mono text-[12px] text-fg-3">kg</span>
-          <span className="mb-1 ml-auto text-right font-mono text-[11px] leading-snug text-fg-3">
-            {Math.abs(change / weeks) < 0.005 ? 'Steady' : `${change < 0 ? '−' : '+'}${Math.abs(change / weeks).toFixed(2)} kg a week`}
-            <br />
-            over {Math.round(weeks)} weeks
+    <section>
+      <div className="flex items-center justify-between gap-3">
+        <span className="label">Weight, 7-day average</span>
+        {data.avg.length > 1 && Math.abs(change) >= 0.05 && (
+          <span className="flex items-center gap-1.5">
+            <Delta value={change} unit=" kg" better="down" />
+            <span className="text-[13px] text-fg-3">in {weeks} weeks</span>
           </span>
-        </div>
-        <div className="mt-4">
-          <TrendChart points={data.points} avg={data.avg} height={160} format={(v) => v.toFixed(1)} xLabel={(t) => fmt(new Date(t).toISOString(), 'd MMM')} />
-        </div>
+        )}
       </div>
-      <div className="flex items-center justify-between border-t border-line px-4 py-2.5 font-mono text-[10.5px] uppercase tracking-[0.06em] text-fg-3">
-        <span>
-          Last {latest.weightKg?.toFixed(1)} kg · {fmt(latest.date, 'EEE d MMM HH:mm')}
+      <div className="mt-4 flex items-baseline gap-2">
+        <Ticker value={last.v} dp={1} className="num-hero -ml-1 text-[96px]" duration={1000} />
+        <span className="text-[17px] font-medium text-fg-3">kg</span>
+      </div>
+      <div className="meta mt-4">{Math.abs(perWeek) < 0.05 ? 'Holding steady' : `${perWeek < 0 ? 'Losing' : 'Gaining'} ${Math.abs(perWeek).toFixed(2)} kg a week`}</div>
+      <div className="mt-6">
+        <TrendChart points={data.points} avg={data.avg} height={150} format={(v) => v.toFixed(1)} xLabel={(t) => fmt(new Date(t).toISOString(), 'd MMM')} />
+      </div>
+      <div className="meta mt-3 flex items-center justify-between gap-3">
+        <span className="truncate">
+          Last {latest.weightKg?.toFixed(1)} kg, {fmt(latest.date, 'EEE d MMM')}
         </span>
-        {latest.bodyFat && <span>{latest.bodyFat.toFixed(1)}% fat</span>}
+        {latest.bodyFat && <span className="shrink-0">{latest.bodyFat.toFixed(1)}% body fat</span>}
       </div>
     </section>
   )
@@ -100,14 +102,15 @@ interface MetricDef {
   better: 'up' | 'down'
   pick: (d: Daily) => number | undefined
   show: (v: number) => string
-  dp?: number
+  /** how the change reads: sleep in minutes, the rest in their own unit */
+  delta: (diff: number) => { value: number; unit: string }
 }
 
 const METRICS: MetricDef[] = [
-  { key: 'hrv', label: 'HRV', unit: 'ms', better: 'up', pick: (d) => d.hrv, show: (v) => String(Math.round(v)) },
-  { key: 'rhr', label: 'Resting HR', unit: 'bpm', better: 'down', pick: (d) => d.rhr, show: (v) => String(Math.round(v)) },
-  { key: 'sleep', label: 'Sleep', unit: '', better: 'up', pick: (d) => d.sleepS, show: hm, dp: 0 },
-  { key: 'steps', label: 'Steps', unit: '', better: 'up', pick: (d) => d.steps, show: (v) => thousands(v) },
+  { key: 'hrv', label: 'HRV', unit: 'ms', better: 'up', pick: (d) => d.hrv, show: (v) => String(Math.round(v)), delta: (d) => ({ value: d, unit: ' ms' }) },
+  { key: 'rhr', label: 'Resting HR', unit: 'bpm', better: 'down', pick: (d) => d.rhr, show: (v) => String(Math.round(v)), delta: (d) => ({ value: d, unit: ' bpm' }) },
+  { key: 'sleep', label: 'Sleep', unit: '', better: 'up', pick: (d) => d.sleepS, show: hm, delta: (d) => ({ value: d / 60, unit: ' min' }) },
+  { key: 'steps', label: 'Steps', unit: '', better: 'up', pick: (d) => d.steps, show: (v) => thousands(v), delta: (d) => ({ value: d, unit: '' }) },
 ]
 
 /** Last 7 days against your own previous 3 weeks, never a population norm. */
@@ -115,37 +118,39 @@ function Recovery({ dailies }: { dailies: Daily[] }) {
   const recent = dailies.slice(-28)
   if (recent.length < 8) return null
   const last = recent[recent.length - 1]
+  const tiles = METRICS.map((m) => {
+    const vals = recent.map(m.pick).filter((v): v is number => v !== undefined)
+    if (vals.length < 8) return null
+    const week = mean(vals.slice(-7))
+    const before = vals.slice(0, -7)
+    const d = m.delta(week - mean(before))
+    return { m, vals, week, d, band: [quantile(before, 0.15), quantile(before, 0.85)] as [number, number] }
+  }).filter((x): x is NonNullable<typeof x> => !!x)
   return (
-    <Section title="Recovery" action={<span className="font-mono text-[10.5px] uppercase tracking-[0.08em] text-fg-3">4 weeks</span>}>
-      <div className="flex flex-col gap-2">
-        {METRICS.map((m) => {
-          const vals = recent.map(m.pick).filter((v): v is number => v !== undefined)
-          if (vals.length < 8) return null
-          const week = mean(vals.slice(-7))
-          const before = mean(vals.slice(0, -7))
-          const lo = quantile(vals.slice(0, -7), 0.15)
-          const hi = quantile(vals.slice(0, -7), 0.85)
-          const diff = m.key === 'sleep' ? (week - before) / 60 : week - before
-          return (
-            <div key={m.key} className="card grid grid-cols-[1fr_132px] items-center gap-4 p-4">
-              <div className="min-w-0">
+    <>
+      {tiles.length > 0 && (
+        <Section title="Recovery" action={<span className="meta">Last 7 days vs the 3 before</span>}>
+          <div className="grid grid-cols-2 gap-2">
+            {tiles.map(({ m, vals, week, d, band }) => (
+              <div key={m.key} className="card flex flex-col p-4">
                 <div className="label">{m.label}</div>
-                <div className="mt-1.5 flex items-baseline gap-1">
-                  <span className="num text-[32px]">{m.show(week)}</span>
-                  {m.unit && <span className="font-mono text-[11px] text-fg-3">{m.unit}</span>}
+                <div className="mt-3 flex items-baseline gap-1">
+                  <span className="num text-[28px]">{m.show(week)}</span>
+                  {m.unit && <span className="text-[13px] text-fg-3">{m.unit}</span>}
                 </div>
-                <div className="mt-1 whitespace-nowrap">
-                  <Delta value={diff} unit={m.key === 'sleep' ? ' min' : m.key === 'steps' ? '' : ` ${m.unit}`} better={m.better} dp={0} />
+                <div className="mt-1.5">
+                  <Delta value={d.value} unit={d.unit} better={m.better} dp={0} />
                 </div>
-                <div className="mt-0.5 whitespace-nowrap font-mono text-[9.5px] uppercase tracking-[0.06em] text-fg-4">this week vs 3 before</div>
+                <div className="mt-3">
+                  <Sparkline values={vals} band={band} height={36} area={false} color="rgb(var(--fg-2))" />
+                </div>
               </div>
-              <Sparkline values={vals} band={[lo, hi]} height={54} area={false} />
-            </div>
-          )
-        })}
-        {last.sleepS && last.deepS !== undefined && <SleepStages d={last} />}
-      </div>
-    </Section>
+            ))}
+          </div>
+        </Section>
+      )}
+      {last.sleepS && last.deepS !== undefined && <SleepStages d={last} />}
+    </>
   )
 }
 
@@ -158,31 +163,25 @@ function SleepStages({ d }: { d: Daily }) {
   ]
   const total = parts.reduce((a, p) => a + p.s, 0) || 1
   return (
-    <div className="card p-4">
-      <div className="flex items-baseline justify-between">
-        <span className="label">Last night</span>
-        <span className="font-mono text-[10.5px] text-fg-3">
-          {hm(d.sleepS ?? 0)}
-          {d.sleepScore ? ` · score ${d.sleepScore}` : ''}
-        </span>
-      </div>
-      <div className="mt-3 flex h-3 gap-[2px] overflow-hidden rounded-full">
-        {parts.map((p) => (
-          <span key={p.key} style={{ width: `${(p.s / total) * 100}%`, background: p.color }} />
-        ))}
-      </div>
-      <div className="mt-2.5 grid grid-cols-4 gap-2">
-        {parts.map((p) => (
-          <div key={p.key}>
-            <div className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.06em] text-fg-3">
-              <span className="h-2 w-2 rounded-[2px]" style={{ background: p.color }} />
-              {p.key}
+    <Section title="Last night" action={d.sleepScore ? <span className="meta">Sleep score {d.sleepScore}</span> : undefined}>
+      <div className="card p-4">
+        <div className="num text-[28px]">{hm(d.sleepS ?? 0)}</div>
+        <div className="mt-4 flex h-2 gap-[3px]">
+          {parts.map((p) => (p.s > 0 ? <span key={p.key} className="rounded-full" style={{ width: `${(p.s / total) * 100}%`, background: p.color }} /> : null))}
+        </div>
+        <div className="mt-4 grid grid-cols-4 gap-2">
+          {parts.map((p) => (
+            <div key={p.key}>
+              <div className="flex items-center gap-1.5 text-[12px] text-fg-3">
+                <span className="h-1.5 w-1.5 rounded-full" style={{ background: p.color }} />
+                {p.key}
+              </div>
+              <div className="mt-1.5 text-[15px] font-medium tabular-nums">{hm(p.s)}</div>
             </div>
-            <div className="num mt-0.5 text-[18px]">{hm(p.s)}</div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
-    </div>
+    </Section>
   )
 }
 
@@ -203,21 +202,19 @@ function Measurements({ body }: { body: BodyEntry[] }) {
   }).filter((x): x is NonNullable<typeof x> => !!x)
   if (!rows.length) return null
   return (
-    <Section title="Measurements" action={<span className="font-mono text-[10.5px] uppercase tracking-[0.08em] text-fg-3">since {fmt(rows[0].since, 'd MMM')}</span>}>
-      <div className="grid grid-cols-2 gap-2">
+    <Section title="Measurements" action={<span className="meta">Since {fmt(rows[0].since, 'd MMM')}</span>}>
+      <div className="card list overflow-hidden">
         {rows.map((r) => (
-          <div key={r.key} className="card p-3.5">
-            <div className="label">{r.label}</div>
-            <div className="mt-1.5 flex items-baseline gap-1">
-              <span className="num text-[28px]">{r.last.toFixed(1)}</span>
-              <span className="font-mono text-[11px] text-fg-3">cm</span>
-            </div>
-            <div className="mt-1 flex items-center justify-between">
-              <Delta value={r.last - r.first} unit=" cm" better={r.key === 'waistCm' ? 'down' : 'up'} />
-              <div className="w-16">
-                <Sparkline values={r.values} height={22} area={false} dot={false} strokeWidth={1.5} color="rgb(var(--fg-3))" />
-              </div>
-            </div>
+          <div key={r.key} className="grid grid-cols-[1fr_64px_auto] items-center gap-4 px-4 py-3">
+            <span className="text-[15px] text-fg-2">{r.label}</span>
+            <Sparkline values={r.values} height={22} area={false} dot={false} strokeWidth={1.5} color="rgb(var(--fg-3))" />
+            <span className="flex min-w-[112px] items-baseline justify-end gap-2.5">
+              {r.n > 1 && <Delta value={r.last - r.first} unit="" better={r.key === 'waistCm' ? 'down' : 'up'} />}
+              <span className="text-[15px] font-medium tabular-nums">
+                {r.last.toFixed(1)}
+                <span className="ml-0.5 text-[12px] font-normal text-fg-3">cm</span>
+              </span>
+            </span>
           </div>
         ))}
       </div>

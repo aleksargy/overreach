@@ -141,10 +141,10 @@ function ExerciseForm({ exerciseId, initialName, onSaved }: { exerciseId?: strin
           {timed ? 'Hold the top of the range on every set and the target goes up 5 seconds.' : 'Hit the top of the range on every set at your target RPE and the weight goes up.'}
         </p>
         <div className="grid grid-cols-2 gap-2">
-          <div className="rounded-card border border-line bg-ink-1 py-3">
+          <div className="card py-3">
             <Stepper label="From" value={lo} onChange={setLo} min={1} max={timed ? 600 : 50} />
           </div>
-          <div className="rounded-card border border-line bg-ink-1 py-3">
+          <div className="card py-3">
             <Stepper label="To" value={hi} onChange={setHi} min={1} max={timed ? 600 : 50} />
           </div>
         </div>
@@ -231,7 +231,7 @@ function Picker({ onPick }: { onPick: (id: string) => void }) {
           >
             <span className="min-w-0 flex-1">
               <span className="block truncate text-[15px] font-semibold">{e.name}</span>
-              <span className="block font-mono text-[10.5px] uppercase tracking-[0.05em] text-fg-3">
+              <span className="block text-[13px] tabular-nums text-fg-3">
                 {MUSCLE_LABEL[e.muscle]} · {EQUIPMENT_LABEL[e.equipment]}
               </span>
             </span>

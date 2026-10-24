@@ -50,28 +50,28 @@ export function ExerciseScreen() {
     <Screen
       title={ex.name}
       back
+      bare
       actions={
         <IconButton label="Edit exercise" onClick={() => open({ type: 'exercise', exerciseId: ex.id })}>
           <Pencil size={16} />
         </IconButton>
       }
     >
-      <div className="pt-1 font-mono text-[10.5px] uppercase tracking-[0.08em] text-fg-3">
+      <div className="pt-1 text-[13px] tabular-nums text-fg-3">
         {MUSCLE_LABEL[ex.muscle]} · {EQUIPMENT_LABEL[ex.equipment]} · {KIND_LABEL[ex.kind]}
         {ex.custom ? ' · custom' : ''}
       </div>
-      <h1 className="mt-2 font-display text-[46px] font-black uppercase leading-[0.86]">{ex.name}</h1>
+      <h1 className="mt-2 text-[28px] font-semibold tracking-[-0.02em] leading-[1.1]">{ex.name}</h1>
       {ex.notes && <p className="mt-2 text-[14px] text-fg-3">{ex.notes}</p>}
 
-      <section className="chamfer relative mt-5 overflow-hidden rounded-card border border-line bg-ink-1 p-4">
-        <div className="spectrum absolute inset-x-0 top-0 h-[2px] opacity-80" />
+      <section className="relative mt-5 overflow-hidden card p-4">
         <div className="flex items-center justify-between">
           <span className="label">Next time</span>
           <SuggestionTag s={s} timed={ex.kind === 'duration'} />
         </div>
         <div className="num mt-2 text-[34px]">{targetText(ex, s)}</div>
         <p className="mt-2 text-[14px] leading-snug text-fg-2">{s.text}</p>
-        <div className="mt-3 font-mono text-[10.5px] uppercase tracking-[0.06em] text-fg-4">
+        <div className="mt-3 text-[13px] tabular-nums text-fg-4">
           {ex.repRange[0]}–{ex.repRange[1]}
           {ex.kind === 'duration' ? 's' : ' reps'} · target RPE {fmtRpe(ex.targetRpe)}
           {loaded && ex.increment ? ` · +${fmtKg(ex.increment)} kg steps` : ''}
@@ -105,7 +105,7 @@ export function ExerciseScreen() {
           {points.length > 1 && (
             <Section
               title={e1 ? 'Estimated 1RM' : ex.kind === 'weighted-bodyweight' ? 'Most added weight' : ex.kind === 'duration' ? 'Longest hold' : 'Most reps'}
-              action={<span className="font-mono text-[10.5px] uppercase text-fg-3">{points.length} sessions</span>}
+              action={<span className="text-[13px] tabular-nums text-fg-3">{points.length} sessions</span>}
             >
               <div className="card p-4">
                 <TrendChart points={points} avg={avg} format={(v) => `${fmtKg(Math.round(v))}`} xLabel={(t) => fmt(new Date(t).toISOString(), 'd MMM')} />
@@ -123,14 +123,14 @@ export function ExerciseScreen() {
               {history.slice(0, 12).map((h) => (
                 <Link key={h.workoutId + h.date} to={`/lift/history/${h.workoutId}`} className="press card block p-3.5">
                   <div className="flex items-baseline justify-between">
-                    <span className="font-mono text-[10.5px] uppercase tracking-[0.06em] text-fg-3">{fmt(h.date, 'EEE d MMM yyyy')}</span>
-                    {e1 && <span className="font-mono text-[10.5px] text-fg-3">e1RM {fmtKg(Math.round(bestE1rm(ex, h.sets)))}</span>}
+                    <span className="text-[13px] tabular-nums text-fg-3">{fmt(h.date, 'EEE d MMM yyyy')}</span>
+                    {e1 && <span className="text-[13px] tabular-nums text-fg-3">e1RM {fmtKg(Math.round(bestE1rm(ex, h.sets)))}</span>}
                   </div>
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {h.sets.map((x) => (
                       <span
                         key={x.id}
-                        className={`inline-flex items-center gap-1.5 rounded-[6px] border px-2 py-1 font-mono text-[11.5px] ${x.kind === 'warmup' ? 'border-line text-fg-4' : 'border-line-2 text-fg'}`}
+                        className={`inline-flex items-center gap-1.5 rounded-[6px] border px-2 py-1 text-[13px] tabular-nums ${x.kind === 'warmup' ? 'border-line text-fg-4' : 'border-line-2 text-fg'}`}
                       >
                         {setText(ex, x)}
                         {x.rpe ? <span className={`rounded-[3px] px-1 text-[10px] font-semibold ${rpeTone(x.rpe)}`}>{fmtRpe(x.rpe)}</span> : null}
@@ -162,7 +162,7 @@ function RepMaxTable({ ex, best }: { ex: Exercise; best: number }) {
     return { reps, kg: Math.floor(kg / step) * step }
   })
   return (
-    <Section title="Rep maxes" action={<span className="font-mono text-[10.5px] uppercase text-fg-3">from e1RM</span>}>
+    <Section title="Rep maxes" action={<span className="text-[13px] tabular-nums text-fg-3">from e1RM</span>}>
       <div className="card grid grid-cols-5 divide-x divide-line">
         {rows.map((r) => (
           <div key={r.reps} className="px-2 py-3 text-center">

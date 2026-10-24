@@ -13,7 +13,7 @@ export function LogBodySheet() {
   const close = useUi((s) => s.close)
   const open = sheet?.type === 'logBody'
   return (
-    <Sheet open={open} onClose={close} title="Weigh in" kicker="Body">
+    <Sheet open={open} onClose={close} title="Weigh in">
       {open && <Form />}
     </Sheet>
   )
@@ -46,47 +46,53 @@ function Form() {
   }
 
   return (
-    <div className="flex flex-col gap-6 pb-2">
-      <div className="rounded-card border border-line bg-ink-1 px-3 py-5">
-        <div className="label mb-3 text-center">This morning</div>
+    <div className="flex flex-col gap-7 pb-2">
+      <div className="rounded-card bg-ink-2 px-3 py-6">
+        <div className="label mb-4 text-center">This morning</div>
         <div className="flex items-center justify-center gap-3">
-          <button aria-label="Minus 0.1 kg" onClick={() => step(-0.1)} className="press grid h-12 w-12 place-items-center rounded-full border border-line-2 bg-ink-2 text-fg-2">
+          <button aria-label="Minus 0.1 kg" onClick={() => step(-0.1)} className="press grid h-11 w-11 place-items-center rounded-full bg-ink-3 text-fg-2">
             <Minus size={18} />
           </button>
           <div className="flex items-baseline">
-            <NumInput label="Weight in kg" decimal value={kg} onChange={setKg} className="num w-[4.2ch] bg-transparent text-center text-[72px] leading-none focus:outline-none" />
-            <span className="font-mono text-[13px] text-fg-3">kg</span>
+            <NumInput label="Weight in kg" decimal value={kg} onChange={setKg} className="num-hero w-[4.1ch] bg-transparent text-center text-[68px] focus:outline-none" />
+            <span className="text-[15px] font-medium text-fg-3">kg</span>
           </div>
-          <button aria-label="Plus 0.1 kg" onClick={() => step(0.1)} className="press grid h-12 w-12 place-items-center rounded-full bg-fg text-ink-0">
+          <button aria-label="Plus 0.1 kg" onClick={() => step(0.1)} className="press grid h-11 w-11 place-items-center rounded-full bg-fg text-ink-0">
             <Plus size={18} />
           </button>
         </div>
-        <p className="mt-3 text-center font-mono text-[10.5px] uppercase tracking-[0.06em] text-fg-4">Last time {lastWeight.toFixed(1)} kg</p>
+        <p className="meta mt-4 text-center">Last time {lastWeight.toFixed(1)} kg</p>
       </div>
 
       <label className="block">
-        <span className="label mb-1.5 block">Body fat %</span>
+        <span className="label mb-2 block">Body fat %</span>
         <NumInput
           label="Body fat percent"
           decimal
           value={fat}
           onChange={setFat}
           placeholder={lastFat ? lastFat.toFixed(1) : 'optional'}
-          className={`${inputCls} num text-[20px]`}
+          className={`${inputCls} text-[17px] tabular-nums`}
         />
       </label>
 
       <div>
         <button onClick={() => setMore((m) => !m)} className="flex w-full items-center justify-between py-1">
           <span className="label">Tape measurements</span>
-          <ChevronDown size={16} className={`text-fg-3 transition-transform ${more ? 'rotate-180' : ''}`} />
+          <ChevronDown size={16} strokeWidth={1.75} className={`text-fg-3 transition-transform ${more ? 'rotate-180' : ''}`} />
         </button>
         {more && (
           <div className="mt-3 grid grid-cols-2 gap-2">
             {FIELDS.map((f) => (
               <label key={f.key} className="block">
-                <span className="label mb-1.5 block">{f.label}, cm</span>
-                <NumInput label={`${f.label} in cm`} decimal value={cm[f.key]} onChange={(v) => setCm((x) => ({ ...x, [f.key]: v }))} className={`${inputCls} num text-[20px]`} />
+                <span className="label mb-2 block">{f.label}, cm</span>
+                <NumInput
+                  label={`${f.label} in cm`}
+                  decimal
+                  value={cm[f.key]}
+                  onChange={(v) => setCm((x) => ({ ...x, [f.key]: v }))}
+                  className={`${inputCls} text-[17px] tabular-nums`}
+                />
               </label>
             ))}
           </div>
