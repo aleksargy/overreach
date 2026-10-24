@@ -320,39 +320,47 @@ export function headline(
   a?: Physical,
   base?: Pick<Baseline, 'mPerMin'>,
 ): string {
-  const N = name.toUpperCase()
-  const T = m.team.toUpperCase()
-  const O = m.opponent.toUpperCase()
+  const N = name
+  const T = m.team
+  const O = m.opponent
   const s = `${m.scoreFor}-${m.scoreAgainst}`
   const r = result(m)
-  const word = r === 'W' ? 'WIN' : r === 'D' ? 'DRAW' : 'DEFEAT'
+  const word = r === 'W' ? 'win' : r === 'D' ? 'draw' : 'defeat'
   // tiers from most to least newsworthy; the first tier with a story wins
   const tiers: string[][] = [
     [
-      ...(m.moments.includes('ownGoal') ? [`OWN GOAL AGONY FOR ${N}`, `${N} SCORES AT THE WRONG END`] : []),
-      ...(m.goals >= 3 ? [`${N} HAT-TRICK HERO AS ${T} SINK ${O}`, `TREBLE TROUBLE: ${N} BAGS ${m.goals === 3 ? 'THREE' : m.goals}`] : []),
-      ...(m.rating >= 9 && m.goals < 3 ? [`${N} UNPLAYABLE IN ${s} ${word}`] : []),
+      ...(m.moments.includes('ownGoal') ? [`Own goal agony for ${N}`, `${N} scores at the wrong end`] : []),
+      ...(m.goals >= 3 ? [`${N} hat-trick hero as ${T} sink ${O}`, `Treble trouble: ${N} bags ${m.goals === 3 ? 'three' : m.goals}`] : []),
+      ...(m.rating >= 9 && m.goals < 3 ? [`${N} unplayable in ${s} ${word}`] : []),
     ],
     [
-      ...(m.goals === 2 && r === 'W' ? [`${N}'S BRACE SINKS ${O}`, `DOUBLE TOP: ${N} FIRES ${T} TO ${s} WIN`] : []),
-      ...(m.goals === 2 && r !== 'W' ? [`${N} BRACE NOT ENOUGH IN ${s} ${word}`] : []),
-      ...(m.assists >= 3 ? [`${N} PULLS THE STRINGS IN ${s} ${word}`, `PROVIDER: ${N} SETS UP ${m.assists}`] : []),
-      ...(m.moments.includes('worldie') ? [`WHAT A HIT! ${N} STUNS ${O}`] : []),
-      ...(m.moments.includes('sitter') && m.goals === 0 ? [`SITTER SHAME FOR ${N}`, `${N} MISSES A SITTER AS ${T} ${r === 'W' ? 'HANG ON' : 'PAY THE PRICE'}`] : []),
-      ...(m.moments.includes('error') ? [`HOWLER: ${N} GIFTS ${O} A GOAL`] : []),
+      ...(m.goals === 2 && r === 'W' ? [`${N}’s brace sinks ${O}`, `Double top: ${N} fires ${T} to ${s} win`] : []),
+      ...(m.goals === 2 && r !== 'W' ? [`${N} brace not enough in ${s} ${word}`] : []),
+      ...(m.assists >= 3 ? [`${N} pulls the strings in ${s} ${word}`, `Provider: ${N} sets up ${m.assists}`] : []),
+      ...(m.moments.includes('worldie') ? [`What a hit! ${N} stuns ${O}`] : []),
+      ...(m.moments.includes('sitter') && m.goals === 0 ? [`Sitter shame for ${N}`, `${N} misses a sitter as ${T} ${r === 'W' ? 'hang on' : 'pay the price'}`] : []),
+      ...(m.moments.includes('error') ? [`Howler: ${N} gifts ${O} a goal`] : []),
     ],
     [
-      ...(r === 'L' && m.rating >= 7 ? [`${N} THE ONLY POSITIVE IN ${s} DEFEAT`] : []),
-      ...(r === 'L' && m.rating < 6 ? [`${T} CRUMBLE: ${N} POSTED MISSING`, `NIGHTMARE FOR ${N} AS ${O} RUN RIOT`] : []),
-      ...(r === 'D' ? [`HONOURS EVEN IN ${s} THRILLER`, `STALEMATE: ${T} AND ${O} CAN'T BE SEPARATED`] : []),
-      ...(m.scoreAgainst === 0 ? [`${N} SHUTS UP SHOP`] : []),
-      ...(m.goals === 1 && r === 'W' ? [`${N} ON TARGET AS ${T} BEAT ${O}`] : []),
+      ...(r === 'L' && m.rating >= 7 ? [`${N} the only positive in ${s} defeat`] : []),
+      ...(r === 'L' && m.rating < 6 ? [`${T} crumble: ${N} posted missing`, `Nightmare for ${N} as ${O} run riot`] : []),
+      ...(r === 'D' ? [`Honours even in ${s} thriller`, `Stalemate: ${T} and ${O} can’t be separated`] : []),
+      ...(m.scoreAgainst === 0 ? [`${N} shuts up shop`] : []),
+      ...(m.goals === 1 && r === 'W' ? [`${N} on target as ${T} beat ${O}`] : []),
     ],
-    [...(a && base && a.mPerMin > base.mPerMin * 1.12 ? [`${N} RUNS THE LEGS OFF ${O}`] : []), ...(a && a.fadeMinute !== undefined ? [`${N} FADES AFTER BRIGHT START`] : [])],
-    r === 'W' ? [`${T} EDGE ${O} IN ${s} SCRAP`, `JOB DONE: ${T} SEE OFF ${O}`] : [`${T} FALL ${s} TO ${O}`],
+    [...(a && base && a.mPerMin > base.mPerMin * 1.12 ? [`${N} runs the legs off ${O}`] : []), ...(a && a.fadeMinute !== undefined ? [`${N} fades after bright start`] : [])],
+    r === 'W' ? [`${T} edge ${O} in ${s} scrap`, `Job done: ${T} see off ${O}`] : [`${T} fall ${s} to ${O}`],
   ]
   const pool = tiers.find((t) => t.length) ?? tiers[tiers.length - 1]
   return pool[hashString(m.id) % pool.length]
+}
+
+/** Headlines used to be written in capitals; show an old one the way new ones read, names included. */
+export function tidyHeadline(h: string, names: string[]): string {
+  if (/[a-z]/.test(h)) return h
+  let out = h.toLowerCase().replace(/(^|[:!] )(\S)/g, (_, pre: string, c: string) => pre + c.toUpperCase())
+  for (const n of names.filter(Boolean)) out = out.replace(new RegExp(n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), n)
+  return out
 }
 
 export function ordinal(n: number): string {

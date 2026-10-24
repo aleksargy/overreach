@@ -47,14 +47,14 @@ export function WorkoutScreen() {
   }
 
   return (
-    <Screen title={wk.name} back>
+    <Screen title={wk.name} back bare>
       {fresh && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-1">
-          <span className="bg-z2 px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-0">Saved</span>
+          <span className="rounded-full bg-z2/15 px-2.5 py-1 text-[12px] font-medium text-z2">Saved</span>
         </motion.div>
       )}
-      <div className="pt-2 font-mono text-[10.5px] uppercase tracking-[0.08em] text-fg-3">{fmt(wk.start, 'EEEE d MMMM · HH:mm')}</div>
-      <h1 className="mt-2 font-display text-[52px] font-black uppercase leading-[0.86]">{wk.name}</h1>
+      <div className="pt-2 text-[13px] tabular-nums text-fg-3">{fmt(wk.start, 'EEEE d MMMM · HH:mm')}</div>
+      <h1 className="mt-2 text-[28px] font-semibold tracking-[-0.02em] leading-[1.1]">{wk.name}</h1>
 
       <div className="card mt-5 grid grid-cols-4 divide-x divide-line">
         {[
@@ -65,14 +65,12 @@ export function WorkoutScreen() {
         ].map((s) => (
           <div key={s.label} className="px-3 py-3.5">
             <div className="label mb-1.5">{s.label}</div>
-            <div className="num text-[24px]">{s.value}</div>
+            <div className="num whitespace-nowrap text-[20px]">{s.value}</div>
           </div>
         ))}
       </div>
       {wk.srpe && secs >= 300 && (
-        <p className="mt-2 font-mono text-[10.5px] uppercase tracking-[0.06em] text-fg-4">
-          Training load {Math.round(srpeLoad(secs / 60, wk.srpe))}, counted with your runs and games
-        </p>
+        <p className="mt-2 text-[13px] tabular-nums text-fg-4">Training load {Math.round(srpeLoad(secs / 60, wk.srpe))}, counted with your runs and games</p>
       )}
 
       {prs.length > 0 && (
@@ -86,14 +84,14 @@ export function WorkoutScreen() {
                   initial={fresh ? { opacity: 0, x: -14 } : false}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: 0.15 + i * 0.08 }}
-                  className="chamfer-sm relative flex items-center gap-3 overflow-hidden rounded-card border border-z3/30 bg-z3/[0.08] p-3"
+                  className="relative flex items-center gap-3 overflow-hidden rounded-card border border-z3/30 bg-z3/[0.08] p-3"
                 >
                   <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-z3 text-ink-0">
                     <Trophy size={18} strokeWidth={2.4} />
                   </span>
                   <span className="min-w-0">
                     <span className="block truncate text-[15px] font-semibold">{ex?.name}</span>
-                    <span className="block font-mono text-[11px] uppercase tracking-[0.06em] text-z3">{p.label}</span>
+                    <span className="block text-[13px] tabular-nums text-z3">{p.label}</span>
                   </span>
                 </motion.div>
               )
@@ -113,18 +111,18 @@ export function WorkoutScreen() {
               <Link key={we.id} to={`/lift/exercise/${ex.id}`} className="press card block overflow-hidden">
                 <div className="flex items-baseline justify-between gap-3 px-3.5 pb-2 pt-3">
                   <span className="min-w-0">
-                    <span className="block truncate font-display text-[20px] font-extrabold uppercase leading-none">{ex.name}</span>
-                    <span className="mt-1 block font-mono text-[10px] uppercase tracking-[0.06em] text-fg-3">{MUSCLE_LABEL[ex.muscle]}</span>
+                    <span className="block truncate text-[16px] font-semibold tracking-[-0.02em] leading-none">{ex.name}</span>
+                    <span className="mt-1 block text-[12px] tabular-nums text-fg-3">{MUSCLE_LABEL[ex.muscle]}</span>
                   </span>
-                  {best > 0 && hasE1rm(ex) && <span className="shrink-0 font-mono text-[10.5px] text-fg-3">e1RM {fmtKg(Math.round(best))}</span>}
+                  {best > 0 && hasE1rm(ex) && <span className="shrink-0 text-[13px] tabular-nums text-fg-3">e1RM {fmtKg(Math.round(best))}</span>}
                 </div>
                 {we.sets.map((s) => {
                   const label = s.kind === 'warmup' ? 'W' : s.kind === 'drop' ? 'D' : s.kind === 'failure' ? 'F' : String(++n)
                   return (
                     <div key={s.id} className="grid grid-cols-[28px_1fr_auto] items-center gap-2 border-t border-line px-3.5 py-2">
-                      <span className={`font-display text-[16px] font-black ${s.kind === 'warmup' ? 'text-z1' : 'text-fg-3'}`}>{label}</span>
+                      <span className={`text-[15px] font-semibold tracking-[-0.02em] ${s.kind === 'warmup' ? 'text-z1' : 'text-fg-3'}`}>{label}</span>
                       <span className={`num text-[19px] ${s.kind === 'warmup' ? 'text-fg-3' : ''}`}>{setText(ex, s)}</span>
-                      {s.rpe ? <span className={`rounded-[5px] px-1.5 py-0.5 font-mono text-[11px] font-semibold ${rpeTone(s.rpe)}`}>RPE {fmtRpe(s.rpe)}</span> : <span />}
+                      {s.rpe ? <span className={`rounded-[5px] px-1.5 py-0.5 text-[13px] tabular-nums font-semibold ${rpeTone(s.rpe)}`}>RPE {fmtRpe(s.rpe)}</span> : <span />}
                     </div>
                   )
                 })}

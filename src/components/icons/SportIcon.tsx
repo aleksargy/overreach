@@ -2,7 +2,7 @@ import { Activity, Bike, Dumbbell, Footprints, Waves } from 'lucide-react'
 import type { Sport } from '../../data/types'
 
 /** A football: hexagon panel in the middle, seams out to the edge. */
-export function Ball({ size = 20, className = '' }: { size?: number; className?: string }) {
+export function Ball({ size = 20, className = '', strokeWidth = 1.75 }: { size?: number; className?: string; strokeWidth?: number }) {
   return (
     <svg
       width={size}
@@ -10,7 +10,7 @@ export function Ball({ size = 20, className = '' }: { size?: number; className?:
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth={2}
+      strokeWidth={strokeWidth}
       strokeLinecap="round"
       strokeLinejoin="round"
       className={className}
@@ -23,8 +23,8 @@ export function Ball({ size = 20, className = '' }: { size?: number; className?:
   )
 }
 
-export function SportIcon({ sport, size = 20, className = '' }: { sport: Sport; size?: number; className?: string }) {
-  const p = { size, className, strokeWidth: 2 }
+export function SportIcon({ sport, size = 20, className = '', strokeWidth = 1.75 }: { sport: Sport; size?: number; className?: string; strokeWidth?: number }) {
+  const p = { size, className, strokeWidth }
   switch (sport) {
     case 'run':
       return <Footprints {...p} />
@@ -33,7 +33,7 @@ export function SportIcon({ sport, size = 20, className = '' }: { sport: Sport; 
     case 'swim':
       return <Waves {...p} />
     case 'football':
-      return <Ball size={size} className={className} />
+      return <Ball size={size} className={className} strokeWidth={strokeWidth} />
     case 'strength':
       return <Dumbbell {...p} />
     default:
@@ -50,12 +50,23 @@ export const SPORT_LABEL: Record<Sport, string> = {
   other: 'Other',
 }
 
-/** Categorical colours, only for charts that split load by sport. */
+/** Categorical colours, for anything that tells sports apart. */
+export const sportColor = (s: Sport, a = 1) => `rgb(var(--${s}) / ${a})`
+
 export const SPORT_COLOR: Record<Sport, string> = {
-  run: 'rgb(var(--run))',
-  ride: 'rgb(var(--ride))',
-  swim: 'rgb(var(--swim))',
-  football: 'rgb(var(--football))',
-  strength: 'rgb(var(--strength))',
-  other: 'rgb(var(--other))',
+  run: sportColor('run'),
+  ride: sportColor('ride'),
+  swim: sportColor('swim'),
+  football: sportColor('football'),
+  strength: sportColor('strength'),
+  other: sportColor('other'),
+}
+
+/** The sport's icon on a faint disc of its colour, the way lists lead. */
+export function SportDot({ sport, size = 36 }: { sport: Sport; size?: number }) {
+  return (
+    <span className="grid shrink-0 place-items-center rounded-full" style={{ width: size, height: size, background: sportColor(sport, 0.13), color: sportColor(sport) }}>
+      <SportIcon sport={sport} size={Math.round(size * 0.5)} />
+    </span>
+  )
 }

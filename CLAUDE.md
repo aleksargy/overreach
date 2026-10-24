@@ -2,7 +2,7 @@
 
 A personal PWA that replaces Garmin Connect and Hevy for one person (Alex). It pulls runs, football, rides, swims and watch health data from the Garmin Personal API, and has its own strength logger. It's deployed to Netlify and added to an iPhone home screen. The name is a placeholder (see Renaming).
 
-Look and feel is the top priority. Read the design rules before changing any screen.
+Look and feel is the top priority. Read the design rules before changing any screen. Running and football are Alex's main sports, so they get the depth; the other sports are synced and shown but get no new work for now.
 
 ## Commands
 
@@ -20,11 +20,11 @@ npx prettier --write <files>   # no semicolons, single quotes, width 180
 
 To see live mode locally, run `npm run dev:api` and `npm run dev` together, open Settings, type `dev` as the passphrase and tap Sync now. The fake's Blobs live in `.netlify/dev-blobs`; delete that folder to start over.
 
-The preview build uses a memory router. A bare hash picks the first screen: `#football`, `#lift`, `#body`, `#feed`, `#prefs`.
+The preview build uses a memory router. A bare hash picks the first screen: `#run`, `#football`, `#body`, `#feed`, `#lift`, `#prefs`.
 
 ## Layout
 
-- `src/screens/` one folder per tab: today, feed (plus activity detail), football (log sheet, rating reveal, match report, player card), lift (logger overlay, exercises, history), body, settings.
+- `src/screens/` one folder per area: today (plus the + log sheet), run, football (log sheet, rating reveal, match report, player card), body, feed ("All activity", opened from Today, plus activity detail), settings, and lift (logger overlay, exercises, history), which is built but hidden from the tab bar.
 - `src/components/` shared UI (`ui/`), charts (`charts/`), the tab bar, the activity row.
 - `src/data/` the store, the derived world, the API client, types, exercises, and generated sample data (`sample/`).
 - `src/lib/` pure logic with no React: football rating and analysis, readiness, training load, lift progression, schedule guessing, Hevy CSV import, formatting.
@@ -55,11 +55,12 @@ The preview build uses a memory router. A bare hash picks the first screen: `#fo
 
 ## Design rules
 
-- Dark only. The chrome is monochrome; colour is reserved for data: HR zones z1 to z5 (blue, green, yellow, orange, red), match ratings, readiness.
-- Motifs: the spectrum gradient hairline, one chamfered corner on hero cards (`.chamfer`), big condensed numbers.
-- Type: Big Shoulders Display for titles and numbers (`.num`), Figtree for body text, JetBrains Mono for labels and kickers (`.label`).
-- Colours are RGB CSS variables in `src/styles/index.css`, used through Tailwind (`bg-ink-1`, `text-fg-3`, `border-line`, `text-z4`). Don't hardcode hex colours in components.
-- Phone first (390 px wide), 16 px gutters that respect safe areas, bottom tab bar. Input happens in sheets; reports are full screens.
+- Dark only, minimal and sleek: fewer boxes, more space, quiet type. The chrome is near-black and grey; colour is reserved for data: HR zones z1 to z5 (blue, green, yellow, orange, red), sports (`sportColor()`), match ratings, readiness.
+- Type: Geist for everything, Geist Mono only for chart axis labels and code. Sentence case everywhere, no letter-spaced capitals. Hero numbers are big and light (`.num-hero`); other numbers are medium weight with tabular figures (`.num`). Small grey captions are `.label`, secondary lines `.meta`. Screen titles are 30 px semibold, section titles 17 px.
+- Surfaces: cards are `.card` (18 px radius, one step lighter than the page, a faint inner ring). A list is one card of rows split by hairlines (`.list`; set `--inset` so the line starts after an icon), not a card per row. Buttons, chips and segmented controls are pills. Inside sheets, surfaces step up to `ink-2`.
+- Charts are thin: 1.5 px lines, capsule bars, faint or no grid, small mono labels.
+- Colours are RGB CSS variables in `src/styles/index.css`, used through Tailwind (`bg-ink-1`, `text-fg-3`, `text-z4`) or `sportColor()`. Don't hardcode hex colours in components.
+- Phone first (390 px wide), 16 px gutters that respect safe areas, bottom tab bar: Today, Run, Football, Body. Input happens in sheets (the + on Today opens the log sheet); reports are full screens.
 - Copy is short and plain with some personality (the match report writes back-page headlines). Hide empty things rather than showing dashes or zeros.
 - Motion comes from `motion/react` springs, and `MotionConfig reducedMotion="user"` is respected.
 - After a UI change, look at it at 390 × 844 in both sample and live mode.
@@ -77,6 +78,6 @@ Change `APP_NAME` in `src/config.ts`, the `<title>` in `index.html`, and `name`/
 
 ## Status
 
-Done: Garmin sync, feed, activity detail, Today readiness, football (log a match, rating reveal, match report with heatmap and engine stats, season, form, records, player card after three rated games), the lift logger (routines, RPE, progression targets, custom exercises, Hevy CSV import), body (weight trend, recovery, measurements), offline shell.
+Done: Garmin sync (on app open), the minimal redesign, Today (readiness with a week of history, football, the week, load, latest), Run (weekly distance and recent runs), football (log a match, rating reveal, match report with heatmap and engine stats, season, form, records, player card after three rated games), body (weight trend, recovery, last night, measurements), all activity and activity detail, the lift logger (routines, RPE, progression targets, custom exercises, Hevy CSV import; hidden from the tab bar), offline shell.
 
-Next: check the mapping against Alex's real Garmin data with `/api/status?shapes`, pick a name, then ghost replays.
+Next: the Run tab's analysis, the things Garmin doesn't do: aerobic engine (pace at a fixed heart rate, corrected for heat, hills and fatigue), durability (when heart rate drifts away from pace in long runs), critical speed and D′ from all runs with race predictions, personal hill and heat costs, and the football hangover (how a match affects the next two days of running). Then check the mapping against Alex's real Garmin data with `/api/status?shapes`, pick a name, then ghost replays.

@@ -1,3 +1,4 @@
+import { ArrowRight } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import type { Format } from '../../data/types'
 import { PITCH } from '../../lib/football'
@@ -138,9 +139,11 @@ export function PitchHeatmap({ points, format, flip }: { points: [number, number
   }, [points, format, flip, w, h, L, W])
 
   return (
-    <div ref={wrap} className="relative w-full overflow-hidden rounded-[8px] bg-ink-2" style={{ height: h || undefined, aspectRatio: h ? undefined : `${L} / ${W}` }}>
+    <div ref={wrap} className="relative w-full overflow-hidden rounded-card bg-ink-1" style={{ height: h || undefined, aspectRatio: h ? undefined : `${L} / ${W}` }}>
       <canvas ref={canvas} style={{ width: w, height: h }} className="block" role="img" aria-label="Heatmap of where you played" />
-      <div className="pointer-events-none absolute bottom-1.5 right-2.5 font-mono text-[9px] uppercase tracking-[0.14em] text-fg-3">Attacking →</div>
+      <div className="pointer-events-none absolute bottom-2 right-3 flex items-center gap-1 text-[11px] font-medium text-fg-3">
+        Attacking <ArrowRight size={12} strokeWidth={2} />
+      </div>
     </div>
   )
 }

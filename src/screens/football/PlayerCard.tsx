@@ -4,38 +4,38 @@ import { Ticker } from '../../components/ui/Ticker'
 const TIER_NAME = { bronze: 'Bronze', silver: 'Silver', gold: 'Gold', elite: 'In form' } as const
 const POS = { GK: 'GK', DEF: 'DEF', MID: 'MID', FWD: 'ST', ANY: 'UTL' } as const
 
-/** The collectible-card treatment: metal by tier, chamfered, with a slow sheen. */
+/** The collectible-card treatment: metal by tier, with a slow sheen. */
 export function PlayerCard({ card, name, apps, goals, assists }: { card: Card; name: string; apps: number; goals: number; assists: number }) {
   return (
-    <div className={`tier-${card.tier} mx-auto w-full max-w-[330px]`}>
-      <div className="metal-bg chamfer relative p-[1.5px]">
+    <div className={`tier-${card.tier} mx-auto w-full max-w-[340px]`}>
+      <div className="metal-bg relative rounded-[24px] p-px">
         <div
-          className="chamfer sheen relative overflow-hidden px-5 pb-5 pt-4"
+          className="sheen relative overflow-hidden rounded-[23px] px-6 pb-6 pt-5"
           style={{
             background:
-              'radial-gradient(120% 80% at 85% 0%, rgb(var(--tint) / 0.22), transparent 60%), radial-gradient(90% 60% at 0% 100%, rgb(var(--tint) / 0.10), transparent 70%), rgb(var(--ink-1))',
+              'radial-gradient(120% 80% at 85% 0%, rgb(var(--tint) / 0.2), transparent 60%), radial-gradient(90% 60% at 0% 100%, rgb(var(--tint) / 0.08), transparent 70%), rgb(var(--ink-1))',
           }}
         >
           <div className="flex items-start justify-between">
             <div>
-              <Ticker value={card.overall} className="num metal-text block text-[76px] leading-[0.8]" duration={1200} />
-              <div className="metal-text mt-1 font-display text-[22px] font-black uppercase tracking-wide">{POS[card.position]}</div>
+              <Ticker value={card.overall} className="metal-text block text-[72px] font-semibold leading-[0.9] tracking-[-0.05em] tabular-nums" duration={1200} />
+              <div className="metal-text mt-1.5 text-[15px] font-semibold tracking-[0.08em]">{POS[card.position]}</div>
             </div>
             <div className="flex flex-col items-end text-right">
               <Crest />
-              <div className="mt-2 font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em] text-fg-2">{TIER_NAME[card.tier]}</div>
-              <div className="mt-0.5 font-mono text-[9.5px] uppercase tracking-[0.14em] text-fg-4">
+              <div className="mt-2.5 text-[12px] font-medium text-fg-2">{TIER_NAME[card.tier]}</div>
+              <div className="mt-0.5 text-[12px] tabular-nums text-fg-4">
                 {apps} apps · {goals}G · {assists}A
               </div>
             </div>
           </div>
-          <div className="metal-text mt-6 font-display text-[54px] font-black uppercase leading-[0.85] tracking-[0.04em]">{name}</div>
-          <div className="metal-bg mt-4 h-px w-full opacity-60" />
-          <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-2.5">
+          <div className="metal-text mt-7 truncate pb-1 text-[34px] font-semibold leading-none tracking-[-0.035em]">{name}</div>
+          <div className="metal-bg mt-4 h-px w-full opacity-40" />
+          <div className="mt-5 grid grid-cols-3 gap-x-4 gap-y-4">
             {card.attrs.map((a) => (
-              <div key={a.key} className="flex items-baseline gap-2.5" title={a.hint}>
-                <Ticker value={a.value} className="num metal-text w-[2ch] text-[30px]" duration={1100} delay={200} />
-                <span className="font-mono text-[12px] font-semibold tracking-[0.12em] text-fg-2">{a.key}</span>
+              <div key={a.key} className="flex flex-col" title={a.hint}>
+                <Ticker value={a.value} className="metal-text text-[26px] font-semibold leading-none tracking-[-0.03em] tabular-nums" duration={1100} delay={200} />
+                <span className="mt-1.5 text-[11px] font-semibold tracking-[0.08em] text-fg-3">{a.key}</span>
               </div>
             ))}
           </div>

@@ -13,9 +13,8 @@
     "dev:api": "node --import jiti/register scripts/dev-api.ts"
   },
   "dependencies": {
-    "@fontsource-variable/figtree": "5.3.0",
-    "@fontsource/big-shoulders-display": "5.3.0",
-    "@fontsource/jetbrains-mono": "5.3.0",
+    "@fontsource-variable/geist": "5.3.0",
+    "@fontsource-variable/geist-mono": "5.3.0",
     "@garmin/fitsdk": "21.217.0",
     "@netlify/blobs": "11.1.2",
     "date-fns": "4.1.0",
