@@ -18,6 +18,9 @@ export function num(o: unknown, ...keys: string[]): number | undefined {
   return undefined
 }
 
+/** o.a.b, or undefined as soon as a step isn't an object */
+export const at = (o: unknown, ...path: string[]): unknown => path.reduce<unknown>((x, k) => (isObj(x) ? x[k] : undefined), o)
+
 export function str(o: unknown, ...keys: string[]): string | undefined {
   if (!isObj(o)) return undefined
   for (const k of keys) {
@@ -141,14 +144,15 @@ export function mergeDay(days: Record<string, Daily>, date: string | undefined, 
 const dayOf = (o: Obj) => str(o, 'calendarDate', 'summaryDate', 'date')
 
 export function foldSummaries(days: Record<string, Daily>, res: unknown) {
-  for (const o of list(res, 'dailySummaries', 'summaries', 'userDailySummaries', 'dailySummaryDTOs')) {
+  // v2 answers { data: [...] } with each reading nested (heartRate.restingValue) and no sleep; older answers were flat
+  for (const o of list(res, 'data', 'dailySummaries', 'summaries', 'userDailySummaries', 'dailySummaryDTOs')) {
     mergeDay(days, dayOf(o), {
-      rhr: num(o, 'restingHeartRate', 'restingHeartRateValue', 'restingHR'),
-      steps: num(o, 'totalSteps', 'steps'),
+      rhr: num(at(o, 'heartRate'), 'restingValue') ?? num(o, 'restingHeartRate', 'restingHeartRateValue', 'restingHR'),
+      steps: num(at(o, 'movement', 'steps'), 'value') ?? num(o, 'totalSteps', 'steps'),
       // negative stress means "not enough data"
-      stress: num(o, 'averageStressLevel', 'avgStressLevel', 'stressLevel'),
-      bbHigh: num(o, 'bodyBatteryHighestValue', 'bodyBatteryHigh', 'maxBodyBattery'),
-      bbLow: num(o, 'bodyBatteryLowestValue', 'bodyBatteryLow', 'minBodyBattery'),
+      stress: num(at(o, 'stress'), 'avgLevel') ?? num(o, 'averageStressLevel', 'avgStressLevel', 'stressLevel'),
+      bbHigh: num(at(o, 'bodyBattery'), 'maxValue') ?? num(o, 'bodyBatteryHighestValue', 'bodyBatteryHigh', 'maxBodyBattery'),
+      bbLow: num(at(o, 'bodyBattery'), 'minValue') ?? num(o, 'bodyBatteryLowestValue', 'bodyBatteryLow', 'minBodyBattery'),
       sleepS: num(o, 'sleepingSeconds', 'sleepTimeSeconds'),
     })
   }

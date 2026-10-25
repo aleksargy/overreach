@@ -37,6 +37,8 @@ const GRACE_MS = 4_000
 const MAX_CALLS = 30
 
 const SEARCH = '/activitylist-service/activities/search/activities'
+/** bump when the health mapping changes, and the next step reads the health history again (about ten calls) */
+const HEALTH_MAPPING = 2
 
 export interface SyncState {
   v: 1
@@ -59,6 +61,8 @@ export interface SyncState {
   weatherRetryAt?: string
   /** runs stored before the running analysis existed have been queued for it */
   runsQueued?: boolean
+  /** the HEALTH_MAPPING the stored days were read with; missing means the first one */
+  healthMapping?: number
   profile?: { hrMax?: number; hrRest?: number; at: string }
   error?: { at: string; message: string }
   /** endpoints that failed on the last pass, by name */
@@ -170,6 +174,13 @@ async function step({ kv, api, budgetMs, forceRecent = false, historyDays = HIST
   if (!state.runsQueued) {
     for (const a of Object.values(data.activities).sort((x, y) => y.start.localeCompare(x.start))) if (a.sport === 'run' && wantsFit(a)) state.pending.push(a.id)
     state.runsQueued = true
+  }
+  if ((state.healthMapping ?? 1) < HEALTH_MAPPING) {
+    // the days were read by an older mapping that missed fields: read them again
+    state.recentAt = undefined
+    state.dailiesBefore = undefined
+    state.dailiesDone = false
+    state.healthMapping = HEALTH_MAPPING
   }
 
   /** a failing endpoint is noted and skipped; rate limits and auth problems stop the step */
