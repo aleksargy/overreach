@@ -335,7 +335,12 @@ function YourData() {
             />
           )}
           <Row icon={<Download {...icon} />} title="Export a backup" sub="Matches, workouts, exercises and weigh-ins as a file" onClick={() => void exportData()} />
-          <Row icon={<ArchiveRestore {...icon} />} title="Restore from a backup" sub="Adds what’s in the file. Nothing here is replaced." onClick={() => backupFile.current?.click()} />
+          <Row
+            icon={<ArchiveRestore {...icon} />}
+            title="Restore from a backup"
+            sub="Adds what’s in the file. Nothing here is replaced."
+            onClick={() => backupFile.current?.click()}
+          />
           <Row icon={<Upload {...icon} />} title="Import from Hevy" sub="In Hevy: Settings, Export data, Export workouts" onClick={() => hevyFile.current?.click()} />
         </div>
         <input ref={backupFile} type="file" accept=".json,application/json" className="hidden" onChange={(e) => e.target.files?.[0] && void onBackup(e.target.files[0])} />
