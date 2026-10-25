@@ -325,7 +325,7 @@ export function footballStream(id: string, format: Format, minutes: number): Str
   const fadeAt = r.chance(0.55) ? minutes * r.range(0.55, 0.8) : minutes * 2
   const bearing = r.range(0, Math.PI)
   const origin = { lat: HOME.lat + 0.004, lon: HOME.lon - 0.006 }
-  const halfTime = format >= 7 ? [minutes / 2 - 2.5, minutes / 2 + 2.5] : null
+  const halfTime = format >= 7 ? [minutes / 2 - (format === 11 ? 5 : 2.5), minutes / 2 + (format === 11 ? 5 : 2.5)] : null
   const out: Stream = { activityId: id, dt, hr: [], v: [], lat: [], lon: [] }
   const n = Math.round(minutes * 60)
   for (let i = 0; i < n; i++) {

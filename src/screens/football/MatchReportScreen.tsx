@@ -43,6 +43,7 @@ export function MatchReportScreen() {
         : null,
     [m, w],
   )
+  // only games of the same format are a fair comparison: 11s and 7s differ in pitch, length and goals
   const seasonMedian = useMemo(() => {
     if (!m) return null
     const others = rowsFor(
@@ -54,8 +55,11 @@ export function MatchReportScreen() {
       dist: median(others.map((r) => r.analysis!.distanceM)),
       sprints: median(others.map((r) => r.analysis!.sprints)),
       top: median(others.map((r) => r.analysis!.topSpeedKmh)),
-      rating: median(w.matches.filter((x) => x.id !== m.id).map((x) => x.rating)),
     }
+  }, [m, w])
+  const ratingMedian = useMemo(() => {
+    const others = m ? w.matches.filter((x) => x.id !== m.id && x.format === m.format) : []
+    return others.length >= 2 ? median(others.map((x) => x.rating)) : undefined
   }, [m, w])
 
   if (!m) {
@@ -135,9 +139,9 @@ export function MatchReportScreen() {
             <RatingBadge rating={m.rating} size="lg" />
             <div>
               <div className={`text-[22px] font-semibold leading-none tracking-[-0.02em] ${tone.text}`}>{tone.word}</div>
-              {seasonMedian && (
+              {ratingMedian !== undefined && (
                 <div className="meta mt-2 flex items-center gap-2">
-                  Season median {seasonMedian.rating.toFixed(1)} <Delta value={m.rating - seasonMedian.rating} />
+                  Your {m.format}s median {ratingMedian.toFixed(1)} <Delta value={m.rating - ratingMedian} />
                 </div>
               )}
             </div>
@@ -193,7 +197,7 @@ export function MatchReportScreen() {
             <p className="mt-2.5 px-1 text-[12px] text-fg-4">Pitch framed from your GPS. Tap flip if you were attacking the other way.</p>
           </Section>
 
-          <Section title="Engine">
+          <Section title="Engine" action={seasonMedian ? <span className="meta">Against your other {m.format}s</span> : undefined}>
             <div className="card grid grid-cols-3 gap-y-5 px-4 py-4">
               <PhysStat label="Distance" value={(an.distanceM / 1000).toFixed(2)} unit="km" delta={seasonMedian ? (an.distanceM - seasonMedian.dist) / 1000 : undefined} dp={2} />
               <PhysStat label="Sprints" value={String(an.sprints)} delta={seasonMedian ? an.sprints - seasonMedian.sprints : undefined} dp={0} />

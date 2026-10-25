@@ -5,9 +5,9 @@ import { Link } from 'react-router'
 import { RatingBadge } from '../../components/ActivityRow'
 import { SportDot } from '../../components/icons/SportIcon'
 import { IconButton, Screen } from '../../components/ui/Screen'
-import { Empty, SampleBadge, Section } from '../../components/ui/bits'
+import { Empty, SampleBadge, Section, Segmented } from '../../components/ui/bits'
 import { Ticker } from '../../components/ui/Ticker'
-import type { Activity, Match } from '../../data/types'
+import type { Activity, Format, Match } from '../../data/types'
 import { useUi } from '../../data/ui'
 import { useWorld } from '../../data/world'
 import { dur, fmt, km } from '../../lib/format'
@@ -17,13 +17,19 @@ import { season } from './season'
 
 const RESULT_CLS = { W: 'bg-z2/15 text-z2', D: 'bg-fg/10 text-fg-2', L: 'bg-z5/15 text-z5' } as const
 
+/** the format you last looked at, kept while the app is open */
+let lastPicked: Format | undefined
+
 export function FootballScreen() {
   const w = useWorld()
   const open = useUi((s) => s.open)
   const s = season(w)
   const [explain, setExplain] = useState(false)
-  const form = [...s.matches].slice(0, 8).reverse()
-  const { top, sprints, bestRating, ga } = s.records
+  const [picked, setPicked] = useState(lastPicked)
+  const f = picked !== undefined && s.formats.includes(picked) ? picked : s.formats[0]
+  const fs = f !== undefined ? s.format(f) : undefined
+  const form = fs ? fs.matches.slice(0, 8).reverse() : []
+  const { top, sprints, bestRating, ga } = fs?.records ?? {}
   const records = [
     top && <Record key="top" label="Top speed" value={top.a.topSpeedKmh.toFixed(1)} unit="km/h" m={top.m} act={top.act} />,
     sprints && <Record key="sprints" label="Most sprints" value={`${sprints.a.sprints}`} m={sprints.m} act={sprints.act} />,
@@ -71,7 +77,8 @@ export function FootballScreen() {
                 </div>
               ))}
               <p className="px-4 py-3 text-[13px] leading-snug text-fg-3">
-                Pace, stamina and work rate come from your watch. Shooting and passing come from what you log. Tiers: bronze under 65, silver 65+, gold 75+, in form 85+.
+                Pace, stamina and work rate come from your watch. Shooting and passing come from what you log. Each game is judged against its own format first, so a goal in 11s
+                counts for more than one in 7s. Tiers: bronze under 65, silver 65+, gold 75+, in form 85+.
               </p>
             </div>
           )}
@@ -84,14 +91,28 @@ export function FootballScreen() {
         </Empty>
       )}
 
-      {s.apps > 0 && (
+      {s.formats.length > 1 && f !== undefined && (
+        <div className="mt-10">
+          <Segmented
+            value={f}
+            onChange={(v) => {
+              lastPicked = v
+              setPicked(v)
+            }}
+            options={s.formats.map((x) => ({ value: x, label: `${x}-a-side` }))}
+          />
+          <p className="meta mt-2.5 px-1">Results, form and records only compare games of the same format.</p>
+        </div>
+      )}
+
+      {fs && fs.apps > 0 && (
         <Section title="Season">
           <div className="card overflow-hidden">
             <div className="grid grid-cols-3">
               {[
-                { k: 'Apps', v: s.apps },
-                { k: 'Goals', v: s.goals },
-                { k: 'Assists', v: s.assists },
+                { k: 'Apps', v: fs.apps },
+                { k: 'Goals', v: fs.goals },
+                { k: 'Assists', v: fs.assists },
               ].map((x) => (
                 <div key={x.k} className="px-4 pb-4 pt-4">
                   <div className="label">{x.k}</div>
@@ -104,20 +125,20 @@ export function FootballScreen() {
               <div className="px-4 py-4">
                 <div className="label">Record</div>
                 <div className="num mt-2.5 text-[20px]">
-                  <span className="text-z2">{s.w}</span>
+                  <span className="text-z2">{fs.w}</span>
                   <span className="text-fg-4"> · </span>
-                  <span className="text-fg-2">{s.d}</span>
+                  <span className="text-fg-2">{fs.d}</span>
                   <span className="text-fg-4"> · </span>
-                  <span className="text-z5">{s.l}</span>
+                  <span className="text-z5">{fs.l}</span>
                 </div>
               </div>
               <div className="px-4 py-4">
                 <div className="label">Win rate</div>
-                <div className="num mt-2.5 text-[20px]">{s.apps ? Math.round((s.w / s.apps) * 100) : 0}%</div>
+                <div className="num mt-2.5 text-[20px]">{Math.round((fs.w / fs.apps) * 100)}%</div>
               </div>
               <div className="px-4 py-4">
                 <div className="label">Avg rating</div>
-                <div className={`num mt-2.5 text-[20px] ${ratingTone(s.avgRating).text}`}>{s.avgRating.toFixed(2)}</div>
+                <div className={`num mt-2.5 text-[20px] ${ratingTone(fs.avgRating).text}`}>{fs.avgRating.toFixed(2)}</div>
               </div>
             </div>
           </div>
@@ -146,10 +167,10 @@ export function FootballScreen() {
         </Section>
       )}
 
-      {s.matches.length > 0 && (
+      {fs && fs.matches.length > 0 && (
         <Section title="Matches">
           <div className="card list overflow-hidden [--inset:60px]">
-            {s.matches.map((m) => (
+            {fs.matches.map((m) => (
               <MatchRow key={m.id} m={m} />
             ))}
           </div>

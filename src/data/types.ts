@@ -236,7 +236,6 @@ export interface Profile {
   hrMax: number
   hrRest: number
   team: string
-  opponent: string
   format: Format
   position: Position
 }

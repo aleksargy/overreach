@@ -3,10 +3,10 @@ import { useEffect, useMemo, useState } from 'react'
 import { Sheet } from '../../components/ui/Sheet'
 import { Segmented, Stepper, inputCls } from '../../components/ui/bits'
 import { useStore } from '../../data/store'
-import type { Format, Match, MomentKey, Position } from '../../data/types'
+import type { Activity, Format, Match, MomentKey, Position } from '../../data/types'
 import { useUi } from '../../data/ui'
 import { loadFootballAnalysis, useWorld } from '../../data/world'
-import { FEEL, FORMATS, MOMENTS, POSITIONS, baselineFor, headline, rateMatch } from '../../lib/football'
+import { FEEL, FORMATS, MOMENTS, POSITIONS, baselineFor, formatOf, headline, rateMatch } from '../../lib/football'
 import { dur, fmt, km } from '../../lib/format'
 import { uid } from '../../lib/rng'
 import { rowsFor } from './season'
@@ -37,21 +37,34 @@ function Form({ activityId, matchId }: { activityId?: string; matchId?: string }
 
   const [linked, setLinked] = useState<string | undefined>(editing?.activityId ?? activityId ?? candidates.find((a) => !w.matchByActivity.has(a.id))?.id)
   const linkedAct = linked ? w.byId.get(linked) : undefined
-  const [format, setFormat] = useState<Format>(editing?.format ?? ((Number(linkedAct?.kind) || p.format) as Format))
-  const [team, setTeam] = useState(editing?.team ?? (format <= 6 ? p.team : 'My team'))
-  const [opponent, setOpponent] = useState(editing?.opponent ?? (format <= 6 ? p.opponent : 'Opposition'))
+  const guess = (a?: Activity) => (a ? formatOf(a, w.matches, w.matchByActivity, p.format) : p.format)
+  // the side and position you last had in this format, since an 11s club and a 7s team usually differ
+  const lastIn = (f: Format) => w.matches.find((m) => m.format === f)
+  const teamFor = (f: Format) => lastIn(f)?.team ?? (p.team || 'My team')
+  const [format, setFormat] = useState<Format>(editing?.format ?? guess(linkedAct))
+  const [team, setTeam] = useState(editing?.team ?? teamFor(format))
+  const [teamTyped, setTeamTyped] = useState(!!editing)
+  const [opponent, setOpponent] = useState(editing?.opponent ?? '')
   const [scoreFor, setFor] = useState(editing?.scoreFor ?? 0)
   const [scoreAgainst, setAgainst] = useState(editing?.scoreAgainst ?? 0)
   const [goals, setGoals] = useState(editing?.goals ?? 0)
   const [assists, setAssists] = useState(editing?.assists ?? 0)
-  const [position, setPosition] = useState<Position>(editing?.position ?? p.position)
+  const [position, setPosition] = useState<Position>(editing?.position ?? lastIn(format)?.position ?? p.position)
+  const [positionPicked, setPositionPicked] = useState(!!editing)
   const [moments, setMoments] = useState<MomentKey[]>(editing?.moments ?? [])
   const [feel, setFeel] = useState(editing?.feel ?? 6)
   const [notes, setNotes] = useState(editing?.notes ?? '')
   const [busy, setBusy] = useState(false)
 
+  const pickFormat = (f: Format) => {
+    setFormat(f)
+    if (!teamTyped) setTeam(teamFor(f))
+    if (!positionPicked) setPosition(lastIn(f)?.position ?? p.position)
+  }
+
   useEffect(() => {
-    if (!editing && linkedAct?.kind && Number(linkedAct.kind)) setFormat(Number(linkedAct.kind) as Format)
+    // only when you pick a different recording
+    if (!editing && linkedAct) pickFormat(guess(linkedAct))
   }, [linkedAct, editing])
 
   const toggle = (k: MomentKey) => setMoments((ms) => (ms.includes(k) ? ms.filter((x) => x !== k) : [...ms, k]))
@@ -129,7 +142,7 @@ function Form({ activityId, matchId }: { activityId?: string; matchId?: string }
 
       <div>
         <div className="label mb-2.5">Format</div>
-        <Segmented size="sm" value={format} onChange={setFormat} options={FORMATS.map((f) => ({ value: f, label: `${f}s` }))} />
+        <Segmented size="sm" value={format} onChange={pickFormat} options={FORMATS.map((f) => ({ value: f, label: `${f}s` }))} />
       </div>
 
       <div className="rounded-card bg-ink-2 p-4">
@@ -138,14 +151,18 @@ function Form({ activityId, matchId }: { activityId?: string; matchId?: string }
             <input
               aria-label="Your team"
               value={team}
-              onChange={(e) => setTeam(e.target.value)}
-              className="w-full bg-transparent text-center text-[15px] font-semibold text-fg focus:outline-none"
+              onChange={(e) => {
+                setTeam(e.target.value)
+                setTeamTyped(true)
+              }}
+              placeholder="Your team"
+              className="w-full bg-transparent text-center text-[15px] font-semibold text-fg placeholder:text-fg-4 focus:outline-none"
             />
             <Stepper value={scoreFor} onChange={setFor} big stack />
           </div>
           <button
             aria-label="Swap team names"
-            onClick={() => (setTeam(opponent), setOpponent(team))}
+            onClick={() => (setTeam(opponent), setOpponent(team), setTeamTyped(true))}
             className="press -mt-1 grid h-8 w-8 place-items-center rounded-full text-fg-3"
           >
             <ArrowLeftRight size={15} strokeWidth={1.75} />
@@ -155,7 +172,8 @@ function Form({ activityId, matchId }: { activityId?: string; matchId?: string }
               aria-label="Opponent"
               value={opponent}
               onChange={(e) => setOpponent(e.target.value)}
-              className="w-full bg-transparent text-center text-[15px] font-semibold text-fg-2 focus:outline-none"
+              placeholder="Opponent"
+              className="w-full bg-transparent text-center text-[15px] font-semibold text-fg-2 placeholder:text-fg-4 focus:outline-none"
             />
             <Stepper value={scoreAgainst} onChange={setAgainst} big stack />
           </div>
@@ -174,7 +192,15 @@ function Form({ activityId, matchId }: { activityId?: string; matchId?: string }
 
       <div>
         <div className="label mb-2.5">Where you played</div>
-        <Segmented size="sm" value={position} onChange={setPosition} options={POSITIONS.map((x) => ({ value: x.key, label: x.label }))} />
+        <Segmented
+          size="sm"
+          value={position}
+          onChange={(v) => {
+            setPosition(v)
+            setPositionPicked(true)
+          }}
+          options={POSITIONS.map((x) => ({ value: x.key, label: x.label }))}
+        />
       </div>
 
       <div>
