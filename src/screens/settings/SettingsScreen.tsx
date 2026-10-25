@@ -60,7 +60,11 @@ function Profile() {
               </span>
             ))}
           </div>
-          <p className="meta mt-2.5">Zones are 50, 60, 70, 80 and 90% of max. They drive training load across every sport.</p>
+          <p className="meta mt-2.5">
+            {p.zones
+              ? 'Your zones from Garmin. Training load is Garmin’s own where the watch worked one out, and from time in these zones where it didn’t.'
+              : 'Zones are 50, 60, 70, 80 and 90% of max until you sync, then they come from your Garmin settings.'}
+          </p>
         </div>
       </div>
     </Section>

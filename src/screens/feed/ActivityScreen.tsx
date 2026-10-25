@@ -5,10 +5,10 @@ import { ZoneBar } from '../../components/charts/primitives'
 import { SportIcon, SPORT_LABEL, sportColor } from '../../components/icons/SportIcon'
 import { Screen } from '../../components/ui/Screen'
 import { Empty, Section, Stat } from '../../components/ui/bits'
-import type { Activity, Stream } from '../../data/types'
+import type { Activity, GarminView, Stream } from '../../data/types'
 import { useUi } from '../../data/ui'
 import { useRunModel, useStream, useWorld } from '../../data/world'
-import { clock, dur, fmt, kmh, km, pace, swimPace } from '../../lib/format'
+import { clock, dur, fmt, kmh, km, pace, signed, swimPace } from '../../lib/format'
 import { zoneBounds } from '../../lib/load'
 import { mean } from '../../lib/math'
 import { runInsight } from '../../lib/running'
@@ -55,6 +55,7 @@ export function ActivityScreen() {
 
       {a.sport === 'football' && <FootballCta a={a} />}
       {a.sport === 'run' && a.run && <RunAnalysis a={a} />}
+      {a.garmin && <GarminSays g={a.garmin} />}
 
       <Section title="Zones" action={<span className="meta">Load {Math.round(a.load)}</span>}>
         <div className="card p-4">
@@ -288,6 +289,33 @@ function Lengths({ a }: { a: Activity }) {
       <div className="card p-4">
         <Bars values={laps.map((l) => l.durationS)} height={110} highlight={laps.reduce((b, l, i) => (l.durationS < laps[b].durationS ? i : b), 0)} />
         <p className="mt-3 text-[12px] text-fg-4">Seconds per {a.swim?.poolM} m length. Shorter is faster. Fastest length highlighted.</p>
+      </div>
+    </Section>
+  )
+}
+
+/** Garmin's own training-effect bands */
+const TE_BAND = ['No effect', 'Minor', 'Maintaining', 'Improving', 'Highly improving', 'Overreaching']
+const FEEL = ['Very weak', 'Weak', 'Normal', 'Strong', 'Very strong']
+
+/** What the watch made of the session, and what you told it afterwards. */
+function GarminSays({ g }: { g: GarminView }) {
+  const items = [
+    g.aerobicTE !== undefined && { label: 'Aerobic effect', value: g.aerobicTE.toFixed(1) },
+    g.anaerobicTE !== undefined && { label: 'Anaerobic effect', value: g.anaerobicTE.toFixed(1) },
+    g.load !== undefined && { label: 'Training load', value: String(g.load) },
+    g.rpe !== undefined && { label: 'Your effort', value: String(g.rpe), unit: '/10' },
+    g.feel !== undefined && { label: 'You felt', value: FEEL[Math.round(g.feel / 25)] ?? '' },
+    g.bodyBattery !== undefined && { label: 'Body Battery', value: signed(g.bodyBattery, 0) },
+  ].filter((x): x is { label: string; value: string; unit?: string } => !!x && x.value !== '')
+  if (!items.length) return null
+  const te = Math.max(g.aerobicTE ?? 0, g.anaerobicTE ?? 0)
+  return (
+    <Section title="Garmin’s view" action={g.aerobicTE !== undefined ? <span className="meta">{TE_BAND[Math.min(5, Math.floor(te))]}</span> : undefined}>
+      <div className="card grid grid-cols-3 gap-y-5 p-4">
+        {items.map((it) => (
+          <Stat key={it.label} label={it.label} value={it.value} unit={it.unit} size="sm" />
+        ))}
       </div>
     </Section>
   )

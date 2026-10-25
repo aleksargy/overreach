@@ -35,8 +35,10 @@ export interface Activity {
   calories?: number
   tempC?: number
   zoneS: ZoneSeconds
-  /** Edwards TRIMP (zone-minutes weighted 1–5), comparable across sports. */
+  /** Garmin's training load when the watch worked one out, otherwise Edwards TRIMP (zone-minutes weighted 1–5). */
   load: number
+  /** what Garmin made of the session, when it has a view */
+  garmin?: GarminView
   hasStream: boolean
   laps?: Lap[]
   swim?: { poolM: number; lengths: number; swolf?: number; stroke: string }
@@ -48,6 +50,20 @@ export interface Activity {
   lift?: LiftSummary
   /** run summary computed at sync time, so the running analysis doesn't need every stream */
   run?: RunSummary
+}
+
+/** Garmin's own numbers for a session, as the watch worked them out. */
+export interface GarminView {
+  /** training load (EPOC-based): the number behind Garmin's acute load */
+  load?: number
+  /** training effect, 0–5: 2 maintains, 3 improves, 4 highly improves, 5 overreaches */
+  aerobicTE?: number
+  anaerobicTE?: number
+  /** Body Battery used during the session */
+  bodyBattery?: number
+  /** what you entered on the watch afterwards: effort 1–10, and feel from 0 (very weak) to 100 (very strong) */
+  rpe?: number
+  feel?: number
 }
 
 /** What one run tells the running analysis, worked out from its samples once. */
@@ -82,7 +98,11 @@ export interface FootballSummary {
 }
 
 /** What the sync functions send. Zones (when Garmin didn't split them) and load are filled in on the phone from your profile. */
-export type GarminActivity = Omit<Activity, 'zoneS' | 'load'> & { zoneS?: ZoneSeconds }
+export type GarminActivity = Omit<Activity, 'zoneS' | 'load'> & {
+  zoneS?: ZoneSeconds
+  /** the activity's detail (watch RPE and feel) has been read, whether or not you entered any */
+  detailRead?: boolean
+}
 
 /** Columnar time series, sampled evenly (dt seconds). */
 export interface Stream {
@@ -114,8 +134,16 @@ export interface Daily {
   awakeS?: number
   bbHigh?: number
   bbLow?: number
+  /** Body Battery gained over the day, most of it overnight */
+  bbCharged?: number
   stress?: number
   steps?: number
+  /** Garmin's HRV baseline: the balanced range (ms), and its status for the week (BALANCED, UNBALANCED, LOW, POOR) */
+  hrvLow?: number
+  hrvHigh?: number
+  hrvStatus?: string
+  /** the sleep Garmin says you needed (s), adjusted for your HRV and training */
+  sleepNeedS?: number
 }
 
 export type Position = 'GK' | 'DEF' | 'MID' | 'FWD' | 'ANY'
@@ -235,6 +263,8 @@ export interface Profile {
   name: string
   hrMax: number
   hrRest: number
+  /** lower bounds (bpm) of HR zones 1–5 from your Garmin settings, once synced */
+  zones?: number[]
   team: string
   format: Format
   position: Position

@@ -34,7 +34,7 @@ export interface ServerData {
   activities: GarminActivity[]
   dailies: Daily[]
   body: BodyEntry[]
-  profile?: { hrMax?: number; hrRest?: number }
+  profile?: { hrMax?: number; hrRest?: number; zones?: number[] }
   updatedAt: string | null
 }
 
@@ -97,6 +97,9 @@ async function pull() {
     const { hrMax, hrRest } = data.profile
     setProfile({ ...(hrMax && hrMax > 120 ? { hrMax } : {}), ...(hrRest && hrRest > 30 ? { hrRest } : {}) })
   }
+  // zones always follow your Garmin settings: there's nowhere to edit them here
+  const zones = data.profile?.zones
+  if (zones?.length === 5 && zones.join() !== useStore.getState().profile.zones?.join()) setProfile({ zones })
   setGarmin({ activities: data.activities, dailies: data.dailies, body: data.body })
   setSync({ mode: 'live', status: 'idle', lastSync: new Date().toISOString(), dataAt: data.updatedAt ?? undefined, message: `Synced ${data.activities.length} activities` })
   return data

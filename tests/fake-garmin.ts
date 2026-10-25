@@ -27,6 +27,10 @@ export interface FakeActivity {
   hrTimeInZone_3?: number
   hrTimeInZone_4?: number
   hrTimeInZone_5?: number
+  activityTrainingLoad?: number
+  aerobicTrainingEffect?: number
+  anaerobicTrainingEffect?: number
+  differenceBodyBattery?: number
 }
 
 export interface Fake {
@@ -190,6 +194,11 @@ export function fakeGarmin(opts: { now?: Date; years?: number } = {}): Fake {
       maxHR: 178,
       averageSpeed: speed,
       ...(p.typeKey === 'running' ? { hrTimeInZone_1: 60, hrTimeInZone_2: duration - 600, hrTimeInZone_3: 400, hrTimeInZone_4: 140, hrTimeInZone_5: 0 } : {}),
+      // Garmin's own view: the long run counts for much more than the rest
+      ...(p.mins >= 90
+        ? { activityTrainingLoad: 260, aerobicTrainingEffect: 4.3, anaerobicTrainingEffect: 0.6 }
+        : { activityTrainingLoad: 85, aerobicTrainingEffect: 2.8, anaerobicTrainingEffect: 1.2 }),
+      differenceBodyBattery: -Math.round(p.mins / 4),
     })
   }
   activities.reverse() // newest first, like the real search
@@ -267,23 +276,31 @@ export function fakeGarmin(opts: { now?: Date; years?: number } = {}): Fake {
     let m = path.match(/^\/hrv-service\/hrv\/daily\/(\d{4}-\d\d-\d\d)\/(\d{4}-\d\d-\d\d)$/)
     if (m) {
       if (span(m[1], m[2]) > 180) return bad(400)
-      return ok({ hrvSummaries: datesIn(m[1], m[2]).map((d) => ({ calendarDate: d, lastNightAvg: 60 + ((Date.parse(d) / DAY) % 9), weeklyAvg: 63 })) })
+      return ok({
+        hrvSummaries: datesIn(m[1], m[2]).map((d) => ({
+          calendarDate: d,
+          lastNightAvg: 60 + ((Date.parse(d) / DAY) % 9),
+          weeklyAvg: 63,
+          baseline: { lowUpper: 52, balancedLow: 55, balancedUpper: 70, markerValue: 0.4 },
+          status: 'BALANCED',
+        })),
+      })
     }
     if (path === '/sleep-service/sleep/dailySleepSummariesByDate') {
       const a = q.get('startDate')!
       const b = q.get('endDate')!
       if (span(a, b) > 28) return bad(400)
       return ok(
+        // a flat list, like a real account answers, with the sleep need in minutes
         datesIn(a, b).map((d) => ({
-          dailySleepDTO: {
-            calendarDate: d,
-            sleepTimeSeconds: 27_000,
-            deepSleepSeconds: 5400,
-            lightSleepSeconds: 14_400,
-            remSleepSeconds: 6300,
-            awakeSleepSeconds: 900,
-            sleepScores: { overall: { value: 82 } },
-          },
+          calendarDate: d,
+          sleepTimeSeconds: 27_000,
+          deepSleepSeconds: 5400,
+          lightSleepSeconds: 14_400,
+          remSleepSeconds: 6300,
+          awakeSleepSeconds: 900,
+          sleepScores: { overall: { value: 82, qualifierKey: 'GOOD' } },
+          sleepNeed: { baseline: 480, actual: 490, feedback: 'INCREASED' },
         })),
       )
     }
@@ -298,7 +315,42 @@ export function fakeGarmin(opts: { now?: Date; years?: number } = {}): Fake {
         })),
       })
     }
-    if (path === '/biometric-service/heartRateZones/v2') return ok([{ sport: 'DEFAULT', maxHeartRateUsed: 189, restingHeartRateUsed: 47 }])
+    if (path === '/biometric-service/heartRateZones/v2')
+      return ok([
+        {
+          sport: 'DEFAULT',
+          trainingMethod: 'LACTATE_THRESHOLD',
+          maxHeartRateUsed: 189,
+          restingHeartRateUsed: 47,
+          zone1Floor: 101,
+          zone2Floor: 128,
+          zone3Floor: 145,
+          zone4Floor: 159,
+          zone5Floor: 171,
+        },
+        {
+          sport: 'RUNNING',
+          trainingMethod: 'LACTATE_THRESHOLD',
+          maxHeartRateUsed: 189,
+          restingHeartRateUsed: 47,
+          zone1Floor: 103,
+          zone2Floor: 130,
+          zone3Floor: 147,
+          zone4Floor: 161,
+          zone5Floor: 172,
+        },
+      ])
+    // one activity's detail: runs come back with the RPE (×10) and feel you'd enter on the watch, games without
+    m = path.match(/^\/activity-service\/activity\/(\d+)$/)
+    if (m) {
+      const a = activities.find((x) => x.activityId === Number(m![1]))
+      if (!a) return bad(404)
+      const run = a.activityType.typeKey === 'running'
+      return ok({
+        activityId: a.activityId,
+        summaryDTO: { trainingEffect: a.aerobicTrainingEffect, activityTrainingLoad: a.activityTrainingLoad, ...(run ? { directWorkoutRpe: 60, directWorkoutFeel: 75 } : {}) },
+      })
+    }
     m = path.match(/^\/download-service\/files\/activity\/(\d+)$/)
     if (m) {
       const a = activities.find((x) => x.activityId === Number(m![1]))
