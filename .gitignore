@@ -26,3 +26,14 @@ dist-ssr
 # build output
 dist-preview
 .netlify
+
+# secrets: values stay on this Mac (see .env.schema)
+.env
+.env.local
+.env.*.local
+
+# Claude Code: shared settings in .claude/settings.json are committed, personal ones aren't
+.claude/settings.local.json
+
+# screenshots from npm run screens
+/screens/
