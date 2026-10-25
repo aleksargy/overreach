@@ -1,5 +1,5 @@
-import { Check, Download, ExternalLink, RefreshCw, Upload } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { ArchiveRestore, Check, CloudCheck, CloudUpload, Download, ExternalLink, RefreshCw, Upload } from 'lucide-react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Screen } from '../../components/ui/Screen'
 import { Field, NumInput, Section, Segmented, Toggle, inputCls } from '../../components/ui/bits'
 import { APP_NAME, APP_TAGLINE } from '../../config'
@@ -8,6 +8,7 @@ import { useStore } from '../../data/store'
 import type { Format, Position } from '../../data/types'
 import { useUi } from '../../data/ui'
 import { useWorld } from '../../data/world'
+import { backupOf, counts, describe, readBackup } from '../../lib/backup'
 import { FORMATS, POSITIONS } from '../../lib/football'
 import { ago, fmt } from '../../lib/format'
 import { importHevy } from '../../lib/hevy'
@@ -19,7 +20,7 @@ export function SettingsScreen() {
       <Profile />
       <Garmin />
       <Football />
-      <ImportExport />
+      <YourData />
       <footer className="mt-14 text-center">
         <div className="text-[17px] font-semibold tracking-[-0.02em]">{APP_NAME}</div>
         <div className="mt-1 text-[13px] text-fg-4">{APP_TAGLINE}</div>
@@ -158,14 +159,14 @@ function Garmin() {
         <ol className="mx-4 border-t border-line py-3 text-[14px] leading-snug text-fg-2">
           {[
             <>
-              Get a Personal API key from the{' '}
+              Make a Personal API key in{' '}
               <a
-                href="https://developer.garmin.com/gc-developer-program/overview/"
+                href="https://connect.garmin.com/app/settings/personalApiToken"
                 target="_blank"
                 rel="noreferrer"
                 className="inline-flex items-center gap-0.5 text-fg underline decoration-fg-4 underline-offset-2"
               >
-                Garmin developer programme <ExternalLink size={12} />
+                Garmin Connect <ExternalLink size={12} />
               </a>
               .
             </>,
@@ -233,47 +234,91 @@ function ServerLine({ st }: { st: { ok?: ServerStatus; error?: string } }) {
   )
 }
 
-function ImportExport() {
+/** "today at 14:32", "yesterday at 09:10", "3d ago" */
+const when = (iso: string) => {
+  const a = ago(iso)
+  return a === 'today' || a === 'yesterday' ? `${a} at ${fmt(iso, 'HH:mm')}` : a
+}
+
+function Row({ icon, title, sub, onClick }: { icon: ReactNode; title: string; sub: string; onClick?: () => void }) {
+  const inner = (
+    <>
+      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-ink-2 text-fg-2">{icon}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-[15px] font-medium leading-5">{title}</span>
+        <span className="meta block">{sub}</span>
+      </span>
+    </>
+  )
+  return onClick ? (
+    <button onClick={onClick} className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors duration-150 active:bg-ink-2">
+      {inner}
+    </button>
+  ) : (
+    <div className="flex items-center gap-3 px-4 py-3.5">{inner}</div>
+  )
+}
+
+const icon = { size: 18, strokeWidth: 1.75 }
+
+function YourData() {
   const w = useWorld()
+  const sync = useStore((s) => s.sync)
   const importWorkouts = useStore((s) => s.importWorkouts)
+  const mergeBackup = useStore((s) => s.mergeBackup)
   const reset = useStore((s) => s.resetAll)
   const say = useUi((s) => s.say)
-  const file = useRef<HTMLInputElement>(null)
-  const [result, setResult] = useState<string | null>(null)
+  const hevyFile = useRef<HTMLInputElement>(null)
+  const backupFile = useRef<HTMLInputElement>(null)
+  const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null)
   const [sure, setSure] = useState(false)
+  const connected = !!sync.passphrase && !!sync.lastSync
 
-  const onFile = async (f: File) => {
+  const onHevy = async (f: File) => {
     try {
       const r = importHevy(await f.text(), w.exercises)
       importWorkouts(r.workouts, r.exercises)
-      setResult(
-        `Imported ${r.workouts.length} workouts from ${r.rows} sets.${r.exercises.length ? ` ${r.exercises.length} exercises were new, so they’re now custom exercises: set their muscle group under Exercises in Lift.` : ''}`,
-      )
+      setResult({
+        ok: true,
+        text: `Imported ${r.workouts.length} workouts from ${r.rows} sets.${r.exercises.length ? ` ${r.exercises.length} exercises were new, so they’re now custom exercises: set their muscle group under Exercises in Lift.` : ''}`,
+      })
       say(`Imported ${r.workouts.length} workouts`)
     } catch (e) {
-      setResult(e instanceof Error ? e.message : String(e))
+      setResult({ ok: false, text: e instanceof Error ? e.message : String(e) })
     }
   }
 
-  const exportData = () => {
-    // the preview frame can't hand out files, so the button explains instead
-    if (import.meta.env.VITE_PREVIEW === '1') return say('Backups download from the installed app')
-    const s = useStore.getState()
-    const data = {
-      app: APP_NAME,
-      exportedAt: new Date().toISOString(),
-      profile: s.profile,
-      matches: s.matches,
-      workouts: s.workouts,
-      customExercises: s.customExercises,
-      exerciseEdits: s.exerciseEdits,
-      routines: s.routines,
-      body: s.body,
+  const onBackup = async (f: File) => {
+    let saved = null
+    try {
+      saved = readBackup(JSON.parse(await f.text()))
+    } catch {
+      /* not JSON */
     }
-    const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }))
+    if (!saved) return setResult({ ok: false, text: 'That file isn’t a backup from this app.' })
+    const before = counts(backupOf(useStore.getState()))
+    mergeBackup(saved)
+    const after = counts(backupOf(useStore.getState()))
+    const added = describe({ matches: after.matches - before.matches, workouts: after.workouts - before.workouts, body: after.body - before.body })
+    setResult(added ? { ok: true, text: `Added ${added} from the backup.` } : { ok: true, text: 'Everything in that backup was already here.' })
+  }
+
+  const exportData = async () => {
+    // the preview frame can't hand out files, so the button explains instead
+    if (PREVIEW) return say('Backups download from the installed app')
+    const name = `${APP_NAME.toLowerCase()}-backup-${fmt(new Date().toISOString(), 'yyyy-MM-dd')}.json`
+    const file = new File([JSON.stringify({ app: APP_NAME, v: 1, exportedAt: new Date().toISOString(), ...backupOf(useStore.getState()) }, null, 2)], name, {
+      type: 'application/json',
+    })
+    // a home-screen app on the phone can't always download, but the share sheet can save to Files
+    if (matchMedia('(pointer: coarse)').matches && navigator.canShare?.({ files: [file] })) {
+      await navigator.share({ files: [file] }).catch(() => {})
+      return
+    }
+    const url = URL.createObjectURL(file)
     const a = document.createElement('a')
     a.href = url
-    a.download = `${APP_NAME.toLowerCase()}-backup-${fmt(new Date().toISOString(), 'yyyy-MM-dd')}.json`
+    a.download = name
     a.click()
     setTimeout(() => URL.revokeObjectURL(url), 1000)
   }
@@ -281,27 +326,26 @@ function ImportExport() {
   return (
     <Section title="Your data">
       <div className="flex flex-col gap-2">
-        <button onClick={() => file.current?.click()} className="press card flex items-center gap-3 p-4 text-left">
-          <Upload size={18} strokeWidth={1.75} className="shrink-0 text-fg-2" />
-          <span className="min-w-0 flex-1">
-            <span className="block text-[15px] font-medium leading-5">Import from Hevy</span>
-            <span className="meta block">In Hevy: Settings, Export data, Export workouts. Pick the CSV here.</span>
-          </span>
-        </button>
-        <input ref={file} type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => e.target.files?.[0] && void onFile(e.target.files[0])} />
+        <div className="card list overflow-hidden [--inset:64px]">
+          {connected && (
+            <Row
+              icon={sync.copyPending ? <CloudUpload {...icon} /> : <CloudCheck {...icon} />}
+              title="Copy on your server"
+              sub={sync.copyPending ? 'Your latest changes are waiting to go up' : sync.copyAt ? `Up to date · ${when(sync.copyAt)}` : 'Updates a few seconds after each change'}
+            />
+          )}
+          <Row icon={<Download {...icon} />} title="Export a backup" sub="Matches, workouts, exercises and weigh-ins as a file" onClick={() => void exportData()} />
+          <Row icon={<ArchiveRestore {...icon} />} title="Restore from a backup" sub="Adds what’s in the file. Nothing here is replaced." onClick={() => backupFile.current?.click()} />
+          <Row icon={<Upload {...icon} />} title="Import from Hevy" sub="In Hevy: Settings, Export data, Export workouts" onClick={() => hevyFile.current?.click()} />
+        </div>
+        <input ref={backupFile} type="file" accept=".json,application/json" className="hidden" onChange={(e) => e.target.files?.[0] && void onBackup(e.target.files[0])} />
+        <input ref={hevyFile} type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => e.target.files?.[0] && void onHevy(e.target.files[0])} />
         {result && (
-          <p className="card flex gap-2 p-3.5 text-[13px] leading-snug text-fg-2">
-            <Check size={16} className="mt-0.5 shrink-0 text-z2" />
-            {result}
+          <p className={`card flex gap-2 p-3.5 text-[13px] leading-snug ${result.ok ? 'text-fg-2' : 'text-warn'}`}>
+            {result.ok && <Check size={16} className="mt-0.5 shrink-0 text-z2" />}
+            {result.text}
           </p>
         )}
-        <button onClick={exportData} className="press card flex items-center gap-3 p-4 text-left">
-          <Download size={18} strokeWidth={1.75} className="shrink-0 text-fg-2" />
-          <span className="min-w-0 flex-1">
-            <span className="block text-[15px] font-medium leading-5">Export a backup</span>
-            <span className="meta block">Matches, workouts, exercises and weigh-ins as JSON. Garmin data can always be synced again.</span>
-          </span>
-        </button>
         <button
           onClick={() => {
             if (!sure) return setSure(true)

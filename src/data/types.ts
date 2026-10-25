@@ -248,4 +248,8 @@ export interface SyncState {
   dataAt?: string
   status?: 'idle' | 'syncing' | 'error'
   message?: string
+  /** when the server last took a copy of what you've typed */
+  copyAt?: string
+  /** a change hasn't reached the server's copy yet */
+  copyPending?: boolean
 }
