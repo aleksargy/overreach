@@ -30,6 +30,12 @@ export function apiKey(): string | null {
   return env('GARMIN_PERSONAL_API_KEY')?.trim() || null
 }
 
+/** OVERREACH_HISTORY_DAYS shortens the history walk, so trying your real account locally doesn't fetch two years */
+export function historyDays(): number | undefined {
+  const days = Number(env('OVERREACH_HISTORY_DAYS'))
+  return Number.isFinite(days) && days >= 14 ? Math.min(Math.round(days), 730) : undefined
+}
+
 export const noKey = () => json({ error: 'Add GARMIN_PERSONAL_API_KEY to the site’s environment variables in Netlify, then redeploy.' }, 503)
 
 export function failure(e: unknown): Response {

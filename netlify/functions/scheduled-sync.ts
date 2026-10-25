@@ -3,7 +3,7 @@
 // keeps the history whole when the app isn't opened for a while, and has the
 // night's sleep and HRV waiting in the morning.
 import { garmin } from '../lib/garmin'
-import { apiKey } from '../lib/http'
+import { apiKey, historyDays } from '../lib/http'
 import { blobs } from '../lib/kv'
 import { runStep } from '../lib/sync'
 
@@ -11,8 +11,8 @@ export default async () => {
   const key = apiKey()
   if (!key) return
   const kv = blobs()
-  // scheduled functions get 30 s
-  const r = await runStep({ kv, api: garmin(key, kv), budgetMs: 18_000, forceRecent: true }).catch((e: unknown) => ({ message: String(e) }))
+  // scheduled functions get 30 s; Garmin requests stop by 22 s
+  const r = await runStep({ kv, api: garmin(key, kv), budgetMs: 18_000, forceRecent: true, historyDays: historyDays() }).catch((e: unknown) => ({ message: String(e) }))
   console.log(r.message)
 }
 

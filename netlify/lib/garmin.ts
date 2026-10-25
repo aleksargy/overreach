@@ -1,6 +1,6 @@
 // Garmin Personal API client. The API key is swapped for a JWT (about 24 hours),
 // which is cached in the store so every function call doesn't exchange again.
-// Endpoints and limits: see the garmin-personal-api project memory.
+// Endpoints and limits: docs/garmin-api.md.
 
 import { createHash } from 'node:crypto'
 import type { KV } from './kv'
@@ -24,11 +24,20 @@ export class GarminError extends Error {
   }
 }
 
+/** The step's time is up: stop here and let the next step carry on. */
+export class OutOfTime extends Error {
+  constructor() {
+    super('Out of time for this step.')
+  }
+}
+
 export interface Garmin {
   get<T = unknown>(path: string, query?: Record<string, string | number | undefined>): Promise<T | null>
   bytes(path: string): Promise<Uint8Array>
   /** requests made so far, for budgeting */
   readonly calls: number
+  /** no request runs past this time (ms since epoch); one asked for with less than a second left throws OutOfTime */
+  deadline?: number
 }
 
 interface CachedToken {
@@ -52,6 +61,18 @@ export function garmin(apiKey: string, kv: KV, opts: { fetch?: typeof fetch; hos
   const fp = createHash('sha256').update(`${host}\0${apiKey}`).digest('hex').slice(0, 24)
   let cached: CachedToken | null = null
   let calls = 0
+  let deadline: number | undefined
+
+  /** wait at most `ms` for an answer, and never past the deadline */
+  function timeout(ms: number): AbortSignal {
+    if (deadline === undefined) return AbortSignal.timeout(ms)
+    const left = deadline - Date.now()
+    if (left < 1_000) throw new OutOfTime()
+    return AbortSignal.timeout(Math.min(ms, left))
+  }
+
+  /** a request the deadline cut short is the step running out of time, not Garmin failing */
+  const late = (e: unknown) => (deadline !== undefined && Date.now() >= deadline - 100 && /Timeout|Abort/.test((e as Error)?.name ?? '') ? new OutOfTime() : e)
 
   async function token(force = false): Promise<string> {
     const now = Date.now() / 1000
@@ -59,11 +80,14 @@ export function garmin(apiKey: string, kv: KV, opts: { fetch?: typeof fetch; hos
       cached ??= await kv.get<CachedToken>('token')
       if (cached && cached.fp === fp && cached.exp - now > REFRESH_S) return cached.jwt
     }
+    const signal = timeout(15_000)
     calls++
     const res = await f(`${host}${TOKEN_PATH}`, {
       method: 'POST',
       headers: { Accept: '*/*', Authorization: `ApiKey ${apiKey}` },
-      signal: AbortSignal.timeout(15_000),
+      signal,
+    }).catch((e: unknown) => {
+      throw late(e)
     })
     if (!res.ok) {
       const body = await res.text().catch(() => '')
@@ -79,36 +103,46 @@ export function garmin(apiKey: string, kv: KV, opts: { fetch?: typeof fetch; hos
     return jwt
   }
 
-  async function request(path: string, accept: string, retried = false): Promise<Response> {
+  /** the body is read inside the same time limit as the request, so a slow download is cut off too */
+  async function request<T>(path: string, accept: string, read: (res: Response) => Promise<T>, retried = false): Promise<T> {
+    const auth = `Bearer ${await token()}`
+    const signal = timeout(20_000)
     calls++
-    const res = await f(`${host}${path}`, {
-      headers: { Accept: accept, Authorization: `Bearer ${await token()}` },
-      signal: AbortSignal.timeout(20_000),
-    })
-    if (res.status === 401 && !retried) {
-      // revoked or expired early: exchange the key once more
-      await token(true)
-      return request(path, accept, true)
+    try {
+      const res = await f(`${host}${path}`, { headers: { Accept: accept, Authorization: auth }, signal })
+      if (res.status === 401 && !retried) {
+        // revoked or expired early: exchange the key once more
+        await token(true)
+        return await request(path, accept, read, true)
+      }
+      if (!res.ok) throw new GarminError(res.status, path, await res.text().catch(() => ''))
+      return await read(res)
+    } catch (e) {
+      throw late(e)
     }
-    if (!res.ok) throw new GarminError(res.status, path, await res.text().catch(() => ''))
-    return res
   }
 
   return {
     get calls() {
       return calls
     },
-    async get<T>(path: string, query?: Record<string, string | number | undefined>) {
+    get deadline() {
+      return deadline
+    },
+    set deadline(t) {
+      deadline = t
+    },
+    get<T>(path: string, query?: Record<string, string | number | undefined>) {
       const qs = new URLSearchParams()
       for (const [k, v] of Object.entries(query ?? {})) if (v !== undefined) qs.set(k, String(v))
       const q = qs.toString()
-      const res = await request(q ? `${path}?${q}` : path, 'application/json')
-      const text = await res.text()
-      return text ? (JSON.parse(text) as T) : null
+      return request(q ? `${path}?${q}` : path, 'application/json', async (res) => {
+        const text = await res.text()
+        return text ? (JSON.parse(text) as T) : null
+      })
     },
-    async bytes(path: string) {
-      const res = await request(path, '*/*')
-      return new Uint8Array(await res.arrayBuffer())
+    bytes(path: string) {
+      return request(path, '*/*', async (res) => new Uint8Array(await res.arrayBuffer()))
     },
   }
 }

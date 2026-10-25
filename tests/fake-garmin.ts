@@ -37,6 +37,8 @@ export interface Fake {
   failNext(status: number, n?: number): void
   /** answer every request under this path with 404, like an endpoint the key isn't allowed */
   breakPath(prefix: string): void
+  /** answer requests under this path only after ms (0 to stop), giving up when the caller's signal does */
+  slowPath(prefix: string, ms: number): void
   addActivity(a: Partial<FakeActivity> & { activityName: string; typeKey: string; daysAgo: number }): void
   now: Date
 }
@@ -195,6 +197,12 @@ export function fakeGarmin(opts: { now?: Date; years?: number } = {}): Fake {
   const calls: Record<string, number> = {}
   let failing: { status: number; left: number } | null = null
   const broken: string[] = []
+  const slow = new Map<string, number>()
+  const wait = (ms: number, signal?: AbortSignal | null) =>
+    new Promise<void>((resolve, reject) => {
+      const t = setTimeout(resolve, ms)
+      signal?.addEventListener('abort', () => (clearTimeout(t), reject(signal.reason)), { once: true })
+    })
   const ok = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } })
   const bad = (status: number, why = '') => new Response(why, { status })
   const span = (a: string, b: string) => Math.round((Date.parse(b) - Date.parse(a)) / DAY) + 1
@@ -229,6 +237,7 @@ export function fakeGarmin(opts: { now?: Date; years?: number } = {}): Fake {
     }
     if (!String(new Headers(init?.headers).get('authorization')).startsWith('Bearer ')) return bad(401)
     if (broken.some((b) => path.startsWith(b))) return bad(404)
+    for (const [prefix, ms] of slow) if (ms && path.startsWith(prefix)) await wait(ms, init?.signal)
     if (failing && failing.left > 0) {
       failing.left--
       return bad(failing.status, 'nope')
@@ -317,6 +326,9 @@ export function fakeGarmin(opts: { now?: Date; years?: number } = {}): Fake {
     },
     breakPath(prefix) {
       broken.push(prefix)
+    },
+    slowPath(prefix, ms) {
+      slow.set(prefix, ms)
     },
     addActivity(a) {
       const start = now.getTime() - a.daysAgo * DAY
