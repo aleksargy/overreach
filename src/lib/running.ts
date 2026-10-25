@@ -527,3 +527,15 @@ export function runInsight(m: RunModel, a: Activity) {
     drift: curve,
   }
 }
+
+/**
+ * Heart rate at a steady speed v (m/s), from your own slopes: where it settles
+ * 20 minutes in, and where drift takes it after `minutes`. Flat, cool, at
+ * today's engine; drift is extrapolated in a straight line, so long races are
+ * the roughest guess.
+ */
+export function hrAtPace(m: RunModel, v: number, minutes: number): { settled: number; end: number } | undefined {
+  if (!m.engineNow) return undefined
+  const settled = m.refHr + m.slopes.v * (v - m.engineNow.v)
+  return { settled: Math.round(settled), end: Math.round(settled + m.slopes.t * Math.max(0, minutes - REF_MIN)) }
+}
