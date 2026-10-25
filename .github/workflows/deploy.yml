@@ -1,0 +1,53 @@
+# Ships main to Netlify, after checking it again. Changes to docs and Claude's
+# settings don't deploy: on Netlify's free plan each production deploy costs 15
+# of the month's 300 credits. Run it by hand (Actions, Deploy, Run workflow)
+# after changing an environment variable in Netlify, which needs a fresh deploy.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.claude/**'
+      - '.github/dependabot.yml'
+      - '.github/pull_request_template.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: production
+      url: ${{ steps.deploy.outputs.url }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - name: Deploy to production
+        id: deploy
+        if: vars.NETLIFY_SITE_ID != ''
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ vars.NETLIFY_SITE_ID }}
+        run: |
+          npx --yes netlify-cli@27.14.2 deploy --prod --no-build --dir dist --functions netlify/functions --message "${GITHUB_SHA::7}" --json > "$RUNNER_TEMP/deploy.json"
+          echo "url=$(jq -r '.url // .deploy_url' "$RUNNER_TEMP/deploy.json")" >> "$GITHUB_OUTPUT"
+      - name: Netlify isn't connected yet
+        if: vars.NETLIFY_SITE_ID == ''
+        run: echo "::notice::Checked and built, but not deployed. Add the NETLIFY_SITE_ID variable and NETLIFY_AUTH_TOKEN secret (README, Deploying)."
