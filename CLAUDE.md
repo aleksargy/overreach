@@ -102,6 +102,7 @@ The preview build uses a memory router. A bare hash picks the first screen: `#ru
 - The sample data in `src/data/sample/` is deterministic (seeded from dates and ids) and has the running effects built in that `tests/running.test.ts` checks, so run `npm test` after changing it. It plays 11s on Sunday mornings and 7s every other Tuesday evening; that schedule is made up, not Alex's.
 - Serve `dist-preview/preview.html` as `text/html; charset=utf-8`, or curly quotes and middle dots turn into mojibake.
 - Saved shapes are versioned (`UserData.version`, `SyncState.v`, the `:v1` storage keys, the backup's `v`). Nothing needs migrating yet. When a saved shape changes, bump its version and migrate on load (`hydrate`, `loadAll`), because real data already lives on the phone and in Blobs.
+- When a fix to `netlify/lib/mapping.ts` means stored days were read wrong, bump `HEALTH_MAPPING` in `sync.ts`: the next step reads the health history again (about ten calls, no FIT files).
 
 ## Renaming
 

@@ -253,17 +253,16 @@ export function fakeGarmin(opts: { now?: Date; years?: number } = {}): Fake {
       const a = q.get('startDate')!
       const b = q.get('endDate')!
       if (span(a, b) > 180) return bad(400)
-      return ok(
-        datesIn(a, b).map((d) => ({
+      // the v2 shape a real account answers with: readings nested, and no sleep
+      return ok({
+        data: datesIn(a, b).map((d) => ({
           calendarDate: d,
-          restingHeartRate: 46 + ((Date.parse(d) / DAY) % 5),
-          totalSteps: 9000,
-          averageStressLevel: d.endsWith('5') ? -1 : 28,
-          bodyBatteryHighestValue: 80,
-          bodyBatteryLowestValue: 20,
-          sleepingSeconds: 26_000,
+          heartRate: { minValue: 44, maxValue: 171, restingValue: 46 + ((Date.parse(d) / DAY) % 5) },
+          movement: { steps: { goal: 10_000, value: 9000, distanceInMeters: 7100 } },
+          stress: { avgLevel: d.endsWith('5') ? -1 : 28, maxLevel: 92, qualifier: 'balanced' },
+          bodyBattery: { minValue: 20, maxValue: 80, chargedValue: 55, drainedValue: 60 },
         })),
-      )
+      })
     }
     let m = path.match(/^\/hrv-service\/hrv\/daily\/(\d{4}-\d\d-\d\d)\/(\d{4}-\d\d-\d\d)$/)
     if (m) {

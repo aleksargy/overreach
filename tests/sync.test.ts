@@ -112,14 +112,15 @@ test('a first sync walks the full history, then reports up to date', async () =>
   assert.ok(runs.filter((a) => Date.parse(a.start) < yearAgo).every((a) => !a.run))
   assert.equal(state.weather, undefined)
 
-  // health: two years of days, sleep stages only for recent months
+  // health: two years of days from the nested v2 summaries; sleep only for recent months, which the summaries don't carry
   const days = Object.values(data.dailies)
   assert.ok(days.length >= HISTORY_DAYS - 1, `${days.length} days`)
   const recent = data.dailies[fake.now.toISOString().slice(0, 10)]
   assert.equal(recent.hrv !== undefined && recent.deepS !== undefined && recent.sleepScore === 82, true)
+  assert.deepEqual([typeof recent.rhr, recent.steps, recent.bbHigh, recent.bbLow], ['number', 9000, 80, 20])
   const old = days.find((d) => d.date < '2025-01-01')!
-  assert.equal(old.deepS, undefined)
-  assert.equal(old.sleepS, 26_000)
+  assert.equal(typeof old.rhr, 'number')
+  assert.equal(old.sleepS, undefined)
   // "-1" stress means no data and must not be stored
   assert.ok(days.filter((d) => d.date.endsWith('5')).every((d) => d.stress === undefined))
 
@@ -272,6 +273,30 @@ test('after weeks without opening the app, the next pass fills in every day sinc
     const day = new Date(t).toISOString().slice(0, 10)
     assert.ok(data.dailies[day]?.rhr && data.dailies[day].deepS, `missing ${day}`)
   }
+})
+
+test('after a fix to the health mapping, the health history is read again', async () => {
+  const fake = fakeGarmin({ years: 0.2 })
+  const kv = memoryKV()
+  await syncToEnd(kv, fake)
+  // as the days were before the v2 fix: read by a mapping that missed resting heart rate
+  const { state, data } = await loadAll(kv)
+  for (const d of Object.values(data.dailies)) delete d.rhr
+  await kv.set('dailies', data.dailies)
+  await kv.set('state', { ...state, healthMapping: undefined })
+  const downloads = () => fake.calls['/download-service/files/activity/:x'] ?? 0
+  const before = downloads()
+  const api = garmin('test-key', kv, { fetch: fake.fetch })
+  let r: StepResult | undefined
+  for (let i = 0; i < 5 && !r?.done; i++) r = await runStep({ kv, api, budgetMs: 25_000, now: fake.now })
+  assert.equal(r?.done, true)
+  const after = await loadAll(kv)
+  assert.ok(
+    Object.values(after.data.dailies).every((d) => d.rhr),
+    'every day has its resting heart rate back',
+  )
+  // the health history only: no FIT file is read again
+  assert.equal(downloads(), before)
 })
 
 test('after more than six months away, the health history is walked again', async () => {

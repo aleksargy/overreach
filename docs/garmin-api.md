@@ -16,8 +16,19 @@ Researched on 24 October 2026. `netlify/lib/garmin.ts` and `netlify/lib/sync.ts`
 - Heart-rate zones are at `/biometric-service/heartRateZones/v2`, and the profile at `/userprofile-service/userprofile/settings`.
 - A range that's too long comes back as an empty 400 or 500. A path that isn't allowed gives a 404.
 
+## What a real account sends
+
+Checked against Alex's account on 25 October 2026 with `/api/status?shapes` (field types only, never values). `tests/fake-garmin.ts` sends these shapes.
+
+- **Daily summaries** (`v2/dailysummaries`) answer `{ data: [...] }`, with each reading nested: `heartRate.restingValue`, `movement.steps.value`, `stress.avgLevel`, `bodyBattery.minValue` and `maxValue`. There's no sleep in them, so sleep comes only from the sleep endpoint (120 days). The first mapping read flat names and missed all of this; `HEALTH_MAPPING` in `sync.ts` makes a store read with an older mapping walk its health history again.
+- **Sleep** is a bare list of flat objects (no `dailySleepDTO` wrapper): `sleepTimeSeconds`, `deepSleepSeconds`, `lightSleepSeconds`, `remSleepSeconds`, `awakeSleepSeconds`, `sleepScores.overall.value`.
+- **HRV** is `{ hrvSummaries: [{ calendarDate, lastNightAvg, weeklyAvg, baseline, status }] }`.
+- **Weight** is `{ dailyWeightSummaries: [{ allWeightMetrics: [{ weight, timestampGMT, samplePk, bodyFat }] }] }`, body fat empty.
+- **Heart-rate zones** are a list of `{ sport, maxHeartRateUsed, restingHeartRateUsed, zone1Floor … zone5Floor, trainingMethod }`. The app works zones out as shares of max HR; Garmin's own floors are there if that ever changes.
+- **Activities** carry every field the mapper reads (`activityType.typeKey`, `startTimeGMT`, `duration`, `distance`, `averageHR`, `hrTimeInZone_1…5`, `eventType`, `trainingEffectLabel` and the rest). Only the first activity's shape is kept, so the swim fields haven't been seen yet.
+
 ## Not known yet
 
-- The real field names and types. The fake Garmin (`tests/fake-garmin.ts`) copies the shapes from Garmin's own client code (through the `garmin-personal-mcp` npm package), and `netlify/lib/mapping.ts` reads tolerantly, but neither has met Alex's account. After the first real sync, `/api/status?shapes` shows what arrived (the `garmin-shapes` skill). Look first at how football is recorded (Garmin's `soccer` type, or "other" with a name like "7-a-side", which the mapper also catches), the GMT times, weight units, and the sleep and HRV shapes.
+- How Alex's football is recorded: Garmin's `soccer` type, or "other" with a name like "7-a-side", which the mapper also catches. Check that games land on the Football tab.
 - Whether API FIT files are complete. Runalyze reported in October 2026 that Garmin strips some proprietary fields (VO2 max, training effect, recovery time, performance condition) from them. The app doesn't depend on any of those.
 - How far back the history goes, and the real rate limits. Garmin doesn't publish them. The sync stops on a 429 and carries on later.
