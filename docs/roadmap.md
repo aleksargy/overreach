@@ -2,19 +2,18 @@
 
 ## Next
 
-1. Deploy (README, "Deploying").
-2. Run the real key locally with `npm run dev:real`, then fix `netlify/lib/mapping.ts` from `/api/status?shapes` (the `garmin-shapes` skill) and copy the real shapes into `tests/fake-garmin.ts`.
-3. Go through every screen on real data at 390 × 844. On the Run tab, check that the engine, critical speed, durability and costs appear, and that the reasons shown when there isn't enough data make sense. Loosen or tighten the evidence checks in `src/lib/running.ts` if needed.
-4. Check that run weather gets filled in (Open-Meteo from Netlify).
-5. Once there are ten or so rated games in each format, revisit `PAR`, `ENGINE_RANGE` and `BIG_MARGIN` in `src/lib/football.ts`. They're judgement calls, not fitted to data.
-6. Ghost replays, the next feature Alex liked: pick a repeated route or segment and watch today's run race every past attempt, with heart rate overlaid, to see where time was won or lost. The GPS and time streams come from `/api/stream`.
-7. Maybe later: D′ balance through interval sessions, showing how deep each rep goes, from critical speed and D′.
+1. Check the running model against Alex's real runs: do the engine, heat, hill and football costs, durability and critical speed match how those runs felt?
+2. Go through every screen on real data at 390 × 844. On the Run tab, check that the engine, critical speed, durability and costs appear, and that the reasons shown when there isn't enough data make sense. Loosen or tighten the evidence checks in `src/lib/running.ts` if needed.
+3. Check that run weather gets filled in from Netlify (it does from the Mac).
+4. Once there are ten or so rated games in each format, revisit `PAR`, `ENGINE_RANGE` and `BIG_MARGIN` in `src/lib/football.ts`. They're judgement calls, not fitted to data.
+5. Ghost replays, the next feature Alex liked: pick a repeated route or segment and watch today's run race every past attempt, with heart rate overlaid, to see where time was won or lost. The GPS and time streams come from `/api/stream`.
+6. Maybe later: D′ balance through interval sessions, showing how deep each rep goes, from critical speed and D′.
 
 ## Not checked yet
 
 Everything so far was built and tested against the fake Garmin and generated sample data.
 
-- Real Garmin data: field names, history depth, rate limits (see `garmin-api.md`).
+- Real Garmin data over two years: history depth and rate limits (see `garmin-api.md`). The field shapes are checked.
 - Open-Meteo: only tested against a fake so far.
 - Netlify itself: function time limits, the scheduled job, Blobs in production, and that a preview with no functions behaves.
 - On the iPhone: the home-screen install, the offline shell, exporting a backup through the share sheet, and the backup coming back after removing and re-adding the app.
