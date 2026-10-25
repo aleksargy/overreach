@@ -96,7 +96,11 @@ GitHub Actions does the deploying, so a deploy only happens after the checks pas
 
 ## Keeping it running
 
-- **The Garmin key expires** after 30 days to a year, and Settings says so. Make a new one, update `GARMIN_PERSONAL_API_KEY` in Netlify, then run the Deploy workflow (a changed environment variable only reaches the functions on a new deploy). Update `.env.local` too.
+- **The Garmin key expires** after 30 days to a year, and Settings says so. Make a new one, encrypt it into `.env.local` as in "Your Garmin key on this Mac", then hand it from varlock to Netlify without it touching your terminal:
+  ```sh
+  npx varlock run -- sh -c 'npx netlify-cli@27.14.2 env:set GARMIN_PERSONAL_API_KEY "$GARMIN_PERSONAL_API_KEY" --context production --secret --force'
+  ```
+  Leave out `--scope`: in this CLI version it makes `env:set` quietly do nothing. Then run the Deploy workflow, because a changed environment variable only reaches the functions on a new deploy.
 - **The Netlify token expires** on the date you chose. Make a new one and run `gh secret set NETLIFY_AUTH_TOKEN` again.
 - **Your data:** what you type is copied to the server a few seconds after each change. Settings, Export a backup gives you a file as well, and Restore from a backup adds one back.
 - **Dependabot** opens one grouped update a month. Merge it when `check` passes.
