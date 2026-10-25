@@ -6,6 +6,7 @@
 // Only this Mac can reach it: it listens on 127.0.0.1. `--port` and `--blobs <dir>`
 // let npm run screens run its own copy next to yours.
 import { BlobsServer } from '@netlify/blobs/server'
+import { existsSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { fakeGarmin } from '../tests/fake-garmin'
 
@@ -39,7 +40,13 @@ if (!real) {
 
 createServer(async (req, res) => {
   const url = new URL(req.url ?? '/', `http://localhost:${PORT}`)
-  const name = url.pathname.replace(/^\/api\//, '').replace(/[^a-z-]/g, '')
+  const name = url.pathname.replace(/^\/api\//, '')
+  // only the functions themselves; anything else is someone opening the API instead of the app
+  if (!/^[a-z-]+$/.test(name) || !existsSync(new URL(`../netlify/functions/${name}.ts`, import.meta.url))) {
+    res.writeHead(404, { 'content-type': 'application/json' })
+    res.end(JSON.stringify({ error: 'This is the API, not the app. Run npm run dev as well, then open http://localhost:5173.' }))
+    return
+  }
   try {
     const mod = (await import(`../netlify/functions/${name}.ts`)) as { default: (r: Request) => Promise<Response | undefined> }
     const headers = new Headers()
@@ -57,4 +64,5 @@ createServer(async (req, res) => {
 }).listen(PORT, '127.0.0.1', () => {
   const days = process.env.OVERREACH_HISTORY_DAYS ? ` · history ${process.env.OVERREACH_HISTORY_DAYS} days` : ''
   console.log(`API on http://127.0.0.1:${PORT} · ${banner}${days} · passphrase ${ownPassphrase ? 'from .env.local' : '"dev"'}`)
+  console.log('Now run npm run dev in another terminal and open http://localhost:5173')
 })
