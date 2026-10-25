@@ -20,32 +20,32 @@
   "dependencies": {
     "@fontsource-variable/geist": "5.3.0",
     "@fontsource-variable/geist-mono": "5.3.0",
-    "@garmin/fitsdk": "21.217.0",
-    "@netlify/blobs": "11.1.2",
-    "date-fns": "4.1.0",
+    "@garmin/fitsdk": "21.218.0",
+    "@netlify/blobs": "11.1.6",
+    "date-fns": "4.4.0",
     "fflate": "0.8.3",
-    "idb-keyval": "6.2.6",
-    "lucide-react": "1.51.0",
+    "idb-keyval": "6.3.0",
+    "lucide-react": "1.61.0",
     "motion": "12.43.0",
-    "react": "19.2.5",
-    "react-dom": "19.2.5",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
     "react-router": "7.18.3",
-    "zustand": "5.0.15"
+    "zustand": "5.0.16"
   },
   "devDependencies": {
     "@types/node": "22.18.0",
-    "@types/react": "19.2.2",
-    "@types/react-dom": "19.2.2",
-    "@vitejs/plugin-react": "6.0.1",
-    "autoprefixer": "10.4.27",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.2",
+    "autoprefixer": "10.6.1",
     "jiti": "2.7.0",
     "playwright": "1.64.1",
-    "postcss": "8.5.23",
+    "postcss": "8.5.31",
     "prettier": "3.9.10",
     "tailwindcss": "3.4.19",
     "typescript": "5.9.3",
     "varlock": "1.23.0",
-    "vite": "8.1.6"
+    "vite": "8.3.5"
   },
   "engines": {
     "node": ">=22"
