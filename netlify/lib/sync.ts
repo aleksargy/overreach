@@ -15,7 +15,7 @@
 import type { BodyEntry, Daily, GarminActivity } from '../../src/data/types'
 import { summariseRun } from '../../src/lib/running'
 import { fitFromDownload, footballSummary, streamFromFit } from './fit'
-import { GarminError, type Garmin } from './garmin'
+import { GarminError, OutOfTime, type Garmin } from './garmin'
 import type { KV } from './kv'
 import { foldHrv, foldSleep, foldSummaries, foldWeight, hrProfile, list, mapActivity, shape, type Obj } from './mapping'
 import { weatherFor } from './weather'
@@ -31,6 +31,8 @@ const DAILY_CHUNK = 180
 const SLEEP_CHUNK = 28
 const RECENT_EVERY_MS = 10 * 60_000
 const LOCK_MS = 55_000
+/** a request started inside the budget may run this much longer, and no more */
+const GRACE_MS = 4_000
 /** be gentle with Garmin: no more requests than this per step */
 const MAX_CALLS = 30
 
@@ -120,28 +122,35 @@ export interface StepOptions {
   api: Garmin
   /** stop starting new work after this long */
   budgetMs: number
+  /** no Garmin request runs past this long, so the step always has time to save (default: budget + 4 s) */
+  deadlineMs?: number
   /** fetch the newest data even if that ran a minute ago (Sync now, the morning job) */
   forceRecent?: boolean
+  /** how far back the history goes (default HISTORY_DAYS); shorter when trying a real account locally */
+  historyDays?: number
   now?: Date
   /** for the weather service; Garmin goes through `api` */
   fetch?: typeof fetch
 }
 
 export async function runStep(opts: StepOptions): Promise<StepResult> {
+  const t0 = Date.now()
   const owner = Math.random().toString(36).slice(2)
   if (!(await lock(opts.kv, owner))) {
     const { state, data } = await loadAll(opts.kv)
     return { done: false, added: 0, total: Object.keys(data.activities).length, message: 'Another sync is running…', busy: true, dataAt: state.dataAt }
   }
+  const before = opts.api.deadline
+  opts.api.deadline = t0 + (opts.deadlineMs ?? opts.budgetMs + GRACE_MS)
   try {
-    return await step(opts)
+    return await step(opts, t0)
   } finally {
+    opts.api.deadline = before
     await unlock(opts.kv, owner)
   }
 }
 
-async function step({ kv, api, budgetMs, forceRecent = false, now = new Date(), fetch: weatherFetch }: StepOptions): Promise<StepResult> {
-  const t0 = Date.now()
+async function step({ kv, api, budgetMs, forceRecent = false, historyDays = HISTORY_DAYS, now = new Date(), fetch: weatherFetch }: StepOptions, t0: number): Promise<StepResult> {
   const calls0 = api.calls
   const time = () => budgetMs - (Date.now() - t0)
   const left = () => (api.calls - calls0 >= MAX_CALLS ? 0 : time())
@@ -152,8 +161,8 @@ async function step({ kv, api, budgetMs, forceRecent = false, now = new Date(), 
   // a warning stays until that endpoint answers again
   const warnings: Record<string, string> = { ...state.warnings }
   const today = dayOf(now)
-  const cutoff = addDays(today, -HISTORY_DAYS)
-  const runCutoff = now.getTime() - RUN_DAYS * 86_400_000
+  const cutoff = addDays(today, -historyDays)
+  const runCutoff = now.getTime() - Math.min(RUN_DAYS, historyDays) * 86_400_000
   let added = 0
   let oldestSeen: string | undefined
   const wantsFit = (a: GarminActivity) =>
@@ -231,8 +240,8 @@ async function step({ kv, api, budgetMs, forceRecent = false, now = new Date(), 
       state.recentAt = now.toISOString()
     }
 
-    // 2. runs and football games waiting for their FIT file
-    while (state.pending.length && left() > 8_000) {
+    // 2. runs and football games waiting for their FIT file; the deadline cuts off a slow download
+    while (state.pending.length && left() > 3_000) {
       const id = state.pending[0]
       const a = data.activities[id]
       if (a?.garminId) {
@@ -249,6 +258,8 @@ async function step({ kv, api, budgetMs, forceRecent = false, now = new Date(), 
           }
           dirty.activities = true
         } catch (e) {
+          // out of time: this one stays first in line for the next step
+          if (e instanceof OutOfTime) break
           if (e instanceof GarminError && (e.status === 429 || e.status === 401 || e.status === 403)) throw e
           warnings.fit = `${a.name} (${a.start.slice(0, 10)}): ${e instanceof Error ? e.message : String(e)}`
         }
@@ -305,14 +316,18 @@ async function step({ kv, api, budgetMs, forceRecent = false, now = new Date(), 
     }
     state.error = undefined
   } catch (e) {
-    // keep what this step already fetched; a rate limit just pauses the loop
-    state.error = { at: now.toISOString(), message: e instanceof Error ? e.message : String(e) }
-    if (!(e instanceof GarminError && e.status === 429)) {
+    // running out of time isn't a failure: what's done is saved below and the next step carries on
+    if (e instanceof OutOfTime) state.error = undefined
+    else {
+      // keep what this step already fetched; a rate limit just pauses the loop
+      state.error = { at: now.toISOString(), message: e instanceof Error ? e.message : String(e) }
+      if (!(e instanceof GarminError && e.status === 429)) {
+        await save()
+        throw e
+      }
       await save()
-      throw e
+      return { done: false, added, total: Object.keys(data.activities).length, message: state.error.message, paused: true, dataAt: state.dataAt }
     }
-    await save()
-    return { done: false, added, total: Object.keys(data.activities).length, message: state.error.message, paused: true, dataAt: state.dataAt }
   }
 
   const done = isCaughtUp(state)

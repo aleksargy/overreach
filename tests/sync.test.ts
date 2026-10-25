@@ -149,6 +149,31 @@ test('after the first sync, a new game is picked up and analysed in one step', a
   assert.equal(game.football?.sprints, 6)
 })
 
+test('a slow download can’t keep a step past its deadline, and the game stays in line for the next one', async () => {
+  const fake = fakeGarmin({ years: 0.1 })
+  const kv = memoryKV()
+  await syncToEnd(kv, fake)
+  fake.addActivity({ activityName: 'Thursday 7-a-side', typeKey: 'other', daysAgo: 0.2 })
+  fake.slowPath('/download-service/', 60_000)
+  const api = garmin('test-key', kv, { fetch: fake.fetch })
+  const t0 = Date.now()
+  const r = await runStep({ kv, api, budgetMs: 4_000, deadlineMs: 5_000, now: fake.now, forceRecent: true })
+  assert.ok(Date.now() - t0 < 6_500, `took ${Date.now() - t0} ms`)
+  assert.equal(r.done, false)
+  const id = `g-${fake.activities[0].activityId}`
+  const mid = await loadAll(kv)
+  assert.deepEqual(mid.state.pending, [id])
+  assert.equal(mid.state.error, undefined)
+  assert.equal(mid.state.warnings, undefined)
+  // the new game itself was saved, just not read yet
+  assert.ok(mid.data.activities[id])
+  assert.equal(await kv.get('lock'), null)
+  fake.slowPath('/download-service/', 0)
+  const next = await runStep({ kv, api, budgetMs: 25_000, now: fake.now })
+  assert.equal(next.done, true)
+  assert.equal((await loadAll(kv)).data.activities[id].football?.sprints, 6)
+})
+
 test('a second step while one is running is told to wait', async () => {
   const fake = fakeGarmin({ years: 0.2 })
   const kv = memoryKV()
