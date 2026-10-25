@@ -10,7 +10,7 @@ interface Copy {
   data: Record<string, unknown>
 }
 
-const LISTS = ['matches', 'hiddenMatchIds', 'workouts', 'customExercises', 'routines', 'body']
+const LISTS = ['matches', 'hiddenMatchIds', 'skippedRatings', 'workouts', 'customExercises', 'routines', 'body']
 
 const isCopy = (x: unknown): x is Copy => {
   const c = x as Copy | null

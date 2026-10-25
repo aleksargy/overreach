@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import type { Format, Match, Stream } from '../src/data/types'
-import { analyseFootball, baselineFor, formatOf, playerCard, rateMatch, usualFormatAt, type Physical } from '../src/lib/football'
+import type { Activity, Format, Match, Stream } from '../src/data/types'
+import { analyseFootball, baselineFor, formatOf, gamesToRate, playerCard, rateMatch, usualFormatAt, type Physical } from '../src/lib/football'
 
 const match = (id: string, date: string, format: Format, over: Partial<Match> = {}): Match => ({
   id,
@@ -110,4 +110,14 @@ test('a game played straight through splits in the middle and keeps every minute
   assert.deepEqual(an.sprintsByHalf, [2, 2])
   assert.equal(an.heat.length, 50 * 30)
   assert.equal(an.fadeMinute, undefined)
+})
+
+test('only recent games you haven’t rated or skipped are asked about', () => {
+  const now = new Date('2026-10-25T12:00:00Z')
+  const game = (id: string, daysAgo: number) => ({ id, sport: 'football', start: new Date(now.getTime() - daysAgo * 86_400_000).toISOString() }) as Activity
+  const asked = gamesToRate([game('fresh', 2), game('rated', 3), game('skipped', 4), game('june', 120)], (id) => id === 'rated', ['skipped'], now)
+  assert.deepEqual(
+    asked.map((a) => a.id),
+    ['fresh'],
+  )
 })

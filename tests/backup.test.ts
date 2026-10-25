@@ -12,6 +12,7 @@ const phone = (over: Partial<Backup> = {}): Backup => ({
   profile,
   matches: [],
   hiddenMatchIds: [],
+  skippedRatings: [],
   workouts: [],
   customExercises: [],
   exerciseEdits: {},

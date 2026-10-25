@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { useStore } from './store'
 
 export type SheetState =
   | { type: 'log' }
@@ -55,3 +56,13 @@ export const useUi = create<Ui>()((set) => ({
     setTimeout(() => set((s) => (s.toast?.id === id ? { toast: null } : {})), 2600)
   },
 }))
+
+/** Stop asking to rate a game, and say where it still lives. */
+export function useSkipRating() {
+  const skip = useStore((s) => s.skipRating)
+  const say = useUi((s) => s.say)
+  return (activityId: string) => {
+    skip(activityId)
+    say('Skipped. It’s still in All activity')
+  }
+}

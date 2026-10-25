@@ -1,14 +1,16 @@
 import { differenceInCalendarDays, parseISO } from 'date-fns'
 import { Info, Plus } from 'lucide-react'
+import { AnimatePresence } from 'motion/react'
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { RatingBadge } from '../../components/ActivityRow'
 import { SportDot } from '../../components/icons/SportIcon'
 import { IconButton, Screen } from '../../components/ui/Screen'
 import { Empty, SampleBadge, Section, Segmented } from '../../components/ui/bits'
+import { Swipeable } from '../../components/ui/Swipe'
 import { Ticker } from '../../components/ui/Ticker'
 import type { Activity, Format, Match } from '../../data/types'
-import { useUi } from '../../data/ui'
+import { useSkipRating, useUi } from '../../data/ui'
 import { useWorld } from '../../data/world'
 import { dur, fmt, km } from '../../lib/format'
 import { ratingTone, result } from '../../lib/football'
@@ -23,6 +25,7 @@ let lastPicked: Format | undefined
 export function FootballScreen() {
   const w = useWorld()
   const open = useUi((s) => s.open)
+  const skip = useSkipRating()
   const s = season(w)
   const [explain, setExplain] = useState(false)
   const [picked, setPicked] = useState(lastPicked)
@@ -52,10 +55,17 @@ export function FootballScreen() {
       }
     >
       {unrated.length > 0 && (
-        <div className="card list mb-8 overflow-hidden [--inset:68px]">
-          {unrated.map((a) => (
-            <UnratedRow key={a.id} a={a} now={w.now} onRate={() => open({ type: 'logMatch', activityId: a.id })} />
-          ))}
+        <div className="mb-8">
+          <div className="card list overflow-hidden [--inset:68px]">
+            <AnimatePresence initial={false}>
+              {unrated.map((a) => (
+                <Swipeable key={a.id} hint="Skip" onSwipe={() => skip(a.id)}>
+                  <UnratedRow a={a} now={w.now} onRate={() => open({ type: 'logMatch', activityId: a.id })} />
+                </Swipeable>
+              ))}
+            </AnimatePresence>
+          </div>
+          <p className="mt-2 px-1 text-[12px] text-fg-4">Swipe a game left if you&rsquo;d rather not rate it.</p>
         </div>
       )}
 

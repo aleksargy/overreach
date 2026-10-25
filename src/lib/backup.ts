@@ -7,6 +7,7 @@ export interface Backup {
   profile: Profile
   matches: Match[]
   hiddenMatchIds: string[]
+  skippedRatings: string[]
   workouts: Workout[]
   customExercises: Exercise[]
   exerciseEdits: Record<string, Partial<Exercise>>
@@ -14,13 +15,23 @@ export interface Backup {
   body: BodyEntry[]
 }
 
-export const BACKUP_KEYS = ['profile', 'matches', 'hiddenMatchIds', 'workouts', 'customExercises', 'exerciseEdits', 'routines', 'body'] as const satisfies readonly (keyof Backup)[]
+export const BACKUP_KEYS = [
+  'profile',
+  'matches',
+  'hiddenMatchIds',
+  'skippedRatings',
+  'workouts',
+  'customExercises',
+  'exerciseEdits',
+  'routines',
+  'body',
+] as const satisfies readonly (keyof Backup)[]
 
 const LISTS = ['matches', 'workouts', 'customExercises', 'routines', 'body'] as const
 
 export function backupOf(s: Backup): Backup {
-  const { profile, matches, hiddenMatchIds, workouts, customExercises, exerciseEdits, routines, body } = s
-  return { profile, matches, hiddenMatchIds, workouts, customExercises, exerciseEdits, routines, body }
+  const { profile, matches, hiddenMatchIds, skippedRatings, workouts, customExercises, exerciseEdits, routines, body } = s
+  return { profile, matches, hiddenMatchIds, skippedRatings, workouts, customExercises, exerciseEdits, routines, body }
 }
 
 /** Anything you'd miss: a match, a workout, a weigh-in or an exercise of your own. */
@@ -37,6 +48,7 @@ export function merge(mine: Backup, saved: Partial<Backup>): Backup {
     profile: hasContent(mine) ? mine.profile : { ...mine.profile, ...saved.profile },
     matches: join(mine.matches, saved.matches, (m) => !mine.hiddenMatchIds.includes(m.id)),
     hiddenMatchIds: [...new Set([...mine.hiddenMatchIds, ...(saved.hiddenMatchIds ?? [])])],
+    skippedRatings: [...new Set([...mine.skippedRatings, ...(saved.skippedRatings ?? [])])],
     workouts: join(mine.workouts, saved.workouts),
     customExercises: join(mine.customExercises, saved.customExercises),
     exerciseEdits: { ...saved.exerciseEdits, ...mine.exerciseEdits },
@@ -58,7 +70,10 @@ export function readBackup(x: unknown): Partial<Backup> | null {
     if (!Array.isArray(v) || !v.every((item) => isObj(item) && typeof item.id === 'string')) return null
     out[k] = v as never
   }
-  if (Array.isArray(o.hiddenMatchIds)) out.hiddenMatchIds = o.hiddenMatchIds.filter((id): id is string => typeof id === 'string')
+  for (const k of ['hiddenMatchIds', 'skippedRatings'] as const) {
+    const v = o[k]
+    if (Array.isArray(v)) out[k] = v.filter((id): id is string => typeof id === 'string')
+  }
   if (isObj(o.profile)) out.profile = o.profile as unknown as Profile
   if (isObj(o.exerciseEdits)) out.exerciseEdits = o.exerciseEdits as Backup['exerciseEdits']
   return LISTS.some((k) => out[k]) ? out : null
