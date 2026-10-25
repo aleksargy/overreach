@@ -4,6 +4,7 @@
 //   npm run screens                      every screen, both modes
 //   npm run screens -- settings run      just those screens
 //   npm run screens -- --live            one mode (or --sample)
+//   npm run screens -- --race            with "Training for a race" on: a marathon two weeks out, goal 3:30
 // Writes screens/<mode>/<screen>.png. Needs Chromium once: npx playwright install chromium
 import { spawn } from 'node:child_process'
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
@@ -16,7 +17,9 @@ const API = 8799
 const WEB = 5199
 const base = `http://127.0.0.1:${WEB}`
 const args = process.argv.slice(2)
-const modes = ['sample', 'live'].filter((m) => !args.some((a) => a.startsWith('--')) || args.includes(`--${m}`))
+const picked = ['sample', 'live'].filter((m) => args.includes(`--${m}`))
+const modes = picked.length ? picked : ['sample', 'live']
+const race = args.includes('--race')
 const only = args.filter((a) => !a.startsWith('--'))
 
 const SCREENS = [
@@ -62,6 +65,13 @@ try {
           await page.screenshot({ path: join('screens', 'sync-failed.png'), fullPage: true })
           throw new Error(`Sync didn't finish. The screen said: ${await page.locator('main').innerText()}`, { cause: e })
         })
+    }
+    if (race) {
+      await page.goto(`${base}/settings`)
+      await page.getByRole('switch', { name: 'Training for a race' }).click()
+      await page.locator('input[type="date"]').fill(new Date(Date.now() + 14 * 86_400_000).toISOString().slice(0, 10))
+      await page.getByPlaceholder('3:30:00').fill('3:30')
+      await page.waitForTimeout(400)
     }
     mkdirSync(join('screens', mode), { recursive: true })
     for (const [name, where] of SCREENS) {

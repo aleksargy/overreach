@@ -5,7 +5,7 @@ import { Field, NumInput, Section, Segmented, Toggle, inputCls } from '../../com
 import { APP_NAME, APP_TAGLINE } from '../../config'
 import { ApiError, getStatus, syncAll, type ServerStatus } from '../../data/api'
 import { useStore } from '../../data/store'
-import type { Format, Position } from '../../data/types'
+import type { Format, Position, Race } from '../../data/types'
 import { useUi } from '../../data/ui'
 import { useWorld } from '../../data/world'
 import { backupOf, counts, describe, readBackup } from '../../lib/backup'
@@ -13,11 +13,13 @@ import { FORMATS, POSITIONS } from '../../lib/football'
 import { ago, fmt } from '../../lib/format'
 import { importHevy } from '../../lib/hevy'
 import { zoneBounds } from '../../lib/load'
+import { DISTANCES, formatGoal, parseGoal } from '../../lib/race'
 
 export function SettingsScreen() {
   return (
     <Screen title="Settings" back>
       <Profile />
+      <RaceSettings />
       <Garmin />
       <Football />
       <YourData />
@@ -66,6 +68,55 @@ function Profile() {
               : 'Zones are 50, 60, 70, 80 and 90% of max until you sync, then they come from your Garmin settings.'}
           </p>
         </div>
+      </div>
+    </Section>
+  )
+}
+
+/** Off unless you're training for something: then Run gets a countdown, your goal pace and a taper check. */
+function RaceSettings() {
+  const race = useStore((s) => s.profile.race)
+  const set = useStore((s) => s.setProfile)
+  const [goal, setGoal] = useState(race?.goalS ? formatGoal(race.goalS) : '')
+  const update = (patch: Partial<Race>) => race && set({ race: { ...race, ...patch } })
+  const goalOk = !goal || (race && parseGoal(goal, race.distanceM) !== undefined)
+  return (
+    <Section title="Race">
+      <div className="card">
+        <div className="flex items-center gap-3 p-4">
+          <span className="min-w-0 flex-1">
+            <span className="block text-[15px] font-medium leading-5">Training for a race</span>
+            <span className="meta block">Adds a countdown, your goal pace and a taper check to Run.</span>
+          </span>
+          <Toggle label="Training for a race" on={!!race} onChange={(on) => set({ race: on ? { date: '', distanceM: 42_195 } : undefined })} />
+        </div>
+        {race && (
+          <div className="mx-4 flex flex-col gap-4 border-t border-line py-4">
+            <Segmented
+              size="sm"
+              value={race.distanceM}
+              onChange={(m: number) => update({ distanceM: m, goalS: parseGoal(goal, m) })}
+              options={DISTANCES.map((d) => ({ value: d.m as number, label: d.label }))}
+            />
+            <div className="grid grid-cols-2 gap-2">
+              <Field label="Date">
+                <input type="date" value={race.date} onChange={(e) => update({ date: e.target.value })} className={`${inputCls} tabular-nums`} />
+              </Field>
+              <Field label="Goal time" hint={goalOk ? undefined : race.distanceM >= 21_000 ? 'Like 3:30:00' : 'Like 19:30'}>
+                <input
+                  value={goal}
+                  inputMode="numeric"
+                  placeholder={race.distanceM >= 21_000 ? '3:30:00' : '19:30'}
+                  onChange={(e) => {
+                    setGoal(e.target.value)
+                    update({ goalS: parseGoal(e.target.value, race.distanceM) })
+                  }}
+                  className={`${inputCls} tabular-nums`}
+                />
+              </Field>
+            </div>
+          </div>
+        )}
       </div>
     </Section>
   )

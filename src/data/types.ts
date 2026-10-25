@@ -259,12 +259,22 @@ export interface BodyEntry {
   source: Source
 }
 
+export interface Race {
+  /** yyyy-MM-dd */
+  date: string
+  distanceM: number
+  /** the finish time you're aiming for (s) */
+  goalS?: number
+}
+
 export interface Profile {
   name: string
   hrMax: number
   hrRest: number
   /** lower bounds (bpm) of HR zones 1–5 from your Garmin settings, once synced */
   zones?: number[]
+  /** the race you're training for */
+  race?: Race
   team: string
   format: Format
   position: Position
