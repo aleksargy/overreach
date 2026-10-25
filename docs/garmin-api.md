@@ -27,6 +27,17 @@ Checked against Alex's account on 25 October 2026 with `/api/status?shapes` (fie
 - **Heart-rate zones** are a list of `{ sport, maxHeartRateUsed, restingHeartRateUsed, zone1Floor … zone5Floor, trainingMethod }`. The app works zones out as shares of max HR; Garmin's own floors are there if that ever changes.
 - **Activities** carry every field the mapper reads (`activityType.typeKey`, `startTimeGMT`, `duration`, `distance`, `averageHR`, `hrTimeInZone_1…5`, `eventType`, `trainingEffectLabel` and the rest). Only the first activity's shape is kept, so the swim fields haven't been seen yet.
 
+## Not in the Personal API
+
+Checked on 25 October 2026 against Alex's key: Training Readiness (`/metrics-service/metrics/trainingreadiness/…`), training status and acute load (`…/trainingstatus/aggregated/…`) and VO2 max (`…/maxmet/…`) all answer 404, and an activity's detail has no recovery time. So the watch's recovery hours and readiness score can't be read; `src/lib/readiness.ts` works from training effect and load instead. Fitness age (`/fitnessage-service/fitnessage/v2/{date}`) does answer.
+
+## Units and scales
+
+- An activity's detail (`/activity-service/activity/{id}`, one call each) carries what the list doesn't: `directWorkoutRpe` (the effort you enter on the watch, ×10, so 10–100), `directWorkoutFeel` (0–100; a Garmin developer-forum thread reads it as 0 very weak, 25 weak, 50 normal, 75 strong, 100 very strong), `impactLoad`, and stamina. The list already has `activityTrainingLoad`, `aerobicTrainingEffect`, `anaerobicTrainingEffect` (0–5) and `differenceBodyBattery`.
+- HRV summaries carry Garmin's `baseline` (`balancedLow`, `balancedUpper`) and a `status` (BALANCED, UNBALANCED, LOW, POOR).
+- Sleep need (`sleepNeed.actual`, `sleepNeed.baseline`) is in minutes.
+- Alex's zones are set by lactate threshold, with a DEFAULT and a RUNNING set; `zone1Floor` to `zone5Floor` are bpm.
+
 ## Not known yet
 
 - How Alex's football is recorded: Garmin's `soccer` type, or "other" with a name like "7-a-side", which the mapper also catches. Check that games land on the Football tab.

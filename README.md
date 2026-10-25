@@ -1,3 +1,5 @@
+<img src="public/favicon.svg" width="88" alt="">
+
 # Overreach
 
 A personal training app for one person. It pulls runs, football, rides, swims and watch health data from Garmin, adds a match log and a strength logger, and turns it all into analysis Garmin Connect doesn't do: an aerobic engine, critical speed with race predictions, what hills, heat and last night's football cost you, match ratings and a player card. It runs on Netlify and lives on an iPhone home screen. The name is a placeholder.
