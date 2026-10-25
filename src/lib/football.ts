@@ -84,6 +84,27 @@ export function formatOf(a: Pick<Activity, 'id' | 'start' | 'kind'>, matches: Ma
 
 export const SPRINT_MPS = 5.0 // 18 km/h
 export const HI_MPS = 4.0 // 14.4 km/h
+/** a minute covering less than this (m) is standing still: before kick-off, half time, after the whistle */
+const STILL_M = 25
+
+/**
+ * Half time: the longest run of three or more standing-still minutes whose middle
+ * falls in the middle 60% of the recording, as [from, to) minutes. Undefined for a
+ * game played straight through.
+ */
+export function halfTimeOf(perMin: number[]): { from: number; to: number } | undefined {
+  const n = perMin.length
+  let best: { from: number; to: number } | undefined
+  for (let m = 0; m < n; m++) {
+    if (perMin[m] >= STILL_M) continue
+    let to = m
+    while (to < n && perMin[to] < STILL_M) to++
+    const mid = (m + to) / 2
+    if (to - m >= 3 && mid > n * 0.2 && mid < n * 0.8 && (!best || to - m > best.to - best.from)) best = { from: m, to }
+    m = to
+  }
+  return best
+}
 
 export interface Bucket {
   startMin: number
@@ -106,7 +127,10 @@ export interface FootballAnalysis {
   fadeMinute?: number
   /** points in pitch space, x along the length, both 0–1 */
   heat: [number, number][]
+  /** index into heat where the second half starts */
   half: number
+  /** the half-time break in minutes from the start, [from, to); undefined if the game ran straight through */
+  halfTime?: { from: number; to: number }
 }
 
 /** Rotate GPS points so the long axis of your movement runs left to right, then frame them. */
@@ -161,7 +185,6 @@ export function analyseFootball(stream: Stream): FootballAnalysis {
   let hi = 0
   let top = 0
   let sprints = 0
-  const sprintsByHalf: [number, number] = [0, 0]
   let run = 0
   let cool = 99
   const perMin: number[] = []
@@ -178,7 +201,6 @@ export function analyseFootball(stream: Stream): FootballAnalysis {
       if (run >= 2 && cool >= 3) {
         sprints++
         sprintStarts.push(i * dt)
-        sprintsByHalf[i < n / 2 ? 0 : 1]++
         cool = 0
         run = -999
       }
@@ -206,18 +228,25 @@ export function analyseFootball(stream: Stream): FootballAnalysis {
     })
   }
 
-  // Fade: the first minute after half time where your 5-minute rolling output
-  // stays under 80% of your minutes 3–20 for five minutes straight. Breaks
-  // (half time, a drink) are dropped first so they don't count as a fade.
+  // the second half starts when the break ends; a game played straight through splits in the middle
+  const halfTime = halfTimeOf(perMin)
+  const secondS = halfTime ? halfTime.to * 60 : (n * dt) / 2
+  const sprintsByHalf: [number, number] = [sprintStarts.filter((t) => t < secondS).length, sprintStarts.filter((t) => t >= secondS).length]
+
+  // Fade: the first minute of the second half where your 5-minute rolling output
+  // stays under 80% of your minutes 3–20 for five minutes straight. Standing-still
+  // minutes are dropped first, and the rolling window never reaches back across
+  // half time, so the break itself can't read as a fade.
   let fadeMinute: number | undefined
-  const active = perMin.map((d, m) => ({ d: d ?? 0, m })).filter((x) => x.d > 25)
-  if (active.length >= 24) {
+  const active = perMin.map((d, m) => ({ d, m })).filter((x) => x.d >= STILL_M)
+  const second = active.findIndex((x) => x.m * 60 >= secondS)
+  if (active.length >= 24 && second >= 8) {
     const ds = active.map((x) => x.d)
-    const base = mean(ds.slice(3, Math.min(20, Math.floor(ds.length / 2))))
-    const roll = ds.map((_, i) => mean(ds.slice(Math.max(0, i - 4), i + 1)))
-    for (let i = Math.floor(ds.length / 2); i < ds.length - 5; i++) {
-      if (roll.slice(i, i + 5).every((x) => x < base * 0.8)) {
-        fadeMinute = active[Math.max(0, i - 2)].m
+    const base = mean(ds.slice(3, Math.min(20, second)))
+    const roll = (i: number) => mean(ds.slice(Math.max(second, i - 4), i + 1))
+    for (let i = second; i < ds.length - 5; i++) {
+      if ([0, 1, 2, 3, 4].every((k) => roll(i + k) < base * 0.8)) {
+        fadeMinute = active[Math.max(second, i - 2)].m
         break
       }
     }
@@ -228,9 +257,18 @@ export function analyseFootball(stream: Stream): FootballAnalysis {
   if (d && d.length === n && d[n - 1] > d[0]) dist = d[n - 1] - d[0]
 
   const hs = hr.filter((x) => x > 0)
+  // the heatmap is where you played: a point every 2 s, leaving out the standing before
+  // kick-off, at half time and after the whistle
+  const first = active[0]?.m ?? 0
+  const last = active[active.length - 1]?.m ?? perMin.length
+  const inPlay = (m: number) => m >= first && m <= last && !(halfTime && m >= halfTime.from && m < halfTime.to)
   const every = Math.max(1, Math.round(2 / dt))
-  const lat = (stream.lat ?? []).filter((_, i) => i % every === 0)
-  const lon = (stream.lon ?? []).filter((_, i) => i % every === 0)
+  const kept: number[] = []
+  for (let i = 0; i < (stream.lat ?? []).length; i += every) if (inPlay(Math.floor((i * dt) / 60))) kept.push(i)
+  const lat = kept.map((i) => stream.lat![i])
+  const lon = kept.map((i) => stream.lon![i])
+  // projectToPitch skips points with no fix, so count only those up to the second half
+  const half = kept.filter((i, k) => i * dt < secondS && lat[k] && lon[k]).length
 
   return {
     minutes: Math.round(minutes),
@@ -245,7 +283,8 @@ export function analyseFootball(stream: Stream): FootballAnalysis {
     buckets,
     fadeMinute,
     heat: projectToPitch(lat, lon),
-    half: Math.floor(lat.length / 2),
+    half,
+    halfTime,
   }
 }
 
