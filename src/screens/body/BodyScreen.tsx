@@ -32,7 +32,6 @@ export function BodyScreen() {
     >
       <Weight body={w.body} now={w.now} />
       <Recovery dailies={w.dailies} />
-      <Measurements body={w.body} />
     </Screen>
   )
 }
@@ -85,11 +84,8 @@ function Weight({ body, now }: { body: BodyEntry[]; now: Date }) {
       <div className="mt-6">
         <TrendChart points={data.points} avg={data.avg} height={150} format={(v) => v.toFixed(1)} minSpan={1} xLabel={(t) => fmt(new Date(t).toISOString(), 'd MMM')} />
       </div>
-      <div className="meta mt-3 flex items-center justify-between gap-3">
-        <span className="truncate">
-          Last {latest.weightKg?.toFixed(1)} kg, {fmt(latest.date, 'EEE d MMM')}
-        </span>
-        {latest.bodyFat && <span className="shrink-0">{latest.bodyFat.toFixed(1)}% body fat</span>}
+      <div className="meta mt-3">
+        Last {latest.weightKg?.toFixed(1)} kg, {fmt(latest.date, 'EEE d MMM')}
       </div>
     </section>
   )
@@ -180,43 +176,6 @@ function SleepStages({ d }: { d: Daily }) {
             </div>
           ))}
         </div>
-      </div>
-    </Section>
-  )
-}
-
-const MEASURES: { key: keyof BodyEntry; label: string }[] = [
-  { key: 'waistCm', label: 'Waist' },
-  { key: 'chestCm', label: 'Chest' },
-  { key: 'armCm', label: 'Arm' },
-  { key: 'thighCm', label: 'Thigh' },
-]
-
-function Measurements({ body }: { body: BodyEntry[] }) {
-  const rows = MEASURES.map((m) => {
-    const list = body.filter((b) => typeof b[m.key] === 'number').sort((a, b) => a.date.localeCompare(b.date))
-    if (!list.length) return null
-    const first = list[0][m.key] as number
-    const last = list[list.length - 1][m.key] as number
-    return { ...m, first, last, n: list.length, since: list[0].date, values: list.map((b) => b[m.key] as number) }
-  }).filter((x): x is NonNullable<typeof x> => !!x)
-  if (!rows.length) return null
-  return (
-    <Section title="Measurements" action={<span className="meta">Since {fmt(rows[0].since, 'd MMM')}</span>}>
-      <div className="card list overflow-hidden">
-        {rows.map((r) => (
-          <div key={r.key} className="grid grid-cols-[1fr_64px_auto] items-center gap-4 px-4 py-3">
-            <span className="text-[15px] text-fg-2">{r.label}</span>
-            <Sparkline values={r.values} height={22} area={false} dot={false} strokeWidth={1.5} color="rgb(var(--fg-3))" />
-            <span className="flex min-w-[112px] items-baseline justify-end gap-2.5">
-              {r.n > 1 && <Delta value={r.last - r.first} unit="" better={r.key === 'waistCm' ? 'down' : 'up'} />}
-              <span className="text-[15px] font-medium tabular-nums">
-                {r.last.toFixed(1)}
-                <span className="ml-0.5 text-[12px] font-normal text-fg-3">cm</span>
-              </span>
-            </span>
-          </div>
-        ))}
       </div>
     </Section>
   )

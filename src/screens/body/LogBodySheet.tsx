@@ -1,7 +1,7 @@
-import { ChevronDown, Minus, Plus } from 'lucide-react'
+import { Minus, Plus } from 'lucide-react'
 import { useState } from 'react'
 import { Sheet } from '../../components/ui/Sheet'
-import { NumInput, inputCls } from '../../components/ui/bits'
+import { NumInput } from '../../components/ui/bits'
 import { useStore } from '../../data/store'
 import { useUi } from '../../data/ui'
 import { useWorld } from '../../data/world'
@@ -19,29 +19,19 @@ export function LogBodySheet() {
   )
 }
 
-const FIELDS = [
-  { key: 'waistCm', label: 'Waist' },
-  { key: 'chestCm', label: 'Chest' },
-  { key: 'armCm', label: 'Arm' },
-  { key: 'thighCm', label: 'Thigh' },
-] as const
-
 function Form() {
   const w = useWorld()
   const add = useStore((s) => s.addBody)
   const close = useUi((s) => s.close)
   const say = useUi((s) => s.say)
   const lastWeight = w.body.find((b) => b.weightKg)?.weightKg ?? 75
-  const lastFat = w.body.find((b) => b.bodyFat)?.bodyFat
   const [kg, setKg] = useState<number | undefined>(lastWeight)
-  const [fat, setFat] = useState<number | undefined>(undefined)
-  const [more, setMore] = useState(false)
-  const [cm, setCm] = useState<Partial<Record<(typeof FIELDS)[number]['key'], number>>>({})
   const step = (d: number) => setKg((v) => round(Math.max(20, (v ?? lastWeight) + d), 1))
 
   const save = () => {
-    add({ id: `b-${uid()}`, date: new Date().toISOString(), weightKg: kg, bodyFat: fat, ...cm, source: 'manual' })
-    say(kg ? `Weighed in at ${kg.toFixed(1)} kg` : 'Saved')
+    if (!kg) return
+    add({ id: `b-${uid()}`, date: new Date().toISOString(), weightKg: kg, source: 'manual' })
+    say(`Weighed in at ${kg.toFixed(1)} kg`)
     close()
   }
 
@@ -64,42 +54,7 @@ function Form() {
         <p className="meta mt-4 text-center">Last time {lastWeight.toFixed(1)} kg</p>
       </div>
 
-      <label className="block">
-        <span className="label mb-2 block">Body fat %</span>
-        <NumInput
-          label="Body fat percent"
-          decimal
-          value={fat}
-          onChange={setFat}
-          placeholder={lastFat ? lastFat.toFixed(1) : 'optional'}
-          className={`${inputCls} text-[17px] tabular-nums`}
-        />
-      </label>
-
-      <div>
-        <button onClick={() => setMore((m) => !m)} className="flex w-full items-center justify-between py-1">
-          <span className="label">Tape measurements</span>
-          <ChevronDown size={16} strokeWidth={1.75} className={`text-fg-3 transition-transform ${more ? 'rotate-180' : ''}`} />
-        </button>
-        {more && (
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            {FIELDS.map((f) => (
-              <label key={f.key} className="block">
-                <span className="label mb-2 block">{f.label}, cm</span>
-                <NumInput
-                  label={`${f.label} in cm`}
-                  decimal
-                  value={cm[f.key]}
-                  onChange={(v) => setCm((x) => ({ ...x, [f.key]: v }))}
-                  className={`${inputCls} text-[17px] tabular-nums`}
-                />
-              </label>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <button onClick={save} disabled={!kg && !fat && !Object.values(cm).some(Boolean)} className="btn-primary h-14 w-full text-[16px] disabled:opacity-40">
+      <button onClick={save} disabled={!kg} className="btn-primary h-14 w-full text-[16px] disabled:opacity-40">
         Save
       </button>
     </div>

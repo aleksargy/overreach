@@ -6,7 +6,7 @@ import { useUi, type SheetState } from '../../data/ui'
 
 const ITEMS: { label: string; sub: string; icon: ReactNode; next: SheetState }[] = [
   { label: 'Match', sub: 'Score, goals, assists and how it felt', icon: <Ball size={19} />, next: { type: 'logMatch' } },
-  { label: 'Weigh-in', sub: 'Weight, body fat, tape', icon: <Scale size={19} strokeWidth={1.75} />, next: { type: 'logBody' } },
+  { label: 'Weigh-in', sub: 'Your weight this morning', icon: <Scale size={19} strokeWidth={1.75} />, next: { type: 'logBody' } },
 ]
 
 /** The + on Today: everything you type in yourself starts here. */
