@@ -1,0 +1,67 @@
+import assert from 'node:assert/strict'
+import { test } from 'node:test'
+import type { Format, Match } from '../src/data/types'
+import { baselineFor, formatOf, playerCard, rateMatch, usualFormatAt, type Physical } from '../src/lib/football'
+
+const match = (id: string, date: string, format: Format, over: Partial<Match> = {}): Match => ({
+  id,
+  date,
+  format,
+  team: 'Us',
+  opponent: 'Them',
+  scoreFor: 2,
+  scoreAgainst: 1,
+  goals: 0,
+  assists: 0,
+  moments: [],
+  position: 'MID',
+  feel: 6,
+  rating: 7,
+  breakdown: [],
+  headline: '',
+  createdAt: date,
+  ...over,
+})
+
+// Sundays at 10:30 are 11s, alternate Tuesdays at 20:30 are 7s
+const history = [
+  match('a', '2026-10-18T10:30:00', 11),
+  match('b', '2026-10-13T20:30:00', 7),
+  match('c', '2026-10-11T10:35:00', 11),
+  match('d', '2026-10-04T10:25:00', 11),
+  match('e', '2026-09-29T20:40:00', 7),
+]
+
+test('guesses the format of a game from what you usually play at that time of the week', () => {
+  assert.equal(usualFormatAt(new Date('2026-10-25T10:40:00'), history), 11)
+  assert.equal(usualFormatAt(new Date('2026-10-27T20:15:00'), history), 7)
+  assert.equal(usualFormatAt(new Date('2026-10-28T19:00:00'), history), undefined)
+
+  const byActivity = new Map([['g-1', { ...history[1], activityId: 'g-1' }]])
+  // a rated game keeps its format, a sample game says it in its kind, otherwise the time of week decides
+  assert.equal(formatOf({ id: 'g-1', start: '2026-10-18T10:30:00', kind: undefined }, history, byActivity, 5), 7)
+  assert.equal(formatOf({ id: 'g-2', start: '2026-10-18T10:30:00', kind: '8' }, history, byActivity, 5), 8)
+  assert.equal(formatOf({ id: 'g-3', start: '2026-10-25T10:30:00', kind: undefined }, history, byActivity, 5), 11)
+  assert.equal(formatOf({ id: 'g-4', start: '2026-10-28T19:00:00', kind: undefined }, history, byActivity, 5), 5)
+})
+
+test('a 4–0 is a thrashing in 11s but just a win in 7s', () => {
+  const rate = (format: Format) =>
+    rateMatch({ format, scoreFor: 4, scoreAgainst: 0, goals: 0, assists: 0, moments: [], position: 'MID', feel: 6, baseline: baselineFor(format, []) })
+  assert.equal(rate(11).breakdown.find((f) => f.key === 'result')?.label, 'Thrashing')
+  assert.equal(rate(7).breakdown.find((f) => f.key === 'result')?.label, 'Win')
+})
+
+test('the player card judges each game against its own format', () => {
+  const games = (format: Format, goals: number, mPerMin: number) =>
+    [1, 2, 3].map((i) => ({
+      match: match(`${format}-${i}`, `2026-10-0${i}T10:00:00`, format, { goals }),
+      analysis: { minutes: 60, mPerMin, topSpeedKmh: 27, sprints: 20, distanceM: mPerMin * 60 } satisfies Physical,
+    }))
+  const sho = (rows: ReturnType<typeof games>) => playerCard(rows, 'MID')!.attrs.find((a) => a.key === 'SHO')!.value
+  const sta = (rows: ReturnType<typeof games>) => playerCard(rows, 'MID')!.attrs.find((a) => a.key === 'STA')!.value
+  // a goal a game is a lot in 11s and ordinary in 7s
+  assert.ok(sho(games(11, 1, 95)) > sho(games(7, 1, 95)) + 15)
+  // the same metres per minute is a bigger shift on an 11s pitch
+  assert.ok(sta(games(11, 0, 95)) > sta(games(7, 0, 95)))
+})

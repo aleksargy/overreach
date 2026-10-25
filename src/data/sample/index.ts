@@ -18,10 +18,9 @@ export const SAMPLE_PROFILE: Profile = {
   name: 'Alex',
   hrMax: 192,
   hrRest: 48,
-  team: 'Bibs',
-  opponent: 'Non-bibs',
-  format: 5,
-  position: 'ANY',
+  team: 'Real Ale Madrid',
+  format: 11,
+  position: 'MID',
 }
 
 const DAYS = 84
@@ -38,7 +37,8 @@ function slotsFor(date: Date, week: number, r: Rng): Slot[] {
       if (!skip(0.1)) s.push({ key: 'lift', sport: 'strength', kind: 'push-a', h: 18, m: 30, routine: 'push-a' })
       break
     case 2:
-      if (!skip(0.08)) s.push({ key: 'fb', sport: 'football', kind: '5', h: 21, m: 0, mins: 60, format: 5 })
+      // 7s every other Tuesday night
+      if (week % 2 === 1 && !skip(0.1)) s.push({ key: 'fb', sport: 'football', kind: '7', h: 20, m: 30, mins: 62, format: 7 })
       break
     case 3:
       if (!skip(0.1)) s.push({ key: 'run', sport: 'run', kind: week % 2 ? 'intervals' : 'tempo', h: 7, m: 0 })
@@ -49,15 +49,14 @@ function slotsFor(date: Date, week: number, r: Rng): Slot[] {
       break
     case 5:
       if (r.chance(0.6)) s.push({ key: 'ride', sport: 'ride', kind: 'commute', h: 8, m: 10 })
+      if (!skip(0.3)) s.push({ key: 'lift', sport: 'strength', kind: 'legs-a', h: 18, m: 30, routine: 'legs-a' })
       break
     case 6:
       if (!skip(0.1)) s.push({ key: 'run', sport: 'run', kind: week % 4 === 1 ? 'race' : week % 3 === 2 ? 'easy' : 'long', h: 9, m: 0 })
       break
     case 0:
-      if (week % 2 === 0) {
-        if (!skip(0.1)) s.push({ key: 'fb', sport: 'football', kind: '7', h: 10, m: 30, mins: 70, format: 7 })
-      } else if (!skip(0.15)) s.push({ key: 'ride', sport: 'ride', kind: 'endurance', h: 9, m: 0 })
-      if (!skip(0.3)) s.push({ key: 'lift', sport: 'strength', kind: 'legs-a', h: 17, m: 0, routine: 'legs-a' })
+      // Sunday league: 11s most weeks, 90 minutes plus half time
+      if (!skip(0.12)) s.push({ key: 'fb', sport: 'football', kind: '11', h: 10, m: 30, mins: 100, format: 11 })
       break
   }
   return s
@@ -137,7 +136,7 @@ export function sampleStreamFor(a: Activity): Stream | null {
     case 'swim':
       return swimStream(a.id).stream
     case 'football':
-      return footballStream(a.id, (Number(a.kind) || 5) as Format, Math.round(a.durationS / 60))
+      return footballStream(a.id, (Number(a.kind) || 11) as Format, Math.round(a.durationS / 60))
     default:
       return null
   }
@@ -213,7 +212,8 @@ function simulateWorkout(id: string, routineId: string, start: Date, state: Map<
 
 // ---------- football ----------
 
-const OPPONENTS = ['Inter Ya Nan', 'Athletico Lethargic', 'Lokomotiv Lager', 'Borussia Teeth', 'Ajax Trays', 'Dynamo Kickers', 'Sporting Chance', 'Hertha Ankle']
+const OPPONENTS_11 = ['Inter Ya Nan', 'Athletico Lethargic', 'Lokomotiv Lager', 'Borussia Teeth', 'Ajax Trays', 'Dynamo Kickers', 'Sporting Chance', 'Hertha Ankle']
+const OPPONENTS_7 = ['Aston Villain', 'Real Sociable', 'Bayer Neverlusen', 'Tottenham Hotshots', 'Norwich Pity', 'Expected Toulouse']
 const NOTES = [
   'Keeper rotation killed us second half.',
   'Left foot is finally coming along.',
@@ -239,22 +239,23 @@ function poisson(r: Rng, lambda: number) {
 
 function sampleMatch(a: Activity, analysis: FootballAnalysis, history: { match: Match; analysis?: FootballAnalysis }[], profile: Profile): Match {
   const r = rng(`match:${a.id}`)
-  const format = (Number(a.kind) || 5) as Format
-  const five = format <= 6
-  const scoreFor = poisson(r, five ? 7 : 3.6)
-  const scoreAgainst = poisson(r, five ? 6.6 : 3.3)
+  const format = (Number(a.kind) || 11) as Format
+  const eleven = format === 11
+  // 11s are tight; 7s on a small pitch are goal-fests
+  const scoreFor = poisson(r, eleven ? 1.9 : 4.6)
+  const scoreAgainst = poisson(r, eleven ? 1.5 : 4.2)
   let goals = 0
   let assists = 0
   for (let g = 0; g < scoreFor; g++) {
-    if (r.chance(five ? 0.24 : 0.16)) goals++
-    else if (r.chance(five ? 0.17 : 0.12)) assists++
+    if (r.chance(eleven ? 0.18 : 0.22)) goals++
+    else if (r.chance(eleven ? 0.2 : 0.15)) assists++
   }
   const moments: MomentKey[] = []
   const pool: [MomentKey, number][] = [
     ['nutmeg', 0.25],
     ['lastDitch', 0.2],
     ['worldie', goals ? 0.18 : 0],
-    ['bigSave', five ? 0.15 : 0.03],
+    ['bigSave', eleven ? 0.02 : 0.06],
     ['sitter', 0.22],
     ['error', 0.08],
     ['ownGoal', 0.03],
@@ -263,10 +264,9 @@ function sampleMatch(a: Activity, analysis: FootballAnalysis, history: { match: 
   for (const [k, p] of pool) if (r.chance(p)) moments.push(k)
   const res = Math.sign(scoreFor - scoreAgainst)
   const feel = clamp(Math.round(5.5 + res * 0.8 + goals * 0.6 + assists * 0.3 + r.normal(0, 1)), 2, 10)
-  const flipSides = r.chance(0.5)
-  const team = five ? (flipSides ? 'Non-bibs' : 'Bibs') : 'Real Ale Madrid'
-  const opponent = five ? (flipSides ? 'Bibs' : 'Non-bibs') : r.pick(OPPONENTS)
-  const position = five ? profile.position : 'MID'
+  const team = eleven ? 'Real Ale Madrid' : 'Ctrl Alt Defeat'
+  const opponent = r.pick(eleven ? OPPONENTS_11 : OPPONENTS_7)
+  const position = eleven ? profile.position : 'ANY'
   const baseline = baselineFor(format, history)
   const { rating, breakdown } = rateMatch({ format, scoreFor, scoreAgainst, goals, assists, moments, position, feel, analysis, baseline })
   const m: Match = {
@@ -344,7 +344,7 @@ export function buildSample(now = new Date(), profile: Profile = SAMPLE_PROFILE)
         const avgLen = mean(laps.map((l) => l.durationS))
         a = { ...s, laps, name: 'Pool swim', swim: { poolM, lengths: swimLaps, swolf: Math.round(avgLen + 17 + sr.normal(0, 0.6)), stroke: 'Freestyle' } }
       } else if (slot.sport === 'football') {
-        const fmt = slot.format ?? 5
+        const fmt = slot.format ?? 11
         const stream = footballStream(id, fmt, slot.mins ?? 60)
         const s = summarise(base, stream, bounds)
         const an = analyseFootball(stream)
@@ -352,7 +352,7 @@ export function buildSample(now = new Date(), profile: Profile = SAMPLE_PROFILE)
         a = {
           ...s,
           distanceM: Math.round(an.distanceM),
-          name: fmt <= 6 ? `${fmt}-a-side` : `${fmt}-a-side league`,
+          name: fmt === 11 ? 'Sunday league' : `${fmt}-a-side`,
           football: {
             minutes: an.minutes,
             distanceM: an.distanceM,

@@ -5,7 +5,7 @@ import { BUILTIN_EXERCISES } from './exercises'
 import { buildSample, sampleStreamFor, type SampleData } from './sample'
 import { useStore } from './store'
 import type { Activity, BodyEntry, Daily, Exercise, GarminActivity, Match, Profile, Routine, Stream, Workout } from './types'
-import { analyseFootball, type FootballAnalysis } from '../lib/football'
+import { analyseFootball, usualFormatAt, type FootballAnalysis } from '../lib/football'
 import { liftSummary } from '../lib/lift'
 import { isoDay } from '../lib/format'
 import { loadModel, srpeLoad, trimp, zoneBounds, zoneSecondsFromAvg, type LoadModel } from '../lib/load'
@@ -93,8 +93,8 @@ export interface Upcoming {
   label: string
 }
 
-/** The soonest of your usual slots, optionally only those matching `pick`. */
-function upcoming(slots: Slot[], now: Date, pick: (s: Slot) => boolean = () => true): Upcoming | null {
+/** The soonest of your usual slots, optionally only those matching `pick`. Football says which format you usually play then. */
+function upcoming(slots: Slot[], now: Date, matches: Match[], pick: (s: Slot) => boolean = () => true): Upcoming | null {
   let next: Upcoming | null = null
   for (const slot of slots) {
     if (!pick(slot)) continue
@@ -102,7 +102,8 @@ function upcoming(slots: Slot[], now: Date, pick: (s: Slot) => boolean = () => t
     if (next && at >= next.at) continue
     const days = differenceInCalendarDays(at, now)
     const when = days === 0 ? (at.getHours() >= 18 ? 'tonight' : 'today') : days === 1 ? 'tomorrow' : format(at, 'EEEE')
-    const what = slot.sport === 'football' ? (slot.kind && Number(slot.kind) ? `${slot.kind}-a-side` : 'football') : (SPORT_PLAN[slot.sport] ?? slot.sport)
+    const fmt = slot.sport === 'football' ? (usualFormatAt(at, matches) ?? (Number(slot.kind) || undefined)) : undefined
+    const what = slot.sport === 'football' ? (fmt ? `${fmt}-a-side` : 'football') : (SPORT_PLAN[slot.sport] ?? slot.sport)
     next = { slot, at, label: `${what} ${when}` }
   }
   return next
@@ -159,8 +160,8 @@ export function useWorld(): World {
     const acwr = load.ratio[load.ratio.length - 2] ?? 1
     const slots = recurringSlots(activities, now)
 
-    const next = upcoming(slots, now)
-    const nextFootball = upcoming(slots, now, (s) => s.sport === 'football')
+    const next = upcoming(slots, now, matches)
+    const nextFootball = upcoming(slots, now, matches, (s) => s.sport === 'football')
     const todays = next && differenceInCalendarDays(next.at, now) === 0 ? next.label : undefined
 
     const unrated = activities.filter((a) => a.sport === 'football' && !matchByActivity.has(a.id))

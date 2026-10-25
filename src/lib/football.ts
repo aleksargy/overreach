@@ -1,4 +1,4 @@
-import type { Format, Match, MomentKey, Position, RatingFactor, Stream } from '../data/types'
+import type { Activity, Format, Match, MomentKey, Position, RatingFactor, Stream } from '../data/types'
 import { clamp, mapRange, mean, median, quantile, round } from './math'
 import { hashString } from './rng'
 
@@ -36,6 +36,51 @@ export const PITCH: Record<Format, [number, number]> = {
 
 /** Typical goals conceded per game when there is no history yet. */
 const DEFAULT_CONCEDED: Record<Format, number> = { 5: 7, 6: 6, 7: 5, 8: 4, 11: 1.6 }
+
+/** A winning margin that counts as a thrashing: 4–0 is a hiding in 11s, routine in 5s. */
+const BIG_MARGIN: Record<Format, number> = { 5: 6, 6: 5, 7: 5, 8: 4, 11: 4 }
+
+/** Goals and assists a decent outfield player chips in per game. They shrink as the pitch and the team grow. */
+const PAR: Record<Format, { goals: number; assists: number }> = {
+  5: { goals: 1.6, assists: 1 },
+  6: { goals: 1.3, assists: 0.8 },
+  7: { goals: 1, assists: 0.6 },
+  8: { goals: 0.8, assists: 0.5 },
+  11: { goals: 0.4, assists: 0.25 },
+}
+
+/** Metres per minute and sprints per 10 minutes that read as poor and as excellent in each format. Bigger pitches mean longer runs but lower averages. */
+const ENGINE_RANGE: Record<Format, { mPerMin: [number, number]; sprintsPer10: [number, number] }> = {
+  5: { mPerMin: [80, 130], sprintsPer10: [0.3, 4] },
+  6: { mPerMin: [80, 130], sprintsPer10: [0.3, 4.5] },
+  7: { mPerMin: [75, 125], sprintsPer10: [0.5, 5] },
+  8: { mPerMin: [72, 122], sprintsPer10: [0.5, 5.5] },
+  11: { mPerMin: [65, 115], sprintsPer10: [0.6, 6] },
+}
+
+/** The format you usually play at this time of the week: the most common among rated games that started on the same weekday within two hours. */
+export function usualFormatAt(when: Date, matches: Pick<Match, 'date' | 'format'>[]): Format | undefined {
+  const dow = when.getDay()
+  const min = when.getHours() * 60 + when.getMinutes()
+  const counts = new Map<Format, number>()
+  for (const m of matches) {
+    const d = new Date(m.date)
+    if (d.getDay() !== dow || Math.abs(d.getHours() * 60 + d.getMinutes() - min) > 120) continue
+    counts.set(m.format, (counts.get(m.format) ?? 0) + 1)
+  }
+  let best: Format | undefined
+  for (const [f, n] of counts) if (best === undefined || n > counts.get(best)!) best = f
+  return best
+}
+
+/** A watch game's format: its rated match, the number in its kind (sample data), or what you usually play at that time of the week. */
+export function formatOf(a: Pick<Activity, 'id' | 'start' | 'kind'>, matches: Match[], byActivity: Map<string, Match>, fallback: Format): Format {
+  const m = byActivity.get(a.id)
+  if (m) return m.format
+  const k = Number(a.kind) as Format
+  if (FORMATS.includes(k)) return k
+  return usualFormatAt(new Date(a.start), matches) ?? fallback
+}
 
 export const SPRINT_MPS = 5.0 // 18 km/h
 export const HI_MPS = 4.0 // 14.4 km/h
@@ -252,10 +297,11 @@ const DEF_WEIGHT: Record<Position, number> = { GK: 0.6, DEF: 0.5, MID: 0.2, FWD:
 export function rateMatch(i: RateInput): { rating: number; breakdown: RatingFactor[] } {
   const f: RatingFactor[] = []
   const diff = i.scoreFor - i.scoreAgainst
+  const big = BIG_MARGIN[i.format]
 
-  if (diff > 0) f.push({ key: 'result', label: diff >= 5 ? 'Thrashing' : 'Win', value: diff >= 5 ? 0.6 : 0.5 })
+  if (diff > 0) f.push({ key: 'result', label: diff >= big ? 'Thrashing' : 'Win', value: diff >= big ? 0.6 : 0.5 })
   else if (diff === 0) f.push({ key: 'result', label: 'Draw', value: 0.1 })
-  else f.push({ key: 'result', label: diff <= -5 ? 'Hammered' : 'Defeat', value: diff <= -5 ? -0.55 : -0.4 })
+  else f.push({ key: 'result', label: diff <= -big ? 'Hammered' : 'Defeat', value: diff <= -big ? -0.55 : -0.4 })
 
   if (i.goals + i.assists > 0 || i.position !== 'GK') {
     const exp = EXPECTED_SHARE[i.position] / i.format
@@ -399,17 +445,23 @@ export interface PlayerCard {
   attrs: CardAttr[]
 }
 
-const formFactor = (f: Format) => (f <= 6 ? 1 : f <= 8 ? 0.7 : 0.35)
-
+/**
+ * One card across every format you play. Each game is judged against what's
+ * normal in its own format first (a goal in 11s counts for more than one in
+ * 7s, and a big pitch means lower metres per minute), then the scores are
+ * averaged. Top speed and rating already mean the same thing in any format.
+ */
 export function playerCard(rows: { match: Match; analysis?: Physical }[], position: Position): PlayerCard | null {
   if (rows.length < 3) return null
   const withData = rows.filter((r) => r.analysis && r.analysis.minutes > 0)
   const an = withData.map((r) => r.analysis!)
   const ms = rows.map((r) => r.match)
-  const gpg = mean(ms.map((m) => m.goals / formFactor(m.format)))
-  const apg = mean(ms.map((m) => m.assists / formFactor(m.format)))
+  const gpg = mean(ms.map((m) => m.goals / PAR[m.format].goals))
+  const apg = mean(ms.map((m) => m.assists / PAR[m.format].assists))
   const recent = [...ms].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5)
   const fadeShare = an.length ? an.filter((a) => a.fadeMinute !== undefined).length / an.length : 0
+  const sta = withData.map(({ match, analysis: a }) => mapRange(a!.mPerMin, ...ENGINE_RANGE[match.format].mPerMin, 45, 95))
+  const wrk = withData.map(({ match, analysis: a }) => mapRange((a!.sprints / a!.minutes) * 10, ...ENGINE_RANGE[match.format].sprintsPer10, 45, 95))
   const attrs: CardAttr[] = [
     {
       key: 'PAC',
@@ -426,18 +478,13 @@ export function playerCard(rows: { match: Match; analysis?: Physical }[], positi
             96,
           )
         : 50,
-      hint: 'Your top speeds',
+      hint: 'Your top speeds, in any format',
     },
-    {
-      key: 'STA',
-      label: 'Stamina',
-      value: an.length ? mapRange(mean(an.map((a) => a.mPerMin)), 70, 125, 45, 95) - fadeShare * 8 : 50,
-      hint: 'Metres per minute, minus late fades',
-    },
-    { key: 'WRK', label: 'Work rate', value: an.length ? mapRange(mean(an.map((a) => (a.sprints / a.minutes) * 10)), 0.5, 6, 45, 95) : 50, hint: 'Sprints per 10 minutes' },
-    { key: 'SHO', label: 'Shooting', value: mapRange(gpg, 0, 2.5, 40, 96), hint: 'Goals per game, adjusted for format' },
-    { key: 'PAS', label: 'Passing', value: mapRange(apg, 0, 2, 40, 95), hint: 'Assists per game, adjusted for format' },
-    { key: 'FRM', label: 'Form', value: mapRange(mean(recent.map((m) => m.rating)), 5, 9, 40, 99), hint: 'Average rating, last 5' },
+    { key: 'STA', label: 'Stamina', value: sta.length ? mean(sta) - fadeShare * 8 : 50, hint: 'Metres per minute for the format, minus late fades' },
+    { key: 'WRK', label: 'Work rate', value: wrk.length ? mean(wrk) : 50, hint: 'Sprints per 10 minutes for the format' },
+    { key: 'SHO', label: 'Shooting', value: mapRange(gpg, 0, 1.6, 40, 96), hint: 'Goals per game against what’s normal in the format' },
+    { key: 'PAS', label: 'Passing', value: mapRange(apg, 0, 1.6, 40, 95), hint: 'Assists per game against what’s normal in the format' },
+    { key: 'FRM', label: 'Form', value: mapRange(mean(recent.map((m) => m.rating)), 5, 9, 40, 99), hint: 'Average rating, last 5 in any format' },
   ].map((a) => ({ ...a, value: Math.round(clamp(a.value, 1, 99)) }))
   const overall = Math.round(mean(attrs.map((a) => a.value)) + 6)
   const tier: Tier = overall >= 85 ? 'elite' : overall >= 75 ? 'gold' : overall >= 65 ? 'silver' : 'bronze'

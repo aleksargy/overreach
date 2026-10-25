@@ -72,14 +72,9 @@ function Football() {
   return (
     <Section title="Football">
       <div className="flex flex-col gap-4">
-        <div className="grid grid-cols-2 gap-2">
-          <Field label="Your side">
-            <input value={p.team} onChange={(e) => set({ team: e.target.value })} className={inputCls} />
-          </Field>
-          <Field label="Usual opponent">
-            <input value={p.opponent} onChange={(e) => set({ opponent: e.target.value })} className={inputCls} />
-          </Field>
-        </div>
+        <Field label="Your team">
+          <input value={p.team} onChange={(e) => set({ team: e.target.value })} className={inputCls} />
+        </Field>
         <div>
           <div className="label mb-2.5">Usual format</div>
           <Segmented size="sm" value={p.format} onChange={(v: Format) => set({ format: v })} options={FORMATS.map((f) => ({ value: f, label: `${f}s` }))} />

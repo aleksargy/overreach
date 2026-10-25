@@ -4,6 +4,8 @@ A personal PWA that replaces Garmin Connect and Hevy for one person (Alex). It p
 
 Look and feel is the top priority. Read the design rules before changing any screen. Running and football are Alex's main sports, so they get the depth; the other sports are synced and shown but get no new work for now.
 
+`HANDOFF.md` has the history behind this file: what Alex asked for and decided, what's verified and what isn't, and the open items.
+
 ## Commands
 
 ```sh
@@ -41,7 +43,8 @@ The preview build uses a memory router. A bare hash picks the first screen: `#ru
 - **Streams** (HR, speed, GPS, laps) load per activity from `/api/stream?id=g-…`. The server decodes the FIT file once and caches it in Blobs.
 - **Run summaries.** During sync the server reads each run's FIT file (runs from the last year, `RUN_DAYS`) and stores a small `run` summary on the activity: speed, heart rate and grade minute by minute, best efforts from 1 to 60 minutes, the start rounded to 0.1° (about 10 km), and the temperature and dew point. So the Run tab never needs a stream download.
 - **Running model** (`src/lib/running.ts`, `useRunModel()`) is fitted in the browser from those summaries. A within-run regression of heart rate on speed, climb, descent and minutes gives shared slopes; backfitting then splits each run's residual into fitness (a 12-day kernel), heat (bpm per °C above 12) and the football hangover (runs within 36 hours of a game). From that come the aerobic engine (pace at a fixed heart rate, 68% of reserve, flat, cool and fresh), hill, heat and football costs in s/km, durability (the minute heart rate drifts 5 bpm in long, even runs), and critical speed and D′ from the upper hull of 90 days of best efforts, with race predictions. Each claim shows only when the data supports it (`clear`, `solid`, the evidence checks), and the screen says why when it doesn't. The sample data has these effects built in, and `tests/running.test.ts` checks the model finds them.
-- Match ratings and the player card are computed in `src/lib/football.ts` from what's logged (score, goals, assists, how it felt, moments) plus the watch's physical numbers when the game was recorded.
+- **Football.** Match ratings and the player card are computed in `src/lib/football.ts` from what's logged (score, goals, assists, how it felt, moments) plus the watch's physical numbers when the game was recorded.
+- **Formats.** Alex usually plays 11-a-side and sometimes 7s, and the two aren't compared like for like. The rating's baseline, the thrashing margin (`BIG_MARGIN`) and the match report's medians only use games of the same format, and the Football tab splits season, form, records and matches by format (the switch shows once more than one format has been played). The player card covers every format but judges each game against its own first (`PAR` for goals and assists, `ENGINE_RANGE` for metres per minute and sprints), so only top speed and the rating are shared as they are. An unrated watch game takes its format from `formatOf`: its rated match, else what's usually played at that time of the week (`usualFormatAt`: same weekday, within two hours), else the profile default. The log sheet starts with that format and the team and position last used in it; the opponent starts blank.
 
 ## Server (Netlify)
 
@@ -81,6 +84,6 @@ Change `APP_NAME` in `src/config.ts`, the `<title>` in `index.html`, and `name`/
 
 ## Status
 
-Done: Garmin sync (on app open), the minimal redesign, Today (readiness with a week of history, football, the week, load, latest), Run (aerobic engine and its trend, weekly distance, critical speed with race predictions, durability, what slows you down: hills, heat and football legs; plus an analysis block on each run), football (log a match, rating reveal, match report with heatmap and engine stats, season, form, records, player card after three rated games), body (weight trend, recovery, last night; the weigh-in takes weight only, since Alex doesn't track measurements or body fat yet), all activity and activity detail, the lift logger (routines, RPE, progression targets, custom exercises, Hevy CSV import; hidden from the tab bar), offline shell.
+Done: Garmin sync (on app open), the minimal redesign, Today (readiness with a week of history, football, the week, load, latest), Run (aerobic engine and its trend, weekly distance, critical speed with race predictions, durability, what slows you down: hills, heat and football legs; plus an analysis block on each run), football (log a match, rating reveal, match report with heatmap and engine stats, season, form, records, player card after three rated games, all split by format where it matters), body (weight trend, recovery, last night; the weigh-in takes weight only, since Alex doesn't track measurements or body fat yet), all activity and activity detail, the lift logger (routines, RPE, progression targets, custom exercises, Hevy CSV import; hidden from the tab bar), offline shell.
 
 Next: check the mapping against Alex's real Garmin data with `/api/status?shapes` (and that the running model behaves on it), pick a name, then ghost replays. Maybe later: D′ balance through interval sessions.
