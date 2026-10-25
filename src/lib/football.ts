@@ -82,6 +82,15 @@ export function formatOf(a: Pick<Activity, 'id' | 'start' | 'kind'>, matches: Ma
   return usualFormatAt(new Date(a.start), matches) ?? fallback
 }
 
+/** a game older than this isn't asked about any more: you won't remember it well enough to rate */
+export const RATE_DAYS = 14
+
+/** Football activities worth asking you to rate: unrated, not skipped, and recent enough to remember. */
+export function gamesToRate(activities: Activity[], rated: (activityId: string) => boolean, skipped: readonly string[], now: Date): Activity[] {
+  const from = now.getTime() - RATE_DAYS * 86_400_000
+  return activities.filter((a) => a.sport === 'football' && !rated(a.id) && !skipped.includes(a.id) && Date.parse(a.start) >= from)
+}
+
 export const SPRINT_MPS = 5.0 // 18 km/h
 export const HI_MPS = 4.0 // 14.4 km/h
 /** a minute covering less than this (m) is standing still: before kick-off, half time, after the whistle */

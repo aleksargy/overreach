@@ -12,6 +12,8 @@ export interface UserData {
   profile: Profile
   matches: Match[]
   hiddenMatchIds: string[]
+  /** football activities you chose not to rate */
+  skippedRatings: string[]
   workouts: Workout[]
   customExercises: Exercise[]
   exerciseEdits: Record<string, Partial<Exercise>>
@@ -32,6 +34,7 @@ const EMPTY: UserData = {
   profile: SAMPLE_PROFILE,
   matches: [],
   hiddenMatchIds: [],
+  skippedRatings: [],
   workouts: [],
   customExercises: [],
   exerciseEdits: {},
@@ -48,6 +51,8 @@ interface State extends UserData {
   setProfile: (p: Partial<Profile>) => void
   saveMatch: (m: Match) => void
   deleteMatch: (id: string) => void
+  /** stop asking to rate this game */
+  skipRating: (activityId: string) => void
   startWorkout: (routine?: Routine) => void
   updateActive: (fn: (w: Workout) => Workout) => void
   finishWorkout: (srpe: number) => Workout | null
@@ -108,6 +113,7 @@ function pickUser(s: State): UserData {
     profile: s.profile,
     matches: s.matches,
     hiddenMatchIds: s.hiddenMatchIds,
+    skippedRatings: s.skippedRatings,
     workouts: s.workouts,
     customExercises: s.customExercises,
     exerciseEdits: s.exerciseEdits,
@@ -156,6 +162,8 @@ export const useStore = create<State>()((set, get) => ({
       matches: s.matches.filter((x) => x.id !== id),
       hiddenMatchIds: [...new Set([...s.hiddenMatchIds, id])],
     })),
+
+  skipRating: (activityId) => set((s) => ({ skippedRatings: [...new Set([...s.skippedRatings, activityId])] })),
 
   startWorkout: (routine) => {
     const exercises = (routine?.items ?? []).map((item) => ({
