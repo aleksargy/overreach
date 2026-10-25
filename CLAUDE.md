@@ -4,23 +4,35 @@ A personal PWA that replaces Garmin Connect and Hevy for one person (Alex). It p
 
 Look and feel is the top priority. Read the design rules before changing any screen. Running and football are Alex's main sports, so they get the depth; the other sports are synced and shown but get no new work for now.
 
-`HANDOFF.md` has the history behind this file: what Alex asked for and decided, what's verified and what isn't, and the open items.
+`README.md` is the guide for people: setup, secrets, deploying, keeping it running. `docs/` has the decisions and why (`decisions.md`), the Garmin API notes (`garmin-api.md`), and what's next, what's unchecked and the ideas on the shelf (`roadmap.md`).
+
+## Working here
+
+- Show it early: a screenshot or a preview before the polish, and let Alex react. Look and feel decides.
+- Depth over breadth: running and football get the work, Today and Body stay a clean dashboard, rides, swims and lifting are shown but not extended. Lift stays hidden from the tab bar.
+- The analysis is personal: measure against Alex's own baseline, not population norms, and say plainly when the data can't support a claim.
+- Few Garmin calls: new fetches go inside the sync step, never a new poll.
+- Every change goes through a branch and a pull request; `check` has to pass, and main can't be pushed to directly. Commits are authored as aleksargy, with no AI co-author or session trailers (`.claude/settings.json` turns them off).
+- Secrets never go in the repo, the chat or the browser bundle (see Secrets).
 
 ## Commands
 
 ```sh
-npm install
+npm install          # Node 22 (.nvmrc)
 npm run dev          # app on :5173, sample data until the first sync; /api is proxied to :8788
 npm run dev:api      # the real functions + a fake Garmin with a year of history on :8788, passphrase "dev"
-npm test             # sync engine against the fake Garmin, and the functions against a local Blobs server
+npm run dev:real     # the same against your real Garmin account: key from .env.local through varlock, 90 days back
+npm test             # sync engine against the fake Garmin, the functions against a local Blobs server, the pure logic
 npm run typecheck
+npm run format       # Prettier (pinned): no semicolons, single quotes, width 180; CI runs format:check
+npm run check:env    # varlock audit: every env var the code reads is declared in .env.schema
 npm run build        # tsc + vite build into dist/
 npm run build:preview  # one self-contained HTML file: dist-preview/preview.html
-npm run icons        # re-render the icon PNGs (needs Playwright)
-npx prettier --write <files>   # no semicolons, single quotes, width 180
+npm run screens      # every screen at 390 × 844, sample and live, into screens/ (npx playwright install chromium once)
+npm run icons        # re-render the icon PNGs (Playwright)
 ```
 
-To see live mode locally, run `npm run dev:api` and `npm run dev` together, open Settings, type `dev` as the passphrase and tap Sync now. The fake's Blobs live in `.netlify/dev-blobs`; delete that folder to start over.
+To see live mode locally, run `npm run dev:api` and `npm run dev` together, open Settings, type `dev` as the passphrase and tap Sync now. The fake's Blobs live in `.netlify/dev-blobs`; delete that folder to start over. `npm run dev:real` keeps its store in `.netlify/real-blobs`, so real and fake data never mix, and it stays on this Mac. Both listen on 127.0.0.1 only.
 
 The preview build uses a memory router. A bare hash picks the first screen: `#run`, `#football`, `#body`, `#feed`, `#lift`, `#prefs`.
 
@@ -28,16 +40,20 @@ The preview build uses a memory router. A bare hash picks the first screen: `#ru
 
 - `src/screens/` one folder per area: today (plus the + log sheet), run, football (log sheet, rating reveal, match report, player card), body, feed ("All activity", opened from Today, plus activity detail), settings, and lift (logger overlay, exercises, history), which is built but hidden from the tab bar.
 - `src/components/` shared UI (`ui/`), charts (`charts/`), the tab bar, the activity row.
-- `src/data/` the store, the derived world, the API client, types, exercises, and generated sample data (`sample/`).
-- `src/lib/` pure logic with no React: running analysis (`running.ts`), football rating and analysis, readiness, training load, lift progression, schedule guessing, Hevy CSV import, formatting.
-- `netlify/functions/` `status`, `sync` (POST), `data`, `stream`, and `scheduled-sync` (once a day, 05:00 UTC).
+- `src/data/` the store, the derived world, the API client, the backup of what you type, types, exercises, and generated sample data (`sample/`).
+- `src/lib/` pure logic with no React: running analysis (`running.ts`), football rating and analysis, readiness, training load, lift progression, schedule guessing, Hevy CSV import, backup merging, formatting.
+- `netlify/functions/` `status`, `sync` (POST), `data`, `stream`, `user` (the copy of what you type), and `scheduled-sync` (once a day, 05:00 UTC).
 - `netlify/lib/` the Garmin client, the sync engine, Garmin-to-app mapping, FIT decoding, run weather from Open-Meteo, the Blobs wrapper, request helpers.
-- `tests/` the fake Garmin (realistic shapes, range limits, FIT files, plus a fake Open-Meteo) and the tests.
-- `scripts/` the local API, icon rendering, the preview inliner.
+- `tests/` the fake Garmin (realistic shapes, range limits, FIT files, slow answers, plus a fake Open-Meteo) and the tests.
+- `scripts/` the local API, screenshots, icon rendering, the preview inliner.
+- `.github/` `ci.yml` (checks and a preview for every pull request), `deploy.yml` (main to Netlify), Dependabot, the pull request template.
+- `.claude/` Claude Code's project settings (permissions, a Prettier hook, attribution off) and skills: `check-screens`, `garmin-shapes`.
+- `docs/` decisions, Garmin API notes, roadmap.
 
 ## How data flows
 
 - **Store** (`src/data/store.ts`, zustand) holds what the person types: matches, workouts, routines, custom exercises, weigh-ins, profile and sync settings. It's saved to IndexedDB under `overreach:user:v1`; the Garmin cache is saved separately under `overreach:garmin:v1`. Nothing is written until IndexedDB has answered at start-up, so a slow start can't save defaults over real data. Saves happen straight away, except while typing into a live workout (300 ms pause), and any pending save is flushed when the app is hidden.
+- **Backup.** What you type is also copied to the server: `src/data/backup.ts` sends it to `/api/user` (Blobs key `user`) a few seconds after each change once the phone has synced, and again on open if a copy didn't make it. The first sync on a phone with none of your data (a new phone, a reset, a removed home-screen app) brings it back. Lists merge by id with the phone's version winning, a match deleted on the phone stays deleted, and the server never swaps a full copy for an empty one. Settings also exports a file and restores from one (`src/lib/backup.ts`).
 - **World** (`src/data/world.ts`, `useWorld()`) derives everything the screens show: Garmin activities (or sample data before the first sync) merged with logged workouts and matches, plus load, readiness, the weekly schedule and unrated games. Screens read the world and write through store actions.
 - **Sample mode** shows generated data with a "Sample data" badge until the first successful sync. After that the app is in live mode.
 - **Streams** (HR, speed, GPS, laps) load per activity from `/api/stream?id=g-…`. The server decodes the FIT file once and caches it in Blobs.
@@ -48,16 +64,25 @@ The preview build uses a memory router. A bare hash picks the first screen: `#ru
 
 ## Server (Netlify)
 
-- Environment variables: `GARMIN_PERSONAL_API_KEY` (from connect.garmin.com/app/settings/personalApiToken) and `OVERREACH_PASSPHRASE` (any phrase; the same one is typed into Settings). The Garmin key must never reach browser code.
+- Environment variables: `GARMIN_PERSONAL_API_KEY` (from connect.garmin.com/app/settings/personalApiToken) and `OVERREACH_PASSPHRASE` (any phrase; the same one is typed into Settings). `OVERREACH_HISTORY_DAYS` shortens the history walk for local runs. All of them are listed in `.env.schema`. The Garmin key must never reach browser code.
 - Every endpoint checks the `x-overreach-key` header against the passphrase.
-- Data lives in the Blobs store `overreach` (strong consistency). Keys: `state`, `activities`, `dailies`, `body`, `stream/<id>`, `shapes`, `token`, `lock`.
+- Data lives in the Blobs store `overreach` (strong consistency). Keys: `state`, `activities`, `dailies`, `body`, `user`, `stream/<id>`, `shapes`, `token`, `lock`.
 - Opening the app is the main trigger: it runs a step without forcing, and the server only calls Garmin if its last recent pass was more than 10 minutes ago, however often the app opens. The app downloads `/api/data` only when the server's `dataAt` has moved. Sync now in Settings forces a fresh pass. A job at 05:00 UTC is the safety net (Alex asked for few calls, to stay clear of rate limits and junk requests).
-- Sync runs in steps that fit Netlify's limits: 25 s per call from the app, 18 s for the morning job, at most 30 Garmin calls per step. A lock in Blobs stops the job and the app from overlapping. Each step does, in order: the recent pass (health data since the last pass, at least two weeks; if that's over 180 days the health history is walked again), run and football FIT files still to read, weather for new runs, the activity backfill (two years), the health backfill (180-day chunks; sleep only for 120 days).
+- Sync runs in steps that fit Netlify's limits: from the app, 20 s of work per call with every Garmin request stopped by 24 s (Netlify's docs give synchronous functions 30 s in one place and 60 s in another); for the morning job, 18 s and 22 s (scheduled functions get 30 s); at most 30 Garmin calls per step. A FIT download the deadline cuts off stays first in line for the next step. A lock in Blobs stops the job and the app from overlapping. Each step does, in order: the recent pass (health data since the last pass, at least two weeks; if that's over 180 days the health history is walked again), run and football FIT files still to read, weather for new runs, the activity backfill (two years), the health backfill (180-day chunks; sleep only for 120 days).
 - Garmin limits per call: activities 50 per page, daily summaries and HRV 180 days, sleep 28 days, weight 365 days. Over-long ranges come back as empty 400s or 500s.
 - A 429 pauses the sync and keeps what was fetched. A 401 re-exchanges the token once. An endpoint that keeps failing is named in `warnings` and skipped.
 - Weather comes from Open-Meteo (free, no key): the archive API, or the forecast API for runs in the last six days. Only the rounded location and a date range go out, one request per place. A failure waits 30 minutes and never holds up the sync.
-- `/api/status?shapes` returns the field types Garmin actually sent, without any values. Use it to fix `netlify/lib/mapping.ts` against real data; the readers there are deliberately tolerant.
+- `/api/status?shapes` returns the field types Garmin actually sent, without any values. Use it to fix `netlify/lib/mapping.ts` against real data (the `garmin-shapes` skill); the readers there are deliberately tolerant.
 - The Personal API is pull-only (no webhooks, no pushing workouts), and keys expire after 30 days to a year and must be renewed by hand.
+
+## Secrets
+
+- `.env.schema` lists every variable and which are sensitive; varlock checks it, and `npm run check:env` fails if the code reads one that isn't listed. Values never go in git or the chat.
+- The deployed site gets its values from Netlify's environment variables, set for the Production context only, so a preview never has them. Previews also deploy without functions.
+- On this Mac, `.env.local` (gitignored) holds `varlock("local:…")` refs that only this Mac can decrypt. `npm run dev:real` runs through `varlock run`, which redacts sensitive values from piped output.
+- The deploy workflow uses a `NETLIFY_AUTH_TOKEN` secret and a `NETLIFY_SITE_ID` variable in GitHub.
+- Never give a secret a `VITE_` prefix: Vite puts those in the browser bundle.
+- Don't read `.env.local` or `.netlify/real-blobs`, and don't run `varlock reveal` or `varlock printenv`; `.claude/settings.json` denies them. To call the deployed API, let varlock pass the passphrase (see the `garmin-shapes` skill).
 
 ## Design rules
 
@@ -69,21 +94,25 @@ The preview build uses a memory router. A bare hash picks the first screen: `#ru
 - Phone first (390 px wide), 16 px gutters that respect safe areas, bottom tab bar: Today, Run, Football, Body. Input happens in sheets (the + on Today opens the log sheet); reports are full screens.
 - Copy is short and plain with some personality (the match report writes back-page headlines). Hide empty things rather than showing dashes or zeros.
 - Motion comes from `motion/react` springs, and `MotionConfig reducedMotion="user"` is respected.
-- After a UI change, look at it at 390 × 844 in both sample and live mode.
+- After a UI change, look at it at 390 × 844 in both sample and live mode: `npm run screens` (the `check-screens` skill).
+
+## Gotchas
+
+- Tailwind opacity modifiers on the theme colours must come from Tailwind's scale (`/5`, `/10` up to `/95`) or be arbitrary (`/[0.05]`). Something like `bg-fg/97` silently produces no CSS.
+- The sample data in `src/data/sample/` is deterministic (seeded from dates and ids) and has the running effects built in that `tests/running.test.ts` checks, so run `npm test` after changing it. It plays 11s on Sunday mornings and 7s every other Tuesday evening; that schedule is made up, not Alex's.
+- Serve `dist-preview/preview.html` as `text/html; charset=utf-8`, or curly quotes and middle dots turn into mojibake.
+- Saved shapes are versioned (`UserData.version`, `SyncState.v`, the `:v1` storage keys, the backup's `v`). Nothing needs migrating yet. When a saved shape changes, bump its version and migrate on load (`hydrate`, `loadAll`), because real data already lives on the phone and in Blobs.
 
 ## Renaming
 
-Change `APP_NAME` in `src/config.ts`, the `<title>` in `index.html`, and `name`/`short_name` in `public/manifest.webmanifest`. Run `npm run icons` if the mark changes. The Blobs store name and the storage keys say "overreach"; leave them unless you also migrate the data.
+Change `APP_NAME` in `src/config.ts`, the `<title>` in `index.html`, and `name`/`short_name` in `public/manifest.webmanifest`. Run `npm run icons` if the mark changes. The service worker's cache is named after each build, so installed copies pick up the new name and icons on the next deploy. The Blobs store name and the storage keys say "overreach"; leave them unless you also migrate the data.
 
 ## Deploying
 
-1. Netlify: connect the repo. `netlify.toml` already sets the build (`npm run build`), the publish folder (`dist`), the functions folder and the `/api/*` redirect.
-2. Add `GARMIN_PERSONAL_API_KEY` and `OVERREACH_PASSPHRASE` in the site's environment variables, then deploy.
-3. On the iPhone, open the site in Safari, then Share → Add to Home Screen.
-4. In the app: Settings → passphrase → Sync now. The first sync walks two years of history in steps and takes a few minutes. After that, opening the app keeps it fresh, with the morning job as a backstop.
+GitHub Actions deploys; Netlify doesn't build from git. `ci.yml` checks every pull request and puts up a preview of it (sample data, no functions). `deploy.yml` checks main again and deploys it to production, except for changes that only touch docs or Claude's settings, because each production deploy costs 15 of the free plan's 300 monthly credits. Run Deploy by hand after changing an environment variable in Netlify. First-time setup and the iPhone install are in README.md.
 
 ## Status
 
-Done: Garmin sync (on app open), the minimal redesign, Today (readiness with a week of history, football, the week, load, latest), Run (aerobic engine and its trend, weekly distance, critical speed with race predictions, durability, what slows you down: hills, heat and football legs; plus an analysis block on each run), football (log a match, rating reveal, match report with heatmap and engine stats, season, form, records, player card after three rated games, all split by format where it matters), body (weight trend, recovery, last night; the weigh-in takes weight only, since Alex doesn't track measurements or body fat yet), all activity and activity detail, the lift logger (routines, RPE, progression targets, custom exercises, Hevy CSV import; hidden from the tab bar), offline shell.
+Done: Garmin sync (on app open), the minimal redesign, Today (readiness with a week of history, football, the week, load, latest), Run (aerobic engine and its trend, weekly distance, critical speed with race predictions, durability, what slows you down: hills, heat and football legs; plus an analysis block on each run), football (log a match, rating reveal, match report with heatmap and engine stats, season, form, records, player card after three rated games, all split by format where it matters), body (weight trend, recovery, last night; the weigh-in takes weight only, since Alex doesn't track measurements or body fat yet), all activity and activity detail, the lift logger (routines, RPE, progression targets, custom exercises, Hevy CSV import; hidden from the tab bar), offline shell, backup of what you type to the server, the deploy pipeline, a local mode against the real Garmin account.
 
-Next: check the mapping against Alex's real Garmin data with `/api/status?shapes` (and that the running model behaves on it), pick a name, then ghost replays. Maybe later: D′ balance through interval sessions.
+Next: deploy (README), connect the real key and fix the mapping from `/api/status?shapes` (`garmin-shapes`), check the running model on real data, then ghost replays. Maybe later: D′ balance through interval sessions. The name is still open.
