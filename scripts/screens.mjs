@@ -80,6 +80,9 @@ try {
       await page.goto(base + path)
       // let the springs settle and the charts draw
       await page.waitForTimeout(900)
+      // once loaded, the router restores the last screen's scroll position in this tab; shots start at the top
+      await page.evaluate(() => scrollTo(0, 0))
+      await page.waitForTimeout(300)
       const file = join('screens', mode, `${name}.png`)
       await page.screenshot({ path: file, fullPage: true })
       console.log(file)
