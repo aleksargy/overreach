@@ -30,13 +30,31 @@ after(async () => {
   await server.stop()
 })
 
-async function call(fn: string, opts: { query?: string; method?: string; pass?: string } = {}) {
+async function call(fn: string, opts: { query?: string; method?: string; pass?: string; body?: unknown } = {}) {
   const mod = (await import(`../netlify/functions/${fn}.ts`)) as { default: (req: Request) => Promise<Response> }
   const res = await mod.default(
-    new Request(`https://overreach.test/api/${fn}${opts.query ?? ''}`, { method: opts.method ?? 'GET', headers: { 'x-overreach-key': opts.pass ?? PASS } }),
+    new Request(`https://overreach.test/api/${fn}${opts.query ?? ''}`, {
+      method: opts.method ?? 'GET',
+      headers: { 'x-overreach-key': opts.pass ?? PASS },
+      body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
+    }),
   )
   return { status: res.status, body: (await res.json()) as Record<string, unknown> }
 }
+
+test('keeps a copy of what you type, and never swaps it for an empty one', async () => {
+  assert.equal((await call('user')).body, null)
+  const copy = { v: 1, savedAt: '2026-10-25T10:00:00.000Z', data: { matches: [{ id: 'm-1', date: '2026-10-20' }], workouts: [], body: [], customExercises: [] } }
+  assert.equal((await call('user', { method: 'PUT', body: copy })).status, 200)
+  assert.deepEqual((await call('user')).body, copy)
+  // a reset phone, or one that lost its storage, can't wipe the copy
+  const empty = { ...copy, savedAt: '2026-10-25T11:00:00.000Z', data: { matches: [], workouts: [], body: [], customExercises: [] } }
+  assert.equal((await call('user', { method: 'PUT', body: empty })).status, 409)
+  assert.deepEqual((await call('user')).body, copy)
+  assert.equal((await call('user', { method: 'PUT', body: { matches: 'nope' } })).status, 400)
+  assert.equal((await call('user', { method: 'POST', body: copy })).status, 405)
+  assert.equal((await call('user', { pass: 'guess' })).status, 401)
+})
 
 test('refuses a wrong or missing passphrase', async () => {
   const r = await call('status', { pass: 'guess' })

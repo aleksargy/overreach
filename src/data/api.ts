@@ -3,6 +3,7 @@
 
 import { useStore } from './store'
 import type { BodyEntry, Daily, GarminActivity, Stream } from './types'
+import type { Backup } from '../lib/backup'
 
 export interface ServerStatus {
   configured: boolean
@@ -65,9 +66,18 @@ async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
   return (await res.json()) as T
 }
 
+/** The copy of what you've typed that the server keeps (see backup.ts). */
+export interface SavedCopy {
+  v: 1
+  savedAt: string
+  data: Backup
+}
+
 export const getStatus = () => call<ServerStatus>('status')
 export const syncStep = (fresh = false) => call<SyncStep>(fresh ? 'sync?fresh=1' : 'sync', { method: 'POST' })
 export const pullData = () => call<ServerData>('data')
+export const getCopy = () => call<SavedCopy | null>('user')
+export const putCopy = (copy: SavedCopy) => call<{ savedAt: string }>('user', { method: 'PUT', body: JSON.stringify(copy) })
 
 export async function fetchStream(activityId: string): Promise<Stream | null> {
   try {

@@ -2,6 +2,7 @@ import { get as idbGet, set as idbSet } from 'idb-keyval'
 import { create } from 'zustand'
 import { BUILTIN_ROUTINES } from './exercises'
 import { SAMPLE_PROFILE } from './sample'
+import { backupOf, merge, type Backup } from '../lib/backup'
 import { uid } from '../lib/rng'
 import type { BodyEntry, Daily, Exercise, GarminActivity, Match, Profile, Routine, SetEntry, SyncState, Workout } from './types'
 
@@ -59,6 +60,8 @@ interface State extends UserData {
   setSync: (s: Partial<SyncState>) => void
   setGarmin: (g: GarminCache | null) => void
   importWorkouts: (ws: Workout[], exercises: Exercise[]) => void
+  /** fold in a backup file or the server's copy; nothing on the phone is replaced */
+  mergeBackup: (saved: Partial<Backup>) => void
   resetAll: () => void
 }
 
@@ -216,6 +219,8 @@ export const useStore = create<State>()((set, get) => ({
       workouts: [...s.workouts.filter((w) => !ws.some((n) => n.id === w.id)), ...ws],
       customExercises: [...s.customExercises, ...exercises.filter((e) => !s.customExercises.some((c) => c.id === e.id))],
     })),
+
+  mergeBackup: (saved) => set((s) => merge(backupOf(s), saved)),
 
   resetAll: () => {
     set({ ...EMPTY, garmin: null, hydrated: true })
