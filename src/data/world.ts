@@ -5,7 +5,7 @@ import { BUILTIN_EXERCISES } from './exercises'
 import { buildSample, sampleStreamFor, type SampleData } from './sample'
 import { useStore } from './store'
 import type { Activity, BodyEntry, Daily, Exercise, GarminActivity, Match, Profile, Routine, Stream, Workout } from './types'
-import { analyseFootball, usualFormatAt, type FootballAnalysis } from '../lib/football'
+import { analyseFootball, gamesToRate, usualFormatAt, type FootballAnalysis } from '../lib/football'
 import { liftSummary } from '../lib/lift'
 import { isoDay } from '../lib/format'
 import { loadModel, srpeLoad, trimp, zoneBounds, zoneSecondsFromAvg, type LoadModel } from '../lib/load'
@@ -68,16 +68,17 @@ export function workoutToActivity(w: Workout, p: Profile): Activity {
 }
 
 /**
- * Garmin activities get zones from your profile when Garmin didn't split them,
- * and load from those zones. A lifting session you logged here that the watch
- * also recorded is one session: it links to the workout and counts its
+ * Garmin activities get zones from your profile when Garmin didn't split them.
+ * Load is Garmin's own training load where the watch worked one out, and TRIMP
+ * from the zones where it didn't. A lifting session you logged here that the
+ * watch also recorded is one session: it links to the workout and counts its
  * session-RPE load once.
  */
 export function fromGarmin(list: GarminActivity[], p: Profile, workouts: Workout[]): Activity[] {
   const bounds = zoneBounds(p)
   return list.map((g) => {
     const zoneS = g.zoneS ?? zoneSecondsFromAvg(g.avgHr ?? 0, g.durationS, bounds)
-    const a: Activity = { ...g, zoneS, load: trimp(zoneS) }
+    const a: Activity = { ...g, zoneS, load: g.garmin?.load ?? trimp(zoneS) }
     if (a.sport !== 'strength') return a
     const w = workouts.find((x) => x.end && Math.abs(Date.parse(x.start) - Date.parse(a.start)) < 45 * 60_000)
     if (!w) return a
@@ -115,6 +116,7 @@ export function useWorld(): World {
       profile: st.profile,
       matches: st.matches,
       hidden: st.hiddenMatchIds,
+      skipped: st.skippedRatings,
       workouts: st.workouts,
       custom: st.customExercises,
       edits: st.exerciseEdits,
@@ -162,9 +164,8 @@ export function useWorld(): World {
 
     const next = upcoming(slots, now, matches)
     const nextFootball = upcoming(slots, now, matches, (s) => s.sport === 'football')
-    const todays = next && differenceInCalendarDays(next.at, now) === 0 ? next.label : undefined
 
-    const unrated = activities.filter((a) => a.sport === 'football' && !matchByActivity.has(a.id))
+    const unrated = gamesToRate(activities, (id) => matchByActivity.has(id), s.skipped, now)
 
     const world: World = {
       now,
@@ -183,7 +184,7 @@ export function useWorld(): World {
       analyses: sample?.analyses ?? new Map(),
       load,
       acwr,
-      readiness: readiness(dailies, acwr, todays),
+      readiness: readiness(dailies, activities, acwr, now),
       slots,
       next,
       nextFootball,

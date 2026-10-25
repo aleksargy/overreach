@@ -1,5 +1,6 @@
 import { addDays, differenceInCalendarDays, format, getDay, isSameDay, parseISO, startOfWeek } from 'date-fns'
 import { ChevronRight, Plus } from 'lucide-react'
+import { AnimatePresence } from 'motion/react'
 import { useMemo } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { ActivityList, RatingBadge } from '../../components/ActivityRow'
@@ -7,9 +8,10 @@ import { RangeBar, Sparkline } from '../../components/charts/primitives'
 import { SportDot, SportIcon, SPORT_LABEL, sportColor } from '../../components/icons/SportIcon'
 import { IconButton, Screen } from '../../components/ui/Screen'
 import { SampleBadge, Section } from '../../components/ui/bits'
+import { Swipeable } from '../../components/ui/Swipe'
 import { Ticker } from '../../components/ui/Ticker'
 import type { Sport } from '../../data/types'
-import { useUi } from '../../data/ui'
+import { useSkipRating, useUi } from '../../data/ui'
 import { useWorld, type World } from '../../data/world'
 import { dur, fmt, km } from '../../lib/format'
 import { acwrLabel } from '../../lib/load'
@@ -70,12 +72,15 @@ export function TodayScreen() {
   )
 }
 
-/** Readiness for each of the last seven mornings, judged the same way as today's. */
+/** Readiness for each of the last seven mornings, judged the same way as today's: past days as of 8 am. */
 function useReadinessWeek(w: World) {
   return useMemo(() => {
     const out: { date: string; score: number; tone: Tone }[] = []
     for (let k = 6; k >= 0; k--) {
-      const r = readiness(w.dailies.slice(0, w.dailies.length - k), w.load.ratio[w.load.ratio.length - 2 - k] ?? 1)
+      const days = w.dailies.slice(0, w.dailies.length - k)
+      const day = days[days.length - 1]?.date
+      const at = k === 0 || !day ? w.now : new Date(`${day}T08:00:00`)
+      const r = readiness(days, w.activities, w.load.ratio[w.load.ratio.length - 2 - k] ?? 1, at)
       if (r) out.push({ date: r.date, score: r.score, tone: r.tone })
     }
     return out
@@ -119,6 +124,17 @@ function ReadinessHero({ r, w }: { r: Readiness; w: World }) {
       </div>
       <p className="mt-5 text-[17px] leading-[1.4] tracking-[-0.01em] text-fg-2">{r.verdict}</p>
       <div className="card list mt-6 overflow-hidden">
+        {r.strain && (
+          <div className="grid grid-cols-[88px_1fr] items-center gap-3 px-4 py-3">
+            <span className="text-[14px] text-fg-2">Recovering</span>
+            <span className="min-w-0 text-right">
+              <span className="block truncate text-[15px] font-medium tracking-[-0.01em]">{cap(r.strain.name)}</span>
+              <span className="meta block truncate">
+                {r.strain.why} · {r.strain.hoursAgo} h ago
+              </span>
+            </span>
+          </div>
+        )}
         {r.factors.map((f) => {
           const good = f.today > f.hi ? f.better === 'up' : f.today < f.lo ? f.better === 'down' : null
           return (
@@ -133,13 +149,16 @@ function ReadinessHero({ r, w }: { r: Readiness; w: World }) {
           )
         })}
       </div>
-      <p className="mt-2 px-1 text-[12px] text-fg-4">The grey band is your normal over the last 28 days.</p>
+      <p className="mt-2 px-1 text-[12px] leading-snug text-fg-4">
+        Grey bands are your normal: Garmin’s HRV baseline, your last 28 days for the rest. Recovery comes from training effect and load, as Garmin doesn’t share its recovery time.
+      </p>
     </section>
   )
 }
 
 function Football({ w }: { w: World }) {
   const open = useUi((s) => s.open)
+  const skip = useSkipRating()
   const last = w.matches[0]
   const unrated = w.unrated[0]
   const next = w.nextFootball
@@ -156,18 +175,22 @@ function Football({ w }: { w: World }) {
         </Link>
       }
     >
-      {unrated && (
-        <button onClick={() => open({ type: 'logMatch', activityId: unrated.id })} className="press card mb-2 flex w-full items-center gap-3 p-4 text-left">
-          <SportDot sport="football" size={40} />
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-[15px] font-medium leading-5">Rate {what}</span>
-            <span className="meta block truncate">
-              {km(unrated.distanceM, 1)} km{unrated.football ? ` · ${unrated.football.sprints} sprints` : ''} · {dur(unrated.durationS)}
-            </span>
-          </span>
-          <span className="btn-primary h-9 px-4 text-[14px]">Rate</span>
-        </button>
-      )}
+      <AnimatePresence initial={false}>
+        {unrated && (
+          <Swipeable key={unrated.id} hint="Skip" onSwipe={() => skip(unrated.id)} surface="card" className="mb-2 rounded-card">
+            <button onClick={() => open({ type: 'logMatch', activityId: unrated.id })} className="press flex w-full items-center gap-3 p-4 text-left">
+              <SportDot sport="football" size={40} />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[15px] font-medium leading-5">Rate {what}</span>
+                <span className="meta block truncate">
+                  {km(unrated.distanceM, 1)} km{unrated.football ? ` · ${unrated.football.sprints} sprints` : ''} · {dur(unrated.durationS)}
+                </span>
+              </span>
+              <span className="btn-primary h-9 px-4 text-[14px]">Rate</span>
+            </button>
+          </Swipeable>
+        )}
+      </AnimatePresence>
       {(last || next) && (
         <div className="grid grid-cols-2 gap-2">
           {last && (
