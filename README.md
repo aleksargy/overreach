@@ -82,7 +82,7 @@ GitHub Actions does the deploying, so a deploy only happens after the checks pas
 
 ### First time
 
-1. **Make the Netlify project** without connecting git builds, since GitHub Actions deploys instead. Either run `npx netlify-cli@27.14.2 login`, then `npx netlify-cli@27.14.2 sites:create --name <a-name>`, or in Netlify choose Add new project, then Deploy manually, and drop in the `dist` folder from `npm run build`. Copy the Project ID (Project configuration, General).
+1. **Make the Netlify project** without connecting git builds, since GitHub Actions deploys instead. Either run `npx netlify-cli@27.14.2 login`, then `npx netlify-cli@27.14.2 sites:create --name <a-name>`, or in Netlify choose Add new project, then Deploy manually, and drop in the `dist` folder from `npm run build`. Copy the Project ID (Project configuration, General). On the same page, switch off the **Powered by Netlify badge**: free projects show it in the bottom-right corner, right over the tab bar.
 2. **Add the two environment variables** in Netlify (Project configuration, Environment variables): `GARMIN_PERSONAL_API_KEY` and `OVERREACH_PASSPHRASE`. For each, pick "Different value for each deploy context", fill in Production only, and tick "Contains secret values". Let your password manager make the passphrase, or run `openssl rand -base64 24`.
 3. **Give GitHub the keys to deploy.** In Netlify, make a personal access token (User settings, Applications, Personal access tokens) with an expiry date. Then:
    ```sh
