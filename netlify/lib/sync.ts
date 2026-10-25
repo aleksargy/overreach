@@ -17,7 +17,7 @@ import { summariseRun } from '../../src/lib/running'
 import { fitFromDownload, footballSummary, streamFromFit } from './fit'
 import { GarminError, OutOfTime, type Garmin } from './garmin'
 import type { KV } from './kv'
-import { foldHrv, foldSleep, foldSummaries, foldWeight, hrProfile, list, mapActivity, shape, type Obj } from './mapping'
+import { detailOf, foldHrv, foldSleep, foldSummaries, foldWeight, hrProfile, list, mapActivity, shape, type Obj } from './mapping'
 import { weatherFor } from './weather'
 
 export const HISTORY_DAYS = 730
@@ -38,7 +38,11 @@ const MAX_CALLS = 30
 
 const SEARCH = '/activitylist-service/activities/search/activities'
 /** bump when the health mapping changes, and the next step reads the health history again (about ten calls) */
-const HEALTH_MAPPING = 2
+const HEALTH_MAPPING = 3
+/** bump when the activity mapping changes, and the next steps read the activity list again (no FIT files) */
+const ACTIVITY_MAPPING = 2
+/** runs and games this recent get their detail read once, for the RPE and feel you enter on the watch */
+const DETAIL_DAYS = 30
 
 export interface SyncState {
   v: 1
@@ -63,7 +67,11 @@ export interface SyncState {
   runsQueued?: boolean
   /** the HEALTH_MAPPING the stored days were read with; missing means the first one */
   healthMapping?: number
-  profile?: { hrMax?: number; hrRest?: number; at: string }
+  /** the ACTIVITY_MAPPING the stored activities were read with; missing means the first one */
+  activityMapping?: number
+  /** recent runs and games waiting for their detail (watch RPE and feel) */
+  details?: string[]
+  profile?: { hrMax?: number; hrRest?: number; zones?: number[]; at: string }
   error?: { at: string; message: string }
   /** endpoints that failed on the last pass, by name */
   warnings?: Record<string, string>
@@ -104,7 +112,7 @@ export async function loadAll(kv: KV): Promise<{ state: SyncState; data: Data }>
 }
 
 export function isCaughtUp(s: SyncState) {
-  return s.activitiesDone && s.dailiesDone && s.pending.length === 0
+  return s.activitiesDone && s.dailiesDone && s.pending.length === 0 && !s.details?.length
 }
 
 async function lock(kv: KV, owner: string): Promise<boolean> {
@@ -171,6 +179,9 @@ async function step({ kv, api, budgetMs, forceRecent = false, historyDays = HIST
   let oldestSeen: string | undefined
   const wantsFit = (a: GarminActivity) =>
     a.hasStream && ((a.sport === 'football' && !a.football) || (a.sport === 'run' && !a.run && Date.parse(a.start) >= runCutoff)) && !state.pending.includes(a.id)
+  const detailCutoff = now.getTime() - DETAIL_DAYS * 86_400_000
+  const wantsDetail = (a: GarminActivity) =>
+    a.hasStream && (a.sport === 'run' || a.sport === 'football') && !a.detailRead && Date.parse(a.start) >= detailCutoff && !state.details?.includes(a.id)
   if (!state.runsQueued) {
     for (const a of Object.values(data.activities).sort((x, y) => y.start.localeCompare(x.start))) if (a.sport === 'run' && wantsFit(a)) state.pending.push(a.id)
     state.runsQueued = true
@@ -181,6 +192,14 @@ async function step({ kv, api, budgetMs, forceRecent = false, historyDays = HIST
     state.dailiesBefore = undefined
     state.dailiesDone = false
     state.healthMapping = HEALTH_MAPPING
+  }
+  if ((state.activityMapping ?? 1) < ACTIVITY_MAPPING) {
+    // the activities were read by an older mapping: page through the list again, and refresh the zones
+    state.recentAt = undefined
+    state.activityOffset = 0
+    state.activitiesDone = false
+    state.profile = undefined
+    state.activityMapping = ACTIVITY_MAPPING
   }
 
   /** a failing endpoint is noted and skipped; rate limits and auth problems stop the step */
@@ -204,9 +223,11 @@ async function step({ kv, api, budgetMs, forceRecent = false, historyDays = HIST
       if (!a) continue
       const prev = data.activities[a.id]
       if (!prev) fresh++
-      // the football and run numbers came from the FIT file, which the list doesn't carry
-      data.activities[a.id] = { ...a, football: prev?.football, run: prev?.run }
+      // the football and run numbers came from the FIT file and the RPE from the detail, none of which the list carries
+      const garmin = a.garmin || prev?.garmin ? { ...prev?.garmin, ...a.garmin } : undefined
+      data.activities[a.id] = { ...a, football: prev?.football, run: prev?.run, detailRead: prev?.detailRead, garmin }
       if (wantsFit(data.activities[a.id])) state.pending.push(a.id)
+      if (wantsDetail(data.activities[a.id])) state.details = [...(state.details ?? []), a.id]
       if (!oldestSeen || a.start < oldestSeen) oldestSeen = a.start
     }
     if (items.length) dirty.activities = true
@@ -276,6 +297,18 @@ async function step({ kv, api, budgetMs, forceRecent = false, historyDays = HIST
         }
       }
       state.pending.shift()
+    }
+
+    // 2b. the RPE and feel you entered on the watch, for recent runs and games: one call each, read once
+    while (state.details?.length && left() > 3_000) {
+      const id = state.details[0]
+      const a = data.activities[id]
+      if (a?.garminId) {
+        const res = await get('detail', `/activity-service/activity/${a.garminId}`)
+        data.activities[id] = { ...a, detailRead: true, garmin: { ...a.garmin, ...detailOf(res) } }
+        dirty.activities = true
+      }
+      state.details.shift()
     }
 
     // 3. weather for the runs read so far; it never holds the sync up
@@ -359,7 +392,8 @@ async function step({ kv, api, budgetMs, forceRecent = false, historyDays = HIST
 
   function progress(): string {
     if (isCaughtUp(state)) return added ? `${added} new ${added === 1 ? 'activity' : 'activities'}` : 'Up to date'
-    if (state.pending.length) return `Reading your runs and games: ${state.pending.length} to go`
+    const toRead = state.pending.length + (state.details?.length ?? 0)
+    if (toRead) return `Reading your runs and games: ${toRead} to go`
     if (!state.activitiesDone) {
       const oldest = Object.values(data.activities).reduce((min, a) => (a.start < min ? a.start : min), now.toISOString())
       return `Activities back to ${monthYear(oldest)}`

@@ -3,10 +3,10 @@ import { test } from 'node:test'
 import { fitFromDownload, footballSummary, streamFromFit } from '../netlify/lib/fit'
 import { garmin } from '../netlify/lib/garmin'
 import { memoryKV } from '../netlify/lib/kv'
-import { gmtToIso, mapActivity, sportOf } from '../netlify/lib/mapping'
+import { detailOf, foldHrv, foldSleep, gmtToIso, hrProfile, mapActivity, sportOf } from '../netlify/lib/mapping'
 import { HISTORY_DAYS, loadAll, RUN_DAYS, runStep, type StepResult } from '../netlify/lib/sync'
 import { BEST_S } from '../src/lib/running'
-import type { Stream } from '../src/data/types'
+import type { Daily, Stream } from '../src/data/types'
 import { fakeGarmin, footballFit } from './fake-garmin'
 
 async function syncToEnd(kv: ReturnType<typeof memoryKV>, fake: ReturnType<typeof fakeGarmin>, maxSteps = 40) {
@@ -58,6 +58,31 @@ test('maps an activity summary, keeping Garmin’s zone split when it has one', 
   assert.equal(a.durationS, 2700)
   assert.deepEqual(a.zoneS, [10, 0, 2000, 0, 0])
   assert.equal(mapActivity({ activityName: 'no id' }), null)
+})
+
+test('reads Garmin’s own view of a session, the watch RPE, the HRV baseline, sleep need and zones', () => {
+  const a = mapActivity({
+    activityId: 7,
+    activityType: { typeKey: 'running' },
+    startTimeGMT: '2026-10-24 08:00:00',
+    duration: 9900,
+    activityTrainingLoad: 261.4,
+    aerobicTrainingEffect: 4.36,
+    anaerobicTrainingEffect: 0.5,
+    differenceBodyBattery: -31,
+  })
+  assert.deepEqual(a?.garmin, { load: 261, aerobicTE: 4.4, anaerobicTE: 0.5, bodyBattery: -31 })
+  // Garmin keeps the RPE ×10; feel runs 0 (very weak) to 100 (very strong); nothing when you didn't enter them
+  assert.deepEqual(detailOf({ summaryDTO: { directWorkoutRpe: 70, directWorkoutFeel: 25 } }), { rpe: 7, feel: 25 })
+  assert.deepEqual(detailOf({ summaryDTO: { trainingEffect: 3 } }), {})
+  const days: Record<string, Daily> = {}
+  foldHrv(days, { hrvSummaries: [{ calendarDate: '2026-10-24', lastNightAvg: 58, baseline: { balancedLow: 55, balancedUpper: 70 }, status: 'balanced' }] })
+  foldSleep(days, [{ calendarDate: '2026-10-24', sleepTimeSeconds: 27_000, sleepNeed: { actual: 490 } }])
+  assert.deepEqual(days['2026-10-24'], { date: '2026-10-24', hrv: 58, hrvLow: 55, hrvHigh: 70, hrvStatus: 'BALANCED', sleepS: 27_000, sleepNeedS: 29_400 })
+  const zones = { sport: 'DEFAULT', maxHeartRateUsed: 189, restingHeartRateUsed: 47, zone1Floor: 101, zone2Floor: 128, zone3Floor: 145, zone4Floor: 159, zone5Floor: 171 }
+  assert.deepEqual(hrProfile([zones]), { hrMax: 189, hrRest: 47, zones: [101, 128, 145, 159, 171] })
+  // floors that don't rise aren't zones
+  assert.equal(hrProfile([{ ...zones, zone3Floor: 120 }]).zones, undefined)
 })
 
 test('turns a football FIT file into a 1 s stream and counts the sprints', () => {
@@ -130,6 +155,17 @@ test('a first sync walks the full history, then reports up to date', async () =>
   assert.equal(weights[0].weightKg, 78.4)
 
   assert.deepEqual({ hrMax: state.profile?.hrMax, hrRest: state.profile?.hrRest }, { hrMax: 189, hrRest: 47 })
+
+  // Garmin's own view on every activity; the watch RPE read for the last 30 days of runs only
+  const detailFrom = fake.now.getTime() - 30 * 86_400_000
+  assert.ok(Object.values(data.activities).every((a) => a.garmin?.load && a.garmin.aerobicTE))
+  const lastMonth = runs.filter((a) => Date.parse(a.start) >= detailFrom)
+  assert.ok(lastMonth.length > 3 && lastMonth.every((a) => a.garmin?.rpe === 6 && a.garmin.feel === 75))
+  assert.ok(runs.filter((a) => Date.parse(a.start) < detailFrom).every((a) => a.garmin?.rpe === undefined))
+  assert.equal(state.details?.length ?? 0, 0)
+  // and the health data Garmin judges you by: the HRV baseline, sleep need and zones
+  assert.deepEqual([recent.hrvLow, recent.hrvHigh, recent.hrvStatus, recent.sleepNeedS], [55, 70, 'BALANCED', 490 * 60])
+  assert.deepEqual(state.profile?.zones, [101, 128, 145, 159, 171])
   assert.equal(last.message, 'Up to date')
   // no endpoint was asked for more than it allows
   assert.equal(state.warnings, undefined)
@@ -296,6 +332,30 @@ test('after a fix to the health mapping, the health history is read again', asyn
     'every day has its resting heart rate back',
   )
   // the health history only: no FIT file is read again
+  assert.equal(downloads(), before)
+})
+
+test('after a fix to the activity mapping, the list is read again without any FIT file', async () => {
+  const fake = fakeGarmin({ years: 0.2 })
+  const kv = memoryKV()
+  await syncToEnd(kv, fake)
+  // as the activities were before Garmin's view was read: only the RPE from the detail survives
+  const { state, data } = await loadAll(kv)
+  for (const a of Object.values(data.activities)) a.garmin = a.garmin?.rpe ? { rpe: a.garmin.rpe, feel: a.garmin.feel } : undefined
+  await kv.set('activities', data.activities)
+  await kv.set('state', { ...state, activityMapping: undefined })
+  const downloads = () => fake.calls['/download-service/files/activity/:x'] ?? 0
+  const before = downloads()
+  const api = garmin('test-key', kv, { fetch: fake.fetch })
+  let r: StepResult | undefined
+  for (let i = 0; i < 5 && !r?.done; i++) r = await runStep({ kv, api, budgetMs: 25_000, now: fake.now })
+  assert.equal(r?.done, true)
+  const after = Object.values((await loadAll(kv)).data.activities)
+  assert.ok(
+    after.every((a) => a.garmin?.load),
+    'Garmin’s view is back on every activity',
+  )
+  assert.ok(after.some((a) => a.garmin?.rpe === 6 && a.garmin.aerobicTE))
   assert.equal(downloads(), before)
 })
 

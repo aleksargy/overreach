@@ -2,7 +2,7 @@
 // rename fields between versions, so every read is tolerant: several candidate
 // keys, numbers that might arrive as strings, and nothing assumed present.
 
-import type { BodyEntry, Daily, GarminActivity, Sport, ZoneSeconds } from '../../src/data/types'
+import type { BodyEntry, Daily, GarminActivity, GarminView, Sport, ZoneSeconds } from '../../src/data/types'
 
 export type Obj = Record<string, unknown>
 
@@ -108,6 +108,12 @@ export function mapActivity(g: Obj): GarminActivity | null {
   }
 
   const round = (x: number | undefined, dp = 0) => (x === undefined ? undefined : Math.round(x * 10 ** dp) / 10 ** dp)
+  const garmin = view({
+    load: round(num(g, 'activityTrainingLoad')),
+    aerobicTE: round(num(g, 'aerobicTrainingEffect', 'trainingEffect'), 1),
+    anaerobicTE: round(num(g, 'anaerobicTrainingEffect'), 1),
+    bodyBattery: num(g, 'differenceBodyBattery'),
+  })
   return {
     id: `g-${garminId}`,
     source: 'garmin',
@@ -129,14 +135,29 @@ export function mapActivity(g: Obj): GarminActivity | null {
     zoneS,
     hasStream: g.manualActivity !== true,
     swim,
+    garmin,
   }
 }
 
-/** Fold one source's fields into a day; undefined and placeholder values never overwrite real ones. */
+/** Only the numbers Garmin sent, so merging with what's stored never blanks one out; undefined when there are none. */
+function view(v: GarminView): GarminView | undefined {
+  const kept = Object.fromEntries(Object.entries(v).filter(([, x]) => typeof x === 'number' && Number.isFinite(x)))
+  return Object.keys(kept).length ? kept : undefined
+}
+
+/** The watch RPE (Garmin keeps it ×10) and feel (0–100) from an activity's detail; missing when you didn't enter them. */
+export function detailOf(res: unknown): Pick<GarminView, 'rpe' | 'feel'> {
+  const s = at(res, 'summaryDTO')
+  const rpe = num(s, 'directWorkoutRpe')
+  const feel = num(s, 'directWorkoutFeel')
+  return view({ rpe: rpe ? Math.round(rpe / 10) : undefined, feel }) ?? {}
+}
+
+/** Fold one source's fields into a day; undefined and placeholder values (zero, negative, empty) never overwrite real ones. */
 export function mergeDay(days: Record<string, Daily>, date: string | undefined, patch: Partial<Daily>) {
   if (!date || !/^\d{4}-\d{2}-\d{2}/.test(date)) return
   const d = date.slice(0, 10)
-  const clean = Object.fromEntries(Object.entries(patch).filter(([, v]) => typeof v === 'number' && Number.isFinite(v) && v > 0))
+  const clean = Object.fromEntries(Object.entries(patch).filter(([, v]) => (typeof v === 'number' && Number.isFinite(v) && v > 0) || (typeof v === 'string' && v.trim() !== '')))
   if (!Object.keys(clean).length) return
   days[d] = { ...(days[d] ?? { date: d }), ...clean, date: d }
 }
@@ -153,6 +174,7 @@ export function foldSummaries(days: Record<string, Daily>, res: unknown) {
       stress: num(at(o, 'stress'), 'avgLevel') ?? num(o, 'averageStressLevel', 'avgStressLevel', 'stressLevel'),
       bbHigh: num(at(o, 'bodyBattery'), 'maxValue') ?? num(o, 'bodyBatteryHighestValue', 'bodyBatteryHigh', 'maxBodyBattery'),
       bbLow: num(at(o, 'bodyBattery'), 'minValue') ?? num(o, 'bodyBatteryLowestValue', 'bodyBatteryLow', 'minBodyBattery'),
+      bbCharged: num(at(o, 'bodyBattery'), 'chargedValue') ?? num(o, 'bodyBatteryChargedValue'),
       sleepS: num(o, 'sleepingSeconds', 'sleepTimeSeconds'),
     })
   }
@@ -160,7 +182,13 @@ export function foldSummaries(days: Record<string, Daily>, res: unknown) {
 
 export function foldHrv(days: Record<string, Daily>, res: unknown) {
   for (const o of list(res, 'hrvSummaries', 'summaries', 'hrvSummaryList')) {
-    mergeDay(days, dayOf(o), { hrv: num(o, 'lastNightAvg', 'lastNightAverage', 'nightlyAvg', 'avgHrv') })
+    mergeDay(days, dayOf(o), {
+      hrv: num(o, 'lastNightAvg', 'lastNightAverage', 'nightlyAvg', 'avgHrv'),
+      // Garmin's own baseline, so HRV is judged the way the watch judges it
+      hrvLow: num(at(o, 'baseline'), 'balancedLow'),
+      hrvHigh: num(at(o, 'baseline'), 'balancedUpper'),
+      hrvStatus: str(o, 'status')?.toUpperCase(),
+    })
   }
 }
 
@@ -175,6 +203,8 @@ export function foldSleep(days: Record<string, Daily>, res: unknown) {
       remS: num(o, 'remSleepSeconds'),
       awakeS: num(o, 'awakeSleepSeconds'),
       sleepScore: num(isObj(scores?.overall) ? scores.overall : undefined, 'value') ?? num(o, 'sleepScore', 'overallSleepScore', 'score'),
+      // Garmin sends sleep need in minutes
+      sleepNeedS: (num(at(o, 'sleepNeed'), 'actual') ?? 0) * 60 || undefined,
     })
   }
 }
@@ -207,11 +237,17 @@ export function foldWeight(body: Record<string, BodyEntry>, res: unknown) {
   }
 }
 
-/** Max and resting HR from Garmin's zone settings, preferring the default set. */
-export function hrProfile(res: unknown): { hrMax?: number; hrRest?: number } {
+/** Max and resting HR, and the zone floors, from Garmin's zone settings, preferring the default set. */
+export function hrProfile(res: unknown): { hrMax?: number; hrRest?: number; zones?: number[] } {
   const sets = list(res, 'heartRateZones', 'zones')
   const pick = sets.find((s) => /default|generic/i.test(str(s, 'sport') ?? '')) ?? sets[0]
-  return { hrMax: num(pick, 'maxHeartRateUsed', 'maxHeartRate'), hrRest: num(pick, 'restingHeartRateUsed', 'restingHeartRate') }
+  const floors = [1, 2, 3, 4, 5].map((i) => num(pick, `zone${i}Floor`))
+  const rising = floors.every((f, i) => f !== undefined && f > 40 && (i === 0 || f > floors[i - 1]!))
+  return {
+    hrMax: num(pick, 'maxHeartRateUsed', 'maxHeartRate'),
+    hrRest: num(pick, 'restingHeartRateUsed', 'restingHeartRate'),
+    ...(rising ? { zones: floors.map((f) => Math.round(f!)) } : {}),
+  }
 }
 
 /**

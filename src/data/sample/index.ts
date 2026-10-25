@@ -108,6 +108,7 @@ function summarise(a: Activity, stream: Stream, bounds: number[]): Activity {
   for (let i = 1; i < alt.length; i++) if (alt[i] > alt[i - 1]) gain += alt[i] - alt[i - 1]
   const zoneS = zoneSecondsFromHr(stream.hr ?? [], stream.dt, bounds)
   const avgHr = Math.round(mean(hr))
+  const load = trimp(zoneS)
   return {
     ...a,
     durationS,
@@ -121,8 +122,15 @@ function summarise(a: Activity, stream: Stream, bounds: number[]): Activity {
     avgCadence: stream.cad ? Math.round(mean(stream.cad.filter((c) => c > 0))) : undefined,
     calories: Math.round((durationS / 60) * avgHr * 0.075),
     zoneS,
-    load: trimp(zoneS),
+    load,
     hasStream: true,
+    // roughly what the watch would say: effect grows with load and levels off towards 5, anaerobic with time in zone 5
+    garmin: {
+      load: Math.round(load * 1.1),
+      aerobicTE: round(5 * (1 - Math.exp(-load / 150)), 1),
+      anaerobicTE: round(4 * (1 - Math.exp(-zoneS[4] / 900)), 1),
+      bodyBattery: -Math.round(durationS / 240),
+    },
   }
 }
 
@@ -441,6 +449,13 @@ function buildDailies(first: Date, activities: Activity[]): Daily[] {
       lightS: 0,
       bbHigh: Math.round(clamp(40 + (hrv - 50) * 1.1 + sleepH * 4 + r.normal(0, 4), 25, 100)),
       bbLow: Math.round(clamp(r.normal(18, 6), 5, 40)),
+      bbCharged: Math.round(clamp(r.normal(55, 10), 20, 90)),
+      // Garmin's baseline sits around the 62 ms this sample person averages
+      hrvLow: 54,
+      hrvHigh: 71,
+      hrvStatus: hrv < 54 ? 'UNBALANCED' : 'BALANCED',
+      // and it asks for more sleep after a big day
+      sleepNeedS: Math.round((8 + (yLoad > 250 ? 0.4 : 0)) * 3600),
       stress: Math.round(clamp(r.normal(27, 5) + (drinks ? 6 : 0), 12, 60)),
       steps: Math.round(clamp(r.normal(9500, 2400), 3000, 22000)),
     })

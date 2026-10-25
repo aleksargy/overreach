@@ -3,8 +3,9 @@ import type { Activity, Profile, ZoneSeconds } from '../data/types'
 import { ewma, round } from './math'
 import { isoDay } from './format'
 
-/** Lower bound (bpm) of zones 1–5, as % of max HR, the way Garmin defaults them. */
-export function zoneBounds(p: Pick<Profile, 'hrMax'>): number[] {
+/** Lower bound (bpm) of zones 1–5: your Garmin zones once synced, else 50–90% of max HR, the way Garmin defaults them. */
+export function zoneBounds(p: Pick<Profile, 'hrMax' | 'zones'>): number[] {
+  if (p.zones?.length === 5) return p.zones
   return [0.5, 0.6, 0.7, 0.8, 0.9].map((f) => Math.round(p.hrMax * f))
 }
 
