@@ -1,17 +1,58 @@
-import type { Activity, Format, Match, MomentKey, Position, RatingFactor, Stream } from '../data/types'
+import type { Activity, FootballSummary, Format, Match, MatchPoint, MomentKey, PitchTrace, Position, RatingFactor, Stream } from '../data/types'
 import { clamp, mapRange, mean, median, quantile, round } from './math'
 import { hashString } from './rng'
 
-export const MOMENTS: { key: MomentKey; label: string; delta: number }[] = [
-  { key: 'worldie', label: 'Scored a worldie', delta: 0.3 },
-  { key: 'nutmeg', label: 'Nutmeg', delta: 0.1 },
-  { key: 'lastDitch', label: 'Last-ditch tackle', delta: 0.2 },
-  { key: 'bigSave', label: 'Big save', delta: 0.2 },
-  { key: 'sitter', label: 'Missed a sitter', delta: -0.2 },
-  { key: 'error', label: 'Error for a goal', delta: -0.3 },
-  { key: 'ownGoal', label: 'Own goal', delta: -0.4 },
-  { key: 'lostHead', label: 'Lost my head', delta: -0.2 },
+/** What a point you note is worth, a big one, and the most your notes can move a rating either way. */
+export const POINT = 0.15
+export const BIG_POINT = 0.3
+export const POINTS_CAP = 0.6
+
+export const pointValue = (p: MatchPoint) => (p.good ? 1 : -1) * (p.big ? BIG_POINT : POINT)
+
+/** The fixed moments games were rated with before notes. They're offered as suggestions now. */
+export const MOMENTS: (MatchPoint & { key: MomentKey })[] = [
+  { key: 'worldie', text: 'Scored a worldie', good: true, big: true },
+  { key: 'nutmeg', text: 'Nutmeg', good: true },
+  { key: 'lastDitch', text: 'Last-ditch tackle', good: true },
+  { key: 'bigSave', text: 'Big save', good: true },
+  { key: 'sitter', text: 'Missed a sitter', good: false },
+  { key: 'error', text: 'Error for a goal', good: false, big: true },
+  { key: 'ownGoal', text: 'Own goal', good: false, big: true },
+  { key: 'lostHead', text: 'Lost my head', good: false },
 ]
+
+type SavedMatch = Omit<Match, 'points'> & { points?: MatchPoint[]; moments?: MomentKey[] }
+
+/** Games saved before notes have moments instead of points; this reads either, so they keep their rating. */
+export function withPoints(m: SavedMatch): Match {
+  if (Array.isArray(m.points)) return m as Match
+  const { moments, ...rest } = m
+  return { ...rest, points: (moments ?? []).flatMap((k) => MOMENTS.filter((x) => x.key === k)).map((x) => ({ ...x })) }
+}
+
+const norm = (text: string) => text.trim().toLowerCase().replace(/\s+/g, ' ')
+
+/** What to offer when you add a point: the ones you've written before, most used first, then the old moments. */
+export function suggestPoints(matches: Match[]): MatchPoint[] {
+  const used = new Map<string, { p: MatchPoint; n: number }>()
+  // newest first, so a point keeps the size you gave it last time
+  for (const m of matches) for (const p of m.points) used.set(norm(p.text), { p: used.get(norm(p.text))?.p ?? p, n: (used.get(norm(p.text))?.n ?? 0) + 1 })
+  const mine = [...used.values()].sort((a, b) => b.n - a.n).map((x) => ({ text: x.p.text, good: x.p.good, big: x.p.big, key: x.p.key }))
+  return [...mine, ...MOMENTS.filter((x) => !used.has(norm(x.text)))]
+}
+
+/** Points that keep coming up: the same words in more than one game, most often first. */
+export function recurringPoints(matches: Match[], min = 2): { text: string; good: boolean; games: number }[] {
+  const by = new Map<string, { text: string; good: boolean; games: number }>()
+  for (const m of matches)
+    for (const p of new Map(m.points.map((p) => [`${p.good}:${norm(p.text)}`, p])).values()) {
+      const k = `${p.good}:${norm(p.text)}`
+      const x = by.get(k)
+      if (x) x.games++
+      else by.set(k, { text: p.text, good: p.good, games: 1 })
+    }
+  return [...by.values()].filter((x) => x.games >= min).sort((a, b) => b.games - a.games)
+}
 
 export const FEEL = ['', 'Ghost', 'Passenger', 'Off the pace', 'Rusty', 'Steady', 'Solid shift', 'Bossed it', 'Ran the show', 'Unplayable', 'Prime Zidane']
 
@@ -140,48 +181,50 @@ export interface FootballAnalysis {
   half: number
   /** the half-time break in minutes from the start, [from, to); undefined if the game ran straight through */
   halfTime?: { from: number; to: number }
+  trace?: PitchTrace
 }
 
-/** Rotate GPS points so the long axis of your movement runs left to right, then frame them. */
-export function projectToPitch(lat: number[], lon: number[]): [number, number][] {
-  const pts: [number, number][] = []
-  let lat0 = 0
-  let lon0 = 0
-  let n = 0
-  for (let i = 0; i < lat.length; i++) {
-    if (!lat[i] || !lon[i]) continue
-    lat0 += lat[i]
-    lon0 += lon[i]
-    n++
-  }
-  if (n < 10) return []
-  lat0 /= n
-  lon0 /= n
-  const kx = 111_320 * Math.cos((lat0 * Math.PI) / 180)
-  const ky = 110_540
-  for (let i = 0; i < lat.length; i++) {
-    if (!lat[i] || !lon[i]) continue
-    pts.push([(lon[i] - lon0) * kx, (lat[i] - lat0) * ky])
-  }
+const KY = 110_540
+const kxAt = (lat: number) => 111_320 * Math.cos((lat * Math.PI) / 180)
+
+/**
+ * The pitch as you used it: turned so the long axis of the points (metres) runs
+ * left to right, then framed by where they reach, each way 0–1.
+ */
+function pitchFrame(pts: [number, number][]): (p: [number, number]) => [number, number] {
+  const mx = mean(pts.map((p) => p[0]))
+  const my = mean(pts.map((p) => p[1]))
   let cxx = 0
   let cyy = 0
   let cxy = 0
   for (const [x, y] of pts) {
-    cxx += x * x
-    cyy += y * y
-    cxy += x * y
+    cxx += (x - mx) ** 2
+    cyy += (y - my) ** 2
+    cxy += (x - mx) * (y - my)
   }
   const theta = 0.5 * Math.atan2(2 * cxy, cxx - cyy)
   const c = Math.cos(theta)
   const s = Math.sin(theta)
-  const rot = pts.map(([x, y]) => [x * c + y * s, -x * s + y * c] as [number, number])
-  const us = rot.map((p) => p[0])
-  const vs = rot.map((p) => p[1])
-  const u0 = quantile(us, 0.01)
-  const u1 = quantile(us, 0.99)
-  const v0 = quantile(vs, 0.01)
-  const v1 = quantile(vs, 0.99)
-  return rot.map(([u, v]) => [clamp((u - u0) / (u1 - u0 || 1), 0, 1), clamp((v - v0) / (v1 - v0 || 1), 0, 1)])
+  const rot = ([x, y]: [number, number]): [number, number] => [(x - mx) * c + (y - my) * s, -(x - mx) * s + (y - my) * c]
+  const turned = pts.map(rot)
+  const us = turned.map((p) => p[0])
+  const vs = turned.map((p) => p[1])
+  const [u0, u1, v0, v1] = [quantile(us, 0.01), quantile(us, 0.99), quantile(vs, 0.01), quantile(vs, 0.99)]
+  return (p) => {
+    const [u, v] = rot(p)
+    return [clamp((u - u0) / (u1 - u0 || 1), 0, 1), clamp((v - v0) / (v1 - v0 || 1), 0, 1)]
+  }
+}
+
+/** Rotate GPS points so the long axis of your movement runs left to right, then frame them. */
+export function projectToPitch(lat: number[], lon: number[]): [number, number][] {
+  const fixes = lat.map((la, i) => [la, lon[i]]).filter(([la, lo]) => la && lo)
+  if (fixes.length < 10) return []
+  const lat0 = mean(fixes.map((f) => f[0]))
+  const lon0 = mean(fixes.map((f) => f[1]))
+  const kx = kxAt(lat0)
+  const pts = fixes.map(([la, lo]) => [(lo - lon0) * kx, (la - lat0) * KY] as [number, number])
+  return pts.map(pitchFrame(pts))
 }
 
 export function analyseFootball(stream: Stream): FootballAnalysis {
@@ -278,6 +321,9 @@ export function analyseFootball(stream: Stream): FootballAnalysis {
   const lon = kept.map((i) => stream.lon![i])
   // projectToPitch skips points with no fix, so count only those up to the second half
   const half = kept.filter((i, k) => i * dt < secondS && lat[k] && lon[k]).length
+  // and a coarser record of the same, small enough to keep for every game
+  const every15 = Math.max(1, Math.round(15 / dt))
+  const sparse = kept.filter((i) => i % every15 < every && stream.lat![i] && stream.lon![i])
 
   return {
     minutes: Math.round(minutes),
@@ -294,6 +340,130 @@ export function analyseFootball(stream: Stream): FootballAnalysis {
     heat: projectToPitch(lat, lon),
     half,
     halfTime,
+    trace: traceOf(sparse, stream, secondS, !!halfTime),
+  }
+}
+
+function traceOf(idx: number[], stream: Stream, secondS: number, hadBreak: boolean): PitchTrace | undefined {
+  if (idx.length < 20) return undefined
+  const at: [number, number] = [round(mean(idx.map((i) => stream.lat![i])), 5), round(mean(idx.map((i) => stream.lon![i])), 5)]
+  const kx = kxAt(at[0])
+  const xy = idx.flatMap((i) => [Math.round((stream.lon![i] - at[1]) * kx), Math.round((stream.lat![i] - at[0]) * KY)])
+  return { at, xy, half: idx.filter((i) => i * stream.dt < secondS).length, break: hadBreak }
+}
+
+/** Bump when the per-game summary gains something: sync makes older ones again from the stored stream. */
+export const FOOTBALL_SUMMARY = 2
+
+export function summaryOf(a: FootballAnalysis): FootballSummary {
+  return {
+    v: FOOTBALL_SUMMARY,
+    minutes: a.minutes,
+    distanceM: Math.round(a.distanceM),
+    mPerMin: Math.round(a.mPerMin * 10) / 10,
+    topSpeedKmh: a.topSpeedKmh,
+    sprints: a.sprints,
+    hiDistM: Math.round(a.hiDistM),
+    fadeMinute: a.fadeMinute,
+    trace: a.trace,
+  }
+}
+
+/** The per-game numbers kept on the activity, so season stats don't need every stream. */
+export function footballSummary(stream: Stream): FootballSummary | undefined {
+  return stream.v?.length ? summaryOf(analyseFootball(stream)) : undefined
+}
+
+/** Pitches further apart than this (m) are different grounds. */
+const GROUND_M = 250
+
+export interface SeasonPitch {
+  /** points on the pitch, 0–1 each way: x along the length towards the goal you attack */
+  points: [number, number][]
+  games: number
+  /** whether the end you attacked could be told from where you stood at kick-off */
+  sure: boolean
+}
+
+/**
+ * A season of games laid over each other. Each ground is framed from every
+ * game played on it, so a winger stays out wide. Then every half is turned to
+ * face the same way: halves are matched to each other, since the toss picks
+ * the ends and they change at half time, and the side of halfway you stood on
+ * at kick-off says which end was yours.
+ */
+export function seasonPitch(traces: PitchTrace[]): SeasonPitch | undefined {
+  const grounds: PitchTrace[][] = []
+  for (const t of traces) {
+    const g = grounds.find((x) => Math.hypot((t.at[1] - x[0].at[1]) * kxAt(t.at[0]), (t.at[0] - x[0].at[0]) * KY) < GROUND_M)
+    if (g) g.push(t)
+    else grounds.push([t])
+  }
+  // every half a segment, framed on its ground; the second half's kick-off is the surer one, since the first may catch the warm-up
+  const segs: { pts: [number, number][]; weight: number }[] = []
+  let games = 0
+  for (const ground of grounds) {
+    const ref = ground[0].at
+    const placed = ground.map((t) => {
+      const ox = (t.at[1] - ref[1]) * kxAt(ref[0])
+      const oy = (t.at[0] - ref[0]) * KY
+      const pts: [number, number][] = []
+      for (let i = 0; i + 1 < t.xy.length; i += 2) pts.push([t.xy[i] + ox, t.xy[i + 1] + oy])
+      return { t, pts }
+    })
+    const all = placed.flatMap((x) => x.pts)
+    if (all.length < 20) continue
+    const frame = pitchFrame(all)
+    for (const { t, pts } of placed) {
+      const uv = pts.map(frame)
+      const halves = t.break && t.half > 0 && t.half < uv.length ? [uv.slice(0, t.half), uv.slice(t.half)] : [uv]
+      halves.forEach((h, k) => segs.push({ pts: h, weight: k === 1 ? 1 : 0.5 }))
+      games++
+    }
+  }
+  if (!segs.length) return undefined
+
+  // a coarse picture of each half, and the same turned round
+  const GX = 10
+  const GY = 6
+  const grids = segs.map(({ pts }) => {
+    const g = new Float64Array(GX * GY)
+    for (const [u, v] of pts) g[Math.min(GY - 1, Math.floor(v * GY)) * GX + Math.min(GX - 1, Math.floor(u * GX))] += 1 / pts.length
+    return g
+  })
+  const turned = grids.map((g) => g.slice().reverse())
+  const turn = segs.map(() => false)
+  const sum = new Float64Array(GX * GY)
+  const add = (i: number, sign: number) => (turn[i] ? turned[i] : grids[i]).forEach((x, k) => (sum[k] += sign * x))
+  const agree = (g: Float64Array) => g.reduce((a, x, k) => a + x * sum[k], 0)
+  // the longest half first, then each faces whichever way agrees more with the rest, twice over
+  const order = segs.map((_, i) => i).sort((a, b) => segs[b].pts.length - segs[a].pts.length)
+  add(order[0], 1)
+  for (const i of order.slice(1)) {
+    turn[i] = agree(turned[i]) > agree(grids[i])
+    add(i, 1)
+  }
+  for (let pass = 0; pass < 2; pass++)
+    for (const i of order) {
+      add(i, -1)
+      turn[i] = agree(turned[i]) > agree(grids[i])
+      add(i, 1)
+    }
+
+  // at kick-off you're in your own half: left of halfway means you attacked to the right
+  let vote = 0
+  let weight = 0
+  segs.forEach(({ pts, weight: w }, i) => {
+    const u = turn[i] ? 1 - pts[0][0] : pts[0][0]
+    vote += w * clamp((0.5 - u) * 8, -1, 1)
+    weight += w
+  })
+  const flipAll = vote < 0
+  return {
+    // y runs down the screen, so the far side flips: attacking to the right, your right is the bottom edge
+    points: segs.flatMap(({ pts }, i) => pts.map(([u, v]) => (turn[i] !== flipAll ? [1 - u, v] : [u, 1 - v]) as [number, number])),
+    games,
+    sure: Math.abs(vote) / weight >= 0.3,
   }
 }
 
@@ -326,7 +496,7 @@ export interface RateInput {
   scoreAgainst: number
   goals: number
   assists: number
-  moments: MomentKey[]
+  points: MatchPoint[]
   position: Position
   feel: number
   analysis?: Physical
@@ -338,9 +508,9 @@ const DEF_WEIGHT: Record<Position, number> = { GK: 0.6, DEF: 0.5, MID: 0.2, FWD:
 
 /**
  * Match rating on the familiar 0–10 football scale. Everyone starts on 6.0,
- * then the result, your goal involvement, defending, moments, work rate from
- * the watch and your own verdict move it. Every step is returned so the
- * report can show exactly where the number came from.
+ * then the result, your goal involvement, defending, what you noted went well
+ * and badly, work rate from the watch and your own verdict move it. Every step
+ * is returned so the report can show exactly where the number came from.
  */
 export function rateMatch(i: RateInput): { rating: number; breakdown: RatingFactor[] } {
   const f: RatingFactor[] = []
@@ -369,7 +539,10 @@ export function rateMatch(i: RateInput): { rating: number; breakdown: RatingFact
   const dv = clamp((exp - i.scoreAgainst) / Math.max(exp, 1), -1, 1) * w + (i.scoreAgainst === 0 ? w * 0.4 : 0)
   if (Math.abs(dv) >= 0.05) f.push({ key: 'defence', label: i.scoreAgainst === 0 ? 'Clean sheet' : `Conceded ${i.scoreAgainst}`, value: dv })
 
-  for (const m of MOMENTS) if (i.moments.includes(m.key)) f.push({ key: m.key, label: m.label, value: m.delta })
+  // each point you noted counts, a big one double, and together they move the rating POINTS_CAP at most
+  const noted = i.points.reduce((a, p) => a + pointValue(p), 0)
+  i.points.forEach((p, k) => f.push({ key: `point-${k}`, label: p.text, value: pointValue(p) }))
+  if (Math.abs(noted) > POINTS_CAP) f.push({ key: 'pointsCap', label: `Notes count ${POINTS_CAP} at most`, value: Math.sign(noted) * POINTS_CAP - noted })
 
   if (i.analysis && i.analysis.minutes >= 10) {
     const a = i.analysis
@@ -407,9 +580,71 @@ export function result(m: Pick<Match, 'scoreFor' | 'scoreAgainst'>): 'W' | 'D' |
   return m.scoreFor > m.scoreAgainst ? 'W' : m.scoreFor === m.scoreAgainst ? 'D' : 'L'
 }
 
+export interface Rivalry {
+  /** as you last typed it */
+  opponent: string
+  games: number
+  w: number
+  d: number
+  l: number
+  scored: number
+  conceded: number
+  /** your own goals and assists against them */
+  goals: number
+  assists: number
+  avgRating: number
+  last: string
+}
+
+/** Your record against each side you've played, most played first. A name matches however it was typed. */
+export function headToHead(matches: Match[]): Rivalry[] {
+  const by = new Map<string, Match[]>()
+  for (const m of [...matches].sort((a, b) => b.date.localeCompare(a.date))) {
+    const k = norm(m.opponent)
+    if (k && k !== 'opposition') by.set(k, [...(by.get(k) ?? []), m])
+  }
+  return [...by.values()]
+    .map((ms) => {
+      const res = ms.map(result)
+      const sum = (fn: (m: Match) => number) => ms.reduce((a, m) => a + fn(m), 0)
+      return {
+        opponent: ms[0].opponent.trim(),
+        games: ms.length,
+        w: res.filter((r) => r === 'W').length,
+        d: res.filter((r) => r === 'D').length,
+        l: res.filter((r) => r === 'L').length,
+        scored: sum((m) => m.scoreFor),
+        conceded: sum((m) => m.scoreAgainst),
+        goals: sum((m) => m.goals),
+        assists: sum((m) => m.assists),
+        avgRating: mean(ms.map((m) => m.rating)),
+        last: ms[0].date,
+      }
+    })
+    .sort((a, b) => b.games - a.games || b.last.localeCompare(a.last))
+}
+
+const ppg = (r: Rivalry) => (3 * r.w + r.d) / r.games
+
+/** The side you've done worst against and the one you've done best against, from two games or more each. */
+export function rivals(rs: Rivalry[]): { nemesis?: Rivalry; favourite?: Rivalry } {
+  const met = rs.filter((r) => r.games >= 2)
+  const by = (a: Rivalry, b: Rivalry) => ppg(a) - ppg(b) || a.scored - a.conceded - (b.scored - b.conceded)
+  const worst = [...met].sort(by)[0]
+  const best = [...met].sort(by).reverse()[0]
+  return { nemesis: worst && ppg(worst) < 1 ? worst : undefined, favourite: best && ppg(best) >= 2 ? best : undefined }
+}
+
+/** "won 2, lost 1" */
+export function recordWords(r: Pick<Rivalry, 'w' | 'd' | 'l'>): string {
+  return [r.w && `won ${r.w}`, r.d && `drew ${r.d}`, r.l && `lost ${r.l}`].filter(Boolean).join(', ')
+}
+
+export const sameOpponent = (a: string, b: string) => norm(a) === norm(b)
+
 /** Tabloid back-page headline, picked from the most newsworthy thing that happened. */
 export function headline(
-  m: Pick<Match, 'id' | 'scoreFor' | 'scoreAgainst' | 'goals' | 'assists' | 'moments' | 'team' | 'opponent' | 'rating'>,
+  m: Pick<Match, 'id' | 'scoreFor' | 'scoreAgainst' | 'goals' | 'assists' | 'points' | 'team' | 'opponent' | 'rating'>,
   name: string,
   a?: Physical,
   base?: Pick<Baseline, 'mPerMin'>,
@@ -420,10 +655,18 @@ export function headline(
   const s = `${m.scoreFor}-${m.scoreAgainst}`
   const r = result(m)
   const word = r === 'W' ? 'win' : r === 'D' ? 'draw' : 'defeat'
+  const had = (k: MomentKey) => m.points.some((p) => p.key === k)
+  // a big point in your own words makes the back page, quoted, if it's short enough to fit
+  const quote = (good: boolean) => {
+    const p = m.points.find((x) => x.big && !x.key && x.good === good && x.text.trim().length <= 32)
+    return p && `“${p.text.trim().charAt(0).toUpperCase()}${p.text.trim().slice(1)}”`
+  }
+  const praise = quote(true)
+  const blame = quote(false)
   // tiers from most to least newsworthy; the first tier with a story wins
   const tiers: string[][] = [
     [
-      ...(m.moments.includes('ownGoal') ? [`Own goal agony for ${N}`, `${N} scores at the wrong end`] : []),
+      ...(had('ownGoal') ? [`Own goal agony for ${N}`, `${N} scores at the wrong end`] : []),
       ...(m.goals >= 3 ? [`${N} hat-trick hero as ${T} sink ${O}`, `Treble trouble: ${N} bags ${m.goals === 3 ? 'three' : m.goals}`] : []),
       ...(m.rating >= 9 && m.goals < 3 ? [`${N} unplayable in ${s} ${word}`] : []),
     ],
@@ -431,9 +674,11 @@ export function headline(
       ...(m.goals === 2 && r === 'W' ? [`${N}’s brace sinks ${O}`, `Double top: ${N} fires ${T} to ${s} win`] : []),
       ...(m.goals === 2 && r !== 'W' ? [`${N} brace not enough in ${s} ${word}`] : []),
       ...(m.assists >= 3 ? [`${N} pulls the strings in ${s} ${word}`, `Provider: ${N} sets up ${m.assists}`] : []),
-      ...(m.moments.includes('worldie') ? [`What a hit! ${N} stuns ${O}`] : []),
-      ...(m.moments.includes('sitter') && m.goals === 0 ? [`Sitter shame for ${N}`, `${N} misses a sitter as ${T} ${r === 'W' ? 'hang on' : 'pay the price'}`] : []),
-      ...(m.moments.includes('error') ? [`Howler: ${N} gifts ${O} a goal`] : []),
+      ...(had('worldie') ? [`What a hit! ${N} stuns ${O}`] : []),
+      ...(had('sitter') && m.goals === 0 ? [`Sitter shame for ${N}`, `${N} misses a sitter as ${T} ${r === 'W' ? 'hang on' : 'pay the price'}`] : []),
+      ...(had('error') ? [`Howler: ${N} gifts ${O} a goal`] : []),
+      ...(praise ? [`${praise}: ${N} stars in ${s} ${word}`] : []),
+      ...(blame ? [`${blame}: ${N}’s ${r === 'W' ? 'blushes spared' : 'day to forget'}`] : []),
     ],
     [
       ...(r === 'L' && m.rating >= 7 ? [`${N} the only positive in ${s} defeat`] : []),

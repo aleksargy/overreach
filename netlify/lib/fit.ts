@@ -3,8 +3,7 @@
 
 import { Decoder, Stream as FitStream, type RecordMesg } from '@garmin/fitsdk'
 import { unzipSync } from 'fflate'
-import { analyseFootball } from '../../src/lib/football'
-import type { FootballSummary, Lap, Sport, Stream } from '../../src/data/types'
+import type { Lap, Sport, Stream } from '../../src/data/types'
 
 export function fitFromDownload(bytes: Uint8Array): Uint8Array {
   // "PK": a ZIP; anything else is assumed to be the FIT file itself
@@ -124,17 +123,4 @@ export function streamFromFit(fit: Uint8Array, activityId: string, sport: Sport)
   return out
 }
 
-/** The per-game numbers kept on the activity, so season stats don't need every stream. */
-export function footballSummary(stream: Stream): FootballSummary | undefined {
-  if (!stream.v?.length) return undefined
-  const a = analyseFootball(stream)
-  return {
-    minutes: a.minutes,
-    distanceM: Math.round(a.distanceM),
-    mPerMin: Math.round(a.mPerMin * 10) / 10,
-    topSpeedKmh: a.topSpeedKmh,
-    sprints: a.sprints,
-    hiDistM: Math.round(a.hiDistM),
-    fadeMinute: a.fadeMinute,
-  }
-}
+export { footballSummary } from '../../src/lib/football'

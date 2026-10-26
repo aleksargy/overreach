@@ -309,11 +309,23 @@ const T = [
   [0, 0.03, 0.15, 0.2, 0],
 ]
 
+/** Where the sample athlete plays: the same pitch every week for each format, each laid at its own angle. */
+const GROUNDS: Record<number, { origin: { lat: number; lon: number }; bearing: number }> = {
+  11: { origin: { lat: HOME.lat + 0.004, lon: HOME.lon - 0.006 }, bearing: 0.42 },
+  7: { origin: { lat: HOME.lat - 0.011, lon: HOME.lon + 0.017 }, bearing: 1.2 },
+}
+
+/**
+ * A game for a right-sided central midfielder. Positions are worked out facing
+ * the goal being attacked (x up the pitch, y across from the right touchline),
+ * then turned onto the real pitch: the toss picks the first-half end and the
+ * ends change at half time.
+ */
 export function footballStream(id: string, format: Format, minutes: number): Stream {
   const r = rng(id)
   const dt = 1
   const [L, W] = PITCH[format]
-  const home = { x: L * r.range(0.3, 0.5), y: W * r.range(0.28, 0.45) }
+  const home = { x: L * r.range(0.36, 0.48), y: W * r.range(0.22, 0.36) }
   let pos = { ...home }
   let target = { ...home }
   let state = 1
@@ -323,9 +335,10 @@ export function footballStream(id: string, format: Format, minutes: number): Str
   let gx = 0
   let gy = 0
   const fadeAt = r.chance(0.55) ? minutes * r.range(0.55, 0.8) : minutes * 2
-  const bearing = r.range(0, Math.PI)
-  const origin = { lat: HOME.lat + 0.004, lon: HOME.lon - 0.006 }
+  const firstEnd = r.range(0, Math.PI) < Math.PI / 2 ? 1 : -1
+  const { origin, bearing } = GROUNDS[format] ?? GROUNDS[7]
   const halfTime = format >= 7 ? [minutes / 2 - (format === 11 ? 5 : 2.5), minutes / 2 + (format === 11 ? 5 : 2.5)] : null
+  let restarted = false
   const out: Stream = { activityId: id, dt, hr: [], v: [], lat: [], lon: [] }
   const n = Math.round(minutes * 60)
   for (let i = 0; i < n; i++) {
@@ -333,6 +346,12 @@ export function footballStream(id: string, format: Format, minutes: number): Str
     const tired = min > fadeAt ? 0.4 : 1
     const jogTired = min > fadeAt ? 0.7 : 1
     const resting = halfTime && min > halfTime[0] && min < halfTime[1]
+    // everyone lines up in their own half for the second-half kick-off
+    if (halfTime && !resting && min >= halfTime[1] && !restarted) {
+      pos = { ...home }
+      target = { ...home }
+      restarted = true
+    }
     if (resting) {
       state = 1
     } else {
@@ -374,8 +393,10 @@ export function footballStream(id: string, format: Format, minutes: number): Str
     hr += (hrT - hr) * 0.05 + r.normal(0, 0.7)
     gx += -0.1 * gx + r.normal(0, 0.35)
     gy += -0.1 * gy + r.normal(0, 0.35)
-    const x = pos.x + gx
-    const y = pos.y + gy
+    // facing the other way, the same spot is the far end and the far side
+    const end = halfTime && min >= halfTime[1] ? -firstEnd : firstEnd
+    const x = end > 0 ? pos.x + gx : L - pos.x - gx
+    const y = end > 0 ? pos.y + gy : W - pos.y - gy
     const ll = toLatLon(x * Math.cos(bearing) - y * Math.sin(bearing), x * Math.sin(bearing) + y * Math.cos(bearing), origin)
     out.v!.push(+v.toFixed(2))
     out.hr!.push(Math.round(clamp(hr, 80, HR_MAX)))

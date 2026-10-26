@@ -3,7 +3,7 @@
 // stays stable as days pass and only new days get added.
 
 import { addDays, addMinutes, differenceInCalendarWeeks, getDay, getDayOfYear, setHours, setMinutes, startOfDay } from 'date-fns'
-import { analyseFootball, baselineFor, headline, rateMatch, type FootballAnalysis } from '../../lib/football'
+import { MOMENTS, analyseFootball, baselineFor, headline, rateMatch, summaryOf, type FootballAnalysis } from '../../lib/football'
 import { isoDay } from '../../lib/format'
 import { srpeLoad, trimp, zoneBounds, zoneSecondsFromAvg, zoneSecondsFromHr } from '../../lib/load'
 import { liftSummary } from '../../lib/lift'
@@ -11,7 +11,7 @@ import { clamp, mean, round } from '../../lib/math'
 import { summariseRun } from '../../lib/running'
 import { rng, type Rng } from '../../lib/rng'
 import { BUILTIN_EXERCISES, BUILTIN_ROUTINES } from '../exercises'
-import type { Activity, BodyEntry, Daily, Format, Match, MomentKey, Profile, SetEntry, Stream, Workout } from '../types'
+import type { Activity, BodyEntry, Daily, Format, Match, MatchPoint, MomentKey, Profile, SetEntry, Stream, Workout } from '../types'
 import { footballStream, rideStream, runStream, swimStream, type RunDay } from './streams'
 
 export const SAMPLE_PROFILE: Profile = {
@@ -234,6 +234,15 @@ const NOTES = [
   '',
 ]
 
+const OWN_POINTS: [string, boolean, number][] = [
+  ['Won every header', true, 0.3],
+  ['Pressed well', true, 0.25],
+  ['Found the pockets', true, 0.15],
+  ['Lost my man at corners', false, 0.3],
+  ['Gave the ball away cheaply', false, 0.2],
+  ['Snatched at chances', false, 0.12],
+]
+
 function poisson(r: Rng, lambda: number) {
   const L = Math.exp(-lambda)
   let k = 0
@@ -258,7 +267,7 @@ function sampleMatch(a: Activity, analysis: FootballAnalysis, history: { match: 
     if (r.chance(eleven ? 0.18 : 0.22)) goals++
     else if (r.chance(eleven ? 0.2 : 0.15)) assists++
   }
-  const moments: MomentKey[] = []
+  const points: MatchPoint[] = []
   const pool: [MomentKey, number][] = [
     ['nutmeg', 0.25],
     ['lastDitch', 0.2],
@@ -269,14 +278,16 @@ function sampleMatch(a: Activity, analysis: FootballAnalysis, history: { match: 
     ['ownGoal', 0.03],
     ['lostHead', 0.06],
   ]
-  for (const [k, p] of pool) if (r.chance(p)) moments.push(k)
+  for (const [k, p] of pool) if (r.chance(p)) points.push({ ...MOMENTS.find((x) => x.key === k)! })
+  // and the things you'd write yourself, a few of them coming up again and again
+  for (const [text, good, p] of OWN_POINTS) if (r.chance(p)) points.push({ text, good, big: r.chance(0.2) || undefined })
   const res = Math.sign(scoreFor - scoreAgainst)
   const feel = clamp(Math.round(5.5 + res * 0.8 + goals * 0.6 + assists * 0.3 + r.normal(0, 1)), 2, 10)
   const team = eleven ? 'Real Ale Madrid' : 'Ctrl Alt Defeat'
   const opponent = r.pick(eleven ? OPPONENTS_11 : OPPONENTS_7)
   const position = eleven ? profile.position : 'ANY'
   const baseline = baselineFor(format, history)
-  const { rating, breakdown } = rateMatch({ format, scoreFor, scoreAgainst, goals, assists, moments, position, feel, analysis, baseline })
+  const { rating, breakdown } = rateMatch({ format, scoreFor, scoreAgainst, goals, assists, points, position, feel, analysis, baseline })
   const m: Match = {
     id: `m-${a.id}`,
     activityId: a.id,
@@ -288,7 +299,7 @@ function sampleMatch(a: Activity, analysis: FootballAnalysis, history: { match: 
     scoreAgainst,
     goals,
     assists,
-    moments,
+    points,
     position,
     feel,
     notes: r.pick(NOTES) || undefined,
@@ -361,15 +372,7 @@ export function buildSample(now = new Date(), profile: Profile = SAMPLE_PROFILE)
           ...s,
           distanceM: Math.round(an.distanceM),
           name: fmt === 11 ? 'Sunday league' : `${fmt}-a-side`,
-          football: {
-            minutes: an.minutes,
-            distanceM: an.distanceM,
-            mPerMin: an.mPerMin,
-            topSpeedKmh: an.topSpeedKmh,
-            sprints: an.sprints,
-            hiDistM: an.hiDistM,
-            fadeMinute: an.fadeMinute,
-          },
+          football: summaryOf(an),
         }
       } else {
         const w = simulateWorkout(`w-${iso}`, slot.routine!, start, liftState, sr)

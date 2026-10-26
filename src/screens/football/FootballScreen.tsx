@@ -1,19 +1,20 @@
 import { differenceInCalendarDays, parseISO } from 'date-fns'
 import { Info, Plus } from 'lucide-react'
 import { AnimatePresence } from 'motion/react'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { RatingBadge } from '../../components/ActivityRow'
+import { PitchHeatmap } from '../../components/charts/PitchHeatmap'
 import { SportDot } from '../../components/icons/SportIcon'
 import { IconButton, Screen } from '../../components/ui/Screen'
 import { Empty, SampleBadge, Section, Segmented } from '../../components/ui/bits'
 import { Swipeable } from '../../components/ui/Swipe'
 import { Ticker } from '../../components/ui/Ticker'
-import type { Activity, Format, Match } from '../../data/types'
+import type { Activity, Format, Match, Position } from '../../data/types'
 import { useSkipRating, useUi } from '../../data/ui'
 import { useWorld } from '../../data/world'
 import { dur, fmt, km } from '../../lib/format'
-import { ratingTone, result } from '../../lib/football'
+import { POSITIONS, headToHead, ratingTone, recordWords, recurringPoints, result, rivals, seasonPitch, type Rivalry } from '../../lib/football'
 import { PlayerCard } from './PlayerCard'
 import { season } from './season'
 
@@ -40,6 +41,15 @@ export function FootballScreen() {
     ga && ga.goals + ga.assists > 0 && <Record key="ga" label="Most goals and assists" value={`${ga.goals + ga.assists}`} m={ga} />,
   ].filter(Boolean)
   const unrated = w.unrated.slice(0, s.apps ? 2 : 3)
+  // rivalries run across seasons, but only against the same kind of game
+  const h2h = f !== undefined ? headToHead(w.matches.filter((m) => m.format === f)) : []
+  const { nemesis, favourite } = rivals(h2h)
+  const met = h2h.filter((r) => r.games >= 2).slice(0, 6)
+  const recurring = fs ? recurringPoints(fs.matches.slice(0, 10)).slice(0, 4) : []
+  const [pos, setPos] = useState<Position | 'all'>('all')
+  const positions = [...new Set((fs?.pitch ?? []).map((x) => x.position).filter((x): x is Position => !!x))]
+  const where = pos !== 'all' && positions.includes(pos) ? pos : 'all'
+  const pitch = useMemo(() => fs && seasonPitch(fs.pitch.filter((x) => where === 'all' || x.position === where).map((x) => x.trace)), [w, f, where])
   return (
     <Screen
       title="Football"
@@ -168,12 +178,63 @@ export function FootballScreen() {
               )
             })}
           </div>
+          {recurring.length > 0 && (
+            <div className="mt-5">
+              <div className="label mb-2.5">Keeps coming up</div>
+              <div className="flex flex-wrap gap-2">
+                {recurring.map((x) => (
+                  <span key={`${x.good}${x.text}`} className="chip">
+                    <span className={`text-[13px] font-semibold ${x.good ? 'text-z2' : 'text-z5'}`}>{x.good ? '+' : '−'}</span>
+                    {x.text}
+                    <span className="tabular-nums text-fg-4">×{x.games}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </Section>
       )}
 
       {records.length > 0 && (
         <Section title="Records">
           <div className="grid grid-cols-2 gap-2">{records}</div>
+        </Section>
+      )}
+
+      {pitch && pitch.games >= 2 && f !== undefined && (
+        <Section title="Where you play" action={<span className="meta">{pitch.games} games this season</span>}>
+          {positions.length > 1 && (
+            <div className="mb-3">
+              <Segmented
+                size="sm"
+                value={where}
+                onChange={setPos}
+                options={[{ value: 'all' as const, label: 'All' }, ...positions.map((p) => ({ value: p, label: POSITIONS.find((x) => x.key === p)?.label ?? p }))]}
+              />
+            </div>
+          )}
+          <PitchHeatmap points={pitch.points} format={f} attacking={pitch.sure} />
+          <p className="mt-2.5 px-1 text-[12px] text-fg-4">
+            {pitch.sure
+              ? 'Every half turned so you attack left to right, judged from where you stood at kick-off.'
+              : 'Every half laid the same way round, but which end you attacked couldn’t be told, so it may be back to front.'}
+          </p>
+        </Section>
+      )}
+
+      {met.length > 0 && (
+        <Section title="Head to head" action={<span className="meta">Every season</span>}>
+          {(nemesis || favourite) && (
+            <div className="mb-2 grid grid-cols-2 gap-2">
+              {nemesis && <Rival label="Bogey team" r={nemesis} />}
+              {favourite && <Rival label="Favourite fixture" r={favourite} />}
+            </div>
+          )}
+          <div className="card list overflow-hidden">
+            {met.map((r) => (
+              <RivalRow key={r.opponent} r={r} />
+            ))}
+          </div>
         </Section>
       )}
 
@@ -224,6 +285,39 @@ function Record({ label, value, unit, m, act }: { label: string; value: string; 
     </Link>
   ) : (
     <div className="card p-4">{inner}</div>
+  )
+}
+
+function Rival({ label, r }: { label: string; r: Rivalry }) {
+  return (
+    <div className="card p-4">
+      <div className="label truncate">{label}</div>
+      <div className="mt-2.5 line-clamp-2 text-[17px] font-semibold leading-tight">{r.opponent}</div>
+      <div className="meta mt-1.5">
+        {recordWords(r).replace(/^./, (c) => c.toUpperCase())} · {r.scored}–{r.conceded}
+      </div>
+    </div>
+  )
+}
+
+function RivalRow({ r }: { r: Rivalry }) {
+  return (
+    <div className="flex items-center gap-3 px-4 py-3">
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[15px] font-medium leading-5">{r.opponent}</span>
+        <span className="meta block truncate">
+          {r.games} games · {r.scored}–{r.conceded} on goals
+        </span>
+      </span>
+      <span className="num shrink-0 text-[15px]">
+        <span className="text-z2">{r.w}</span>
+        <span className="text-fg-4"> · </span>
+        <span className="text-fg-2">{r.d}</span>
+        <span className="text-fg-4"> · </span>
+        <span className="text-z5">{r.l}</span>
+      </span>
+      <RatingBadge rating={r.avgRating} size="row" />
+    </div>
   )
 }
 

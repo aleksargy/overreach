@@ -3,6 +3,7 @@ import { test } from 'node:test'
 import { fitFromDownload, footballSummary, streamFromFit } from '../netlify/lib/fit'
 import { garmin } from '../netlify/lib/garmin'
 import { memoryKV } from '../netlify/lib/kv'
+import { FOOTBALL_SUMMARY } from '../src/lib/football'
 import { detailOf, foldHrv, foldSleep, gmtToIso, hrProfile, mapActivity, sportOf } from '../netlify/lib/mapping'
 import { HISTORY_DAYS, loadAll, RUN_DAYS, runStep, type StepResult } from '../netlify/lib/sync'
 import { BEST_S } from '../src/lib/running'
@@ -356,6 +357,24 @@ test('after a fix to the activity mapping, the list is read again without any FI
     'Garmin’s view is back on every activity',
   )
   assert.ok(after.some((a) => a.garmin?.rpe === 6 && a.garmin.aerobicTE))
+  assert.equal(downloads(), before)
+})
+
+test('games summarised before the season heatmap get a trace from the stored stream, without a download', async () => {
+  const fake = fakeGarmin({ years: 0.1 })
+  const kv = memoryKV()
+  await syncToEnd(kv, fake)
+  const { data } = await loadAll(kv)
+  const games = Object.values(data.activities).filter((a) => a.sport === 'football')
+  assert.ok(games.length && games.every((a) => a.football?.trace?.xy.length), 'a fresh sync keeps a trace of every game')
+  // as they were before the trace
+  for (const a of games) a.football = { ...a.football!, trace: undefined, v: undefined }
+  await kv.set('activities', data.activities)
+  const downloads = () => fake.calls['/download-service/files/activity/:x'] ?? 0
+  const before = downloads()
+  await runStep({ kv, api: garmin('test-key', kv, { fetch: fake.fetch }), budgetMs: 25_000, now: fake.now })
+  const after = Object.values((await loadAll(kv)).data.activities).filter((a) => a.sport === 'football')
+  assert.ok(after.every((a) => a.football?.trace?.xy.length && a.football.v === FOOTBALL_SUMMARY))
   assert.equal(downloads(), before)
 })
 

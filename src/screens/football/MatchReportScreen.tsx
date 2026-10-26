@@ -8,10 +8,11 @@ import { zoneColor } from '../../components/charts/primitives'
 import { IconButton, Screen } from '../../components/ui/Screen'
 import { Delta, Empty, Section, Segmented } from '../../components/ui/bits'
 import { useStore } from '../../data/store'
+import type { MatchPoint } from '../../data/types'
 import { useUi } from '../../data/ui'
 import { useFootballAnalysis, useStream, useWorld } from '../../data/world'
 import { fmt, signed } from '../../lib/format'
-import { FEEL, baselineFor, ordinal, ratingTone, result, standfirst, tidyHeadline } from '../../lib/football'
+import { FEEL, baselineFor, headToHead, ordinal, ratingTone, recordWords, result, sameOpponent, standfirst, tidyHeadline } from '../../lib/football'
 import { zoneBounds, zoneOf } from '../../lib/load'
 import { median } from '../../lib/math'
 import { rowsFor } from './season'
@@ -57,6 +58,8 @@ export function MatchReportScreen() {
       top: median(others.map((r) => r.analysis!.topSpeedKmh)),
     }
   }, [m, w])
+  // the games against this side before this one, in the same format
+  const before = useMemo(() => (m ? headToHead(w.matches.filter((x) => x.format === m.format && x.date < m.date && sameOpponent(x.opponent, m.opponent)))[0] : undefined), [m, w])
   const ratingMedian = useMemo(() => {
     const others = m ? w.matches.filter((x) => x.id !== m.id && x.format === m.format) : []
     return others.length >= 2 ? median(others.map((x) => x.rating)) : undefined
@@ -93,6 +96,11 @@ export function MatchReportScreen() {
         </div>
         <h1 className="mt-2 text-balance text-[28px] font-semibold leading-[1.12] tracking-[-0.03em]">{tidyHeadline(m.headline, [w.profile.name, m.team, m.opponent])}</h1>
         <p className="mt-3 text-[16px] leading-relaxed text-fg-2">{standfirst(m, an ?? act?.football)}</p>
+        {before && (
+          <p className="meta mt-2">
+            Your {ordinal(before.games + 1)} game against {m.opponent}. Before this you’d {recordWords(before)}.
+          </p>
+        )}
       </div>
 
       {/* scoreboard */}
@@ -250,6 +258,8 @@ export function MatchReportScreen() {
         </Section>
       )}
 
+      {m.points.length > 0 && <HowItWent points={m.points} />}
+
       {m.notes && (
         <Section title="Your notes">
           <blockquote className="border-l-2 border-line-2 pl-4 text-[18px] leading-snug tracking-[-0.01em] text-fg-2">“{m.notes}”</blockquote>
@@ -280,6 +290,33 @@ export function MatchReportScreen() {
         )}
       </div>
     </Screen>
+  )
+}
+
+function HowItWent({ points }: { points: MatchPoint[] }) {
+  const sides = [true, false].map((good) => ({ good, ps: points.filter((p) => p.good === good) })).filter((x) => x.ps.length)
+  return (
+    <Section title="How it went">
+      <div className={`grid items-start gap-2 ${sides.length > 1 ? 'grid-cols-2' : ''}`}>
+        {sides.map(({ good, ps }) => (
+          <div key={String(good)} className="card px-4 py-3.5">
+            <div className={`text-[13px] font-semibold ${good ? 'text-z2' : 'text-z5'}`}>{good ? 'Went well' : 'Went badly'}</div>
+            <ul className="mt-2 flex flex-col gap-1.5">
+              {ps.map((p) => (
+                <li key={p.text} className={`text-[15px] leading-snug ${p.big ? 'font-semibold text-fg' : 'text-fg-2'}`}>
+                  {p.text}
+                  {p.big && (
+                    <span className={`ml-1.5 inline-block rounded-full px-1.5 text-[11px] font-semibold leading-[18px] ${good ? 'bg-z2/15 text-z2' : 'bg-z5/15 text-z5'}`}>
+                      Big
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </Section>
   )
 }
 

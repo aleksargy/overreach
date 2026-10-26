@@ -12,7 +12,8 @@
 //   4. activity history, 50 at a time, back HISTORY_DAYS
 //   5. health history, 180 days at a time, back HISTORY_DAYS
 
-import type { BodyEntry, Daily, GarminActivity } from '../../src/data/types'
+import type { BodyEntry, Daily, GarminActivity, Stream } from '../../src/data/types'
+import { FOOTBALL_SUMMARY } from '../../src/lib/football'
 import { summariseRun } from '../../src/lib/running'
 import { fitFromDownload, footballSummary, streamFromFit } from './fit'
 import { GarminError, OutOfTime, type Garmin } from './garmin'
@@ -297,6 +298,17 @@ async function step({ kv, api, budgetMs, forceRecent = false, historyDays = HIST
         }
       }
       state.pending.shift()
+    }
+
+    // 2a. games summarised before the summary last gained something (the trace for the season heatmap):
+    // made again from the stream stored when the FIT file was read, so no Garmin call
+    for (const a of Object.values(data.activities)) {
+      if (time() <= 3_000) break
+      if (a.sport !== 'football' || !a.football || (a.football.v ?? 1) >= FOOTBALL_SUMMARY) continue
+      const stream = await kv.get<Stream>(`stream/${a.id}`)
+      // with no stream to hand, the old numbers stay and aren't asked about again
+      data.activities[a.id] = { ...a, football: (stream && footballSummary(stream)) || { ...a.football, v: FOOTBALL_SUMMARY } }
+      dirty.activities = true
     }
 
     // 2b. the RPE and feel you entered on the watch, for recent runs and games: one call each, read once
