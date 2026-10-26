@@ -60,6 +60,8 @@ export function season(w: World) {
         d: res.filter((r) => r === 'D').length,
         l: res.filter((r) => r === 'L').length,
         avgRating: fm.length ? mean(fm.map((m) => m.rating)) : 0,
+        /** where you were in each game the watch recorded, rated or not, with the position you logged */
+        pitch: games.filter((a) => a.football?.trace && gameFormat.get(a.id) === f).map((a) => ({ trace: a.football!.trace!, position: w.matchByActivity.get(a.id)?.position })),
         records: {
           top: best(physical, (x) => x.a.topSpeedKmh),
           sprints: best(physical, (x) => x.a.sprints),

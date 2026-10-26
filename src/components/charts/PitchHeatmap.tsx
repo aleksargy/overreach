@@ -14,7 +14,7 @@ const cssRgb = (name: string): [number, number, number] => {
  * Where you were on the pitch: GPS points smoothed into a density field on a
  * small grid, then scaled up so the browser does the blur for free.
  */
-export function PitchHeatmap({ points, format, flip }: { points: [number, number][]; format: Format; flip?: boolean }) {
+export function PitchHeatmap({ points, format, flip, attacking = true }: { points: [number, number][]; format: Format; flip?: boolean; attacking?: boolean }) {
   const [wrap, w] = useMeasure<HTMLDivElement>()
   const canvas = useRef<HTMLCanvasElement>(null)
   const [L, W] = PITCH[format]
@@ -141,9 +141,11 @@ export function PitchHeatmap({ points, format, flip }: { points: [number, number
   return (
     <div ref={wrap} className="relative w-full overflow-hidden rounded-card bg-ink-1" style={{ height: h || undefined, aspectRatio: h ? undefined : `${L} / ${W}` }}>
       <canvas ref={canvas} style={{ width: w, height: h }} className="block" role="img" aria-label="Heatmap of where you played" />
-      <div className="pointer-events-none absolute bottom-2 right-3 flex items-center gap-1 text-[11px] font-medium text-fg-3">
-        Attacking <ArrowRight size={12} strokeWidth={2} />
-      </div>
+      {attacking && (
+        <div className="pointer-events-none absolute bottom-2 right-3 flex items-center gap-1 text-[11px] font-medium text-fg-3">
+          Attacking <ArrowRight size={12} strokeWidth={2} />
+        </div>
+      )}
     </div>
   )
 }

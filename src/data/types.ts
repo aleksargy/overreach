@@ -88,6 +88,8 @@ export interface LiftSummary {
 }
 
 export interface FootballSummary {
+  /** how it was worked out: older summaries are made again from the stored stream (FOOTBALL_SUMMARY in lib/football) */
+  v?: number
   minutes: number
   distanceM: number
   mPerMin: number
@@ -95,6 +97,20 @@ export interface FootballSummary {
   sprints: number
   hiDistM: number
   fadeMinute?: number
+  /** where you were, kept small enough to lay a season of games over each other */
+  trace?: PitchTrace
+}
+
+/** A point every 15 s of play, as whole metres east and north of `at`. */
+export interface PitchTrace {
+  /** latitude and longitude the points are measured from */
+  at: [number, number]
+  /** x0, y0, x1, y1, … */
+  xy: number[]
+  /** the point the second half starts at */
+  half: number
+  /** there was a half-time break, so the ends most likely changed */
+  break: boolean
 }
 
 /** What the sync functions send. Zones (when Garmin didn't split them) and load are filled in on the phone from your profile. */
@@ -149,7 +165,17 @@ export interface Daily {
 export type Position = 'GK' | 'DEF' | 'MID' | 'FWD' | 'ANY'
 export type Format = 5 | 6 | 7 | 8 | 11
 
+/** the fixed moments games were rated with before notes; they live on as suggestions */
 export type MomentKey = 'worldie' | 'nutmeg' | 'lastDitch' | 'bigSave' | 'sitter' | 'error' | 'ownGoal' | 'lostHead'
+
+/** Something that went well or badly, in your words. A big one counts double. */
+export interface MatchPoint {
+  text: string
+  good: boolean
+  big?: boolean
+  /** set when it came from one of the old moments, so the headline still knows an own goal when it sees one */
+  key?: MomentKey
+}
 
 export interface RatingFactor {
   key: string
@@ -168,7 +194,8 @@ export interface Match {
   scoreAgainst: number
   goals: number
   assists: number
-  moments: MomentKey[]
+  /** what went well and what didn't */
+  points: MatchPoint[]
   position: Position
   /** how it felt, 1–10 */
   feel: number

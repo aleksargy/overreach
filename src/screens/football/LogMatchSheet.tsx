@@ -3,12 +3,13 @@ import { useEffect, useMemo, useState } from 'react'
 import { Sheet } from '../../components/ui/Sheet'
 import { Segmented, Stepper, inputCls } from '../../components/ui/bits'
 import { useStore } from '../../data/store'
-import type { Activity, Format, Match, MomentKey, Position } from '../../data/types'
+import type { Activity, Format, Match, MatchPoint, Position } from '../../data/types'
 import { useUi } from '../../data/ui'
 import { loadFootballAnalysis, useWorld } from '../../data/world'
-import { FEEL, FORMATS, MOMENTS, POSITIONS, baselineFor, formatOf, headline, rateMatch } from '../../lib/football'
+import { FEEL, FORMATS, POSITIONS, baselineFor, formatOf, headline, rateMatch, suggestPoints } from '../../lib/football'
 import { dur, fmt, km } from '../../lib/format'
 import { uid } from '../../lib/rng'
+import { PointsEditor } from './PointsEditor'
 import { rowsFor } from './season'
 
 export function LogMatchSheet() {
@@ -51,7 +52,7 @@ function Form({ activityId, matchId }: { activityId?: string; matchId?: string }
   const [assists, setAssists] = useState(editing?.assists ?? 0)
   const [position, setPosition] = useState<Position>(editing?.position ?? lastIn(format)?.position ?? p.position)
   const [positionPicked, setPositionPicked] = useState(!!editing)
-  const [moments, setMoments] = useState<MomentKey[]>(editing?.moments ?? [])
+  const [points, setPoints] = useState<MatchPoint[]>(editing?.points ?? [])
   const [feel, setFeel] = useState(editing?.feel ?? 6)
   const [notes, setNotes] = useState(editing?.notes ?? '')
   const [busy, setBusy] = useState(false)
@@ -67,7 +68,7 @@ function Form({ activityId, matchId }: { activityId?: string; matchId?: string }
     if (!editing && linkedAct) pickFormat(guess(linkedAct))
   }, [linkedAct, editing])
 
-  const toggle = (k: MomentKey) => setMoments((ms) => (ms.includes(k) ? ms.filter((x) => x !== k) : [...ms, k]))
+  const suggestions = useMemo(() => suggestPoints(w.matches.filter((m) => m.id !== matchId)), [w, matchId])
   const tooMany = goals + assists > scoreFor
 
   async function submit() {
@@ -80,7 +81,7 @@ function Form({ activityId, matchId }: { activityId?: string; matchId?: string }
       w.matches.filter((m) => m.id !== editing?.id && m.date < date),
     )
     const baseline = baselineFor(format, history)
-    const { rating, breakdown } = rateMatch({ format, scoreFor, scoreAgainst, goals, assists, moments, position, feel, analysis: analysis ?? undefined, baseline })
+    const { rating, breakdown } = rateMatch({ format, scoreFor, scoreAgainst, goals, assists, points, position, feel, analysis: analysis ?? undefined, baseline })
     const m: Match = {
       id: editing?.id ?? `m-${uid()}`,
       activityId: act?.id,
@@ -92,7 +93,7 @@ function Form({ activityId, matchId }: { activityId?: string; matchId?: string }
       scoreAgainst,
       goals,
       assists,
-      moments,
+      points,
       position,
       feel,
       notes: notes.trim() || undefined,
@@ -204,23 +205,8 @@ function Form({ activityId, matchId }: { activityId?: string; matchId?: string }
       </div>
 
       <div>
-        <div className="label mb-2.5">Moments</div>
-        <div className="flex flex-wrap gap-2">
-          {MOMENTS.map((m) => {
-            const on = moments.includes(m.key)
-            return (
-              <button
-                key={m.key}
-                onClick={() => toggle(m.key)}
-                aria-pressed={on}
-                className={`chip ${on ? (m.delta > 0 ? 'bg-z2/15 text-z2 ring-1 ring-inset ring-z2/50' : 'bg-z5/15 text-z5 ring-1 ring-inset ring-z5/50') : ''}`}
-              >
-                <span className={`text-[13px] font-semibold ${on ? '' : m.delta > 0 ? 'text-z2' : 'text-z5'}`}>{m.delta > 0 ? '+' : '−'}</span>
-                {m.label}
-              </button>
-            )
-          })}
-        </div>
+        <div className="label mb-2.5">How it went</div>
+        <PointsEditor points={points} onChange={setPoints} suggestions={suggestions} />
       </div>
 
       <div>
@@ -247,14 +233,8 @@ function Form({ activityId, matchId }: { activityId?: string; matchId?: string }
       </div>
 
       <div>
-        <div className="label mb-2.5">Notes</div>
-        <textarea
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          rows={2}
-          placeholder="Calf was tight, keeper rotation killed us…"
-          className={`${inputCls} h-auto py-3`}
-        />
+        <div className="label mb-2.5">Anything else</div>
+        <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Calf was tight, pitch was a swamp…" className={`${inputCls} h-auto py-3`} />
       </div>
 
       <button onClick={submit} disabled={busy} className="btn-primary h-14 w-full text-[16px] disabled:opacity-60">

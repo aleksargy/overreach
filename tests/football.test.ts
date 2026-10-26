@@ -1,7 +1,22 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import type { Activity, Format, Match, Stream } from '../src/data/types'
-import { analyseFootball, baselineFor, formatOf, gamesToRate, playerCard, rateMatch, usualFormatAt, type Physical } from '../src/lib/football'
+import type { Activity, Format, Match, PitchTrace, Stream } from '../src/data/types'
+import {
+  analyseFootball,
+  baselineFor,
+  formatOf,
+  gamesToRate,
+  headline,
+  playerCard,
+  rateMatch,
+  recurringPoints,
+  seasonPitch,
+  suggestPoints,
+  usualFormatAt,
+  withPoints,
+  type Physical,
+} from '../src/lib/football'
+import { rng } from '../src/lib/rng'
 
 const match = (id: string, date: string, format: Format, over: Partial<Match> = {}): Match => ({
   id,
@@ -13,7 +28,7 @@ const match = (id: string, date: string, format: Format, over: Partial<Match> = 
   scoreAgainst: 1,
   goals: 0,
   assists: 0,
-  moments: [],
+  points: [],
   position: 'MID',
   feel: 6,
   rating: 7,
@@ -47,9 +62,63 @@ test('guesses the format of a game from what you usually play at that time of th
 
 test('a 4–0 is a thrashing in 11s but just a win in 7s', () => {
   const rate = (format: Format) =>
-    rateMatch({ format, scoreFor: 4, scoreAgainst: 0, goals: 0, assists: 0, moments: [], position: 'MID', feel: 6, baseline: baselineFor(format, []) })
+    rateMatch({ format, scoreFor: 4, scoreAgainst: 0, goals: 0, assists: 0, points: [], position: 'MID', feel: 6, baseline: baselineFor(format, []) })
   assert.equal(rate(11).breakdown.find((f) => f.key === 'result')?.label, 'Thrashing')
   assert.equal(rate(7).breakdown.find((f) => f.key === 'result')?.label, 'Win')
+})
+
+test('what went well and badly moves the rating, a big point double, and never more than 0.6 in all', () => {
+  // before rounding to one decimal
+  const total = (points: Match['points']) =>
+    6 +
+    rateMatch({ format: 11, scoreFor: 1, scoreAgainst: 1, goals: 0, assists: 0, points, position: 'MID', feel: 6, baseline: baselineFor(11, []) }).breakdown.reduce(
+      (a, f) => a + f.value,
+      0,
+    )
+  const flat = total([])
+  const near = (a: number, b: number) => assert.ok(Math.abs(a - b) < 1e-9, `${a} is not ${b}`)
+  near(total([{ text: 'Won every header', good: true }]) - flat, 0.15)
+  near(total([{ text: 'Lost my man at corners', good: false, big: true }]) - flat, -0.3)
+  const many = Array.from({ length: 6 }, (_, i) => ({ text: `Good thing ${i}`, good: true, big: true }))
+  near(total(many) - flat, 0.6)
+  // every point shows, then the cap takes back what's over
+  const capped = rateMatch({ format: 11, scoreFor: 1, scoreAgainst: 1, goals: 0, assists: 0, points: many, position: 'MID', feel: 6, baseline: baselineFor(11, []) })
+  assert.equal(capped.breakdown.filter((f) => f.key.startsWith('point-')).length, 6)
+  assert.equal(capped.breakdown.find((f) => f.key === 'pointsCap')?.value, -1.2)
+})
+
+test('games rated with moments read as points, and old points come back as suggestions', () => {
+  const old = { ...match('o', '2026-09-01T10:30:00', 11), points: undefined, moments: ['ownGoal', 'nutmeg'] } as unknown as Match
+  const m = withPoints(old)
+  assert.deepEqual(m.points, [
+    { key: 'ownGoal', text: 'Own goal', good: false, big: true },
+    { key: 'nutmeg', text: 'Nutmeg', good: true },
+  ])
+  assert.ok(!('moments' in m))
+  // the headline still knows an own goal
+  assert.match(headline(m, 'Alex'), /own goal|wrong end/i)
+  const games = [
+    match('x', '2026-10-18T10:30:00', 11, { points: [{ text: 'Lost my man at corners', good: false }] }),
+    match('y', '2026-10-11T10:30:00', 11, {
+      points: [
+        { text: 'lost my man at corners ', good: false, big: true },
+        { text: 'Pressed well', good: true },
+      ],
+    }),
+  ]
+  assert.deepEqual(recurringPoints(games), [{ text: 'Lost my man at corners', good: false, games: 2 }])
+  const offer = suggestPoints(games)
+  assert.deepEqual(
+    offer.slice(0, 2).map((p) => p.text),
+    ['Lost my man at corners', 'Pressed well'],
+  )
+  // then the old moments, as a start
+  assert.ok(offer.some((p) => p.key === 'worldie'))
+})
+
+test('a big point in your own words can make the headline', () => {
+  const m = match('h', '2026-10-18T10:30:00', 11, { scoreFor: 3, scoreAgainst: 1, points: [{ text: 'won every header', good: true, big: true }] })
+  assert.equal(headline(m, 'Alex'), '“Won every header”: Alex stars in 3-1 win')
 })
 
 test('the player card judges each game against its own format', () => {
@@ -120,4 +189,32 @@ test('only recent games you haven’t rated or skipped are asked about', () => {
     asked.map((a) => a.id),
     ['fresh'],
   )
+})
+
+test('a season of games lines up on one pitch, each half facing the end you attacked', () => {
+  // a 100 × 64 m pitch running east to west; a right-sided midfielder, a little into their own half
+  const traces: PitchTrace[] = Array.from({ length: 8 }, (_, g) => {
+    const r = rng(`game-${g}`)
+    // the toss picks the first-half end, and the ends change at half time
+    const first = r() < 0.5 ? 1 : -1
+    const xy: number[] = []
+    for (let i = 0; i < 360; i++) {
+      const end = i < 180 ? first : -first
+      // kick-off in your own half at the start of each half, then about your spot, now and then anywhere
+      const kick = i === 0 || i === 180
+      const wide = r() < 0.3
+      const depth = kick ? -8 : wide ? r.range(-50, 50) : -10 + r.normal(0, 12)
+      const across = kick ? -12 : wide ? r.range(-32, 32) : -13 + r.normal(0, 8)
+      // attacking east, your right is south
+      xy.push(Math.round(end * depth), Math.round(end * across))
+    }
+    return { at: [51.5, -0.12], xy, half: 180, break: true }
+  })
+  const p = seasonPitch(traces)!
+  assert.equal(p.games, 8)
+  assert.ok(p.sure)
+  const mean = (k: 0 | 1) => p.points.reduce((a, x) => a + x[k], 0) / p.points.length
+  // own half is the left, and your right is the bottom edge when you attack to the right
+  assert.ok(mean(0) < 0.47, `along ${mean(0)}`)
+  assert.ok(mean(1) > 0.55, `across ${mean(1)}`)
 })

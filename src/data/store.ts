@@ -3,12 +3,14 @@ import { create } from 'zustand'
 import { BUILTIN_ROUTINES } from './exercises'
 import { SAMPLE_PROFILE } from './sample'
 import { backupOf, merge, type Backup } from '../lib/backup'
+import { withPoints } from '../lib/football'
 import { uid } from '../lib/rng'
 import type { BodyEntry, Daily, Exercise, GarminActivity, Match, Profile, Routine, SetEntry, SyncState, Workout } from './types'
 
 /** Everything you type into the app. Garmin data lives in `garmin`, sample data is generated. */
 export interface UserData {
-  version: 1
+  /** 2: matches have points (what went well and badly) instead of moments */
+  version: 2
   profile: Profile
   matches: Match[]
   hiddenMatchIds: string[]
@@ -30,7 +32,7 @@ export interface GarminCache {
 }
 
 const EMPTY: UserData = {
-  version: 1,
+  version: 2,
   profile: SAMPLE_PROFILE,
   matches: [],
   hiddenMatchIds: [],
@@ -107,9 +109,14 @@ async function save(key: string, value: unknown) {
   }
 }
 
+/** What an older version of the app saved, brought up to date. */
+function upgrade(u: UserData): UserData {
+  return { ...u, version: 2, matches: (u.matches ?? []).map(withPoints) }
+}
+
 function pickUser(s: State): UserData {
   return {
-    version: 1,
+    version: 2,
     profile: s.profile,
     matches: s.matches,
     hiddenMatchIds: s.hiddenMatchIds,
@@ -130,7 +137,7 @@ export const useStore = create<State>()((set, get) => ({
   garmin: null,
 
   hydrate: async () => {
-    const apply = ([user, garmin]: [UserData | undefined, GarminCache | undefined]) => set({ ...EMPTY, ...(user ?? {}), garmin: garmin ?? null, hydrated: true })
+    const apply = ([user, garmin]: [UserData | undefined, GarminCache | undefined]) => set({ ...EMPTY, ...(user && upgrade(user)), garmin: garmin ?? null, hydrated: true })
     // IndexedDB can throw before it returns a promise (a sandboxed frame), so start it inside one
     const read = Promise.resolve().then(() => Promise.all([idbGet<UserData>(KEY), idbGet<GarminCache>(GARMIN_KEY)]))
     try {

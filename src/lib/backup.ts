@@ -2,6 +2,7 @@
 // (src/data/backup.ts), Settings downloads one, and either folds back in.
 
 import type { BodyEntry, Exercise, Match, Profile, Routine, Workout } from '../data/types'
+import { withPoints } from './football'
 
 export interface Backup {
   profile: Profile
@@ -46,7 +47,7 @@ export function merge(mine: Backup, saved: Partial<Backup>): Backup {
   const join = <T extends { id: string }>(a: T[], b: T[] = [], keep: (x: T) => boolean = () => true) => [...a, ...b.filter((x) => keep(x) && !a.some((y) => y.id === x.id))]
   return {
     profile: hasContent(mine) ? mine.profile : { ...mine.profile, ...saved.profile },
-    matches: join(mine.matches, saved.matches, (m) => !mine.hiddenMatchIds.includes(m.id)),
+    matches: join(mine.matches, saved.matches?.map(withPoints), (m) => !mine.hiddenMatchIds.includes(m.id)),
     hiddenMatchIds: [...new Set([...mine.hiddenMatchIds, ...(saved.hiddenMatchIds ?? [])])],
     skippedRatings: [...new Set([...mine.skippedRatings, ...(saved.skippedRatings ?? [])])],
     workouts: join(mine.workouts, saved.workouts),
@@ -70,6 +71,8 @@ export function readBackup(x: unknown): Partial<Backup> | null {
     if (!Array.isArray(v) || !v.every((item) => isObj(item) && typeof item.id === 'string')) return null
     out[k] = v as never
   }
+  // a copy from before notes has moments on its matches
+  if (out.matches) out.matches = out.matches.map(withPoints)
   for (const k of ['hiddenMatchIds', 'skippedRatings'] as const) {
     const v = o[k]
     if (Array.isArray(v)) out[k] = v.filter((id): id is string => typeof id === 'string')
