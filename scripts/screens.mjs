@@ -37,6 +37,23 @@ const SCREENS = [
   ['race', { from: '/run', link: 'a[href^="/race/"]' }],
   // the latest run's ghosts, found from its page
   ['ghost', { from: '/run', link: ['a[href^="/activity/"]', 'a[href^="/ghost/"]'] }],
+  // the latest long run's: it shares its first 8 km with the 8 km runs, so there's a stretch to pick
+  ['ghost-stretch', { from: '/feed', link: ['a[href^="/activity/"]:has-text("Long run")', 'a[href^="/ghost/"]'] }],
+  // the same run on its next stretch, picked from the pills
+  [
+    'ghost-stretch-2',
+    {
+      from: '/feed',
+      async sheet(page) {
+        await page.locator('a[href^="/activity/"]:has-text("Long run")').first().click()
+        await page.waitForTimeout(600)
+        await page.locator('a[href^="/ghost/"]').first().click()
+        await page.waitForTimeout(900)
+        const next = page.locator('button:has-text(" km, ")').nth(1)
+        if (await next.count()) await next.click()
+      },
+    },
+  ],
   // the log sheet with a few notes added, scrolled to them
   [
     'log',
