@@ -8,6 +8,8 @@ import { rng, type Rng } from '../../lib/rng'
 import type { Format, Lap, Stream } from '../types'
 
 export const HOME = { lat: 51.4816, lon: -0.1205 }
+/** where the Saturday parkrun starts */
+const PARK = { lat: HOME.lat + 0.009, lon: HOME.lon - 0.015 }
 const HR_MAX = 192
 const HR_REST = 48
 const RESERVE = HR_MAX - HR_REST
@@ -147,10 +149,15 @@ export function runStream(id: string, kind: string, day: RunDay): { stream: Stre
   const plan = runPlan(kind, r, day)
   const total = plan.reduce((a, s) => a + s.m, 0)
   const onTrack = kind === 'intervals'
-  const shape = onTrack ? track() : loop(r, kind === 'long' ? total / 1 : total / r.pick([1, 2]))
+  // a route for every distance run from home, and the parkrun course: the same distance is the same way round, hills and all
+  const route = rng(`route:${kind === 'race' ? 'parkrun' : total}`)
+  const shape = onTrack ? track() : loop(route, kind === 'long' || kind === 'race' ? total : total / route.pick([1, 2]))
   const path = { ...shape, cum: polyLength(shape.xs, shape.ys) }
+  const origin = kind === 'race' ? PARK : HOME
   // rolling road terrain; the track is flat
-  const hill = onTrack ? null : { a1: r.range(2, 9), l1: r.range(1400, 2600), p1: r.range(0, 6), a2: r.range(0.3, 1.5), l2: r.range(420, 700), p2: r.range(0, 6) }
+  const hill = onTrack
+    ? null
+    : { a1: route.range(2, 9), l1: route.range(1400, 2600), p1: route.range(0, 6), a2: route.range(0.3, 1.5), l2: route.range(420, 700), p2: route.range(0, 6) }
   const wave = (x: number, a: number, l: number, p: number) => a * Math.sin((2 * Math.PI * x) / l + p)
   const altAt = (x: number) => (hill ? 18 + wave(x, hill.a1, hill.l1, hill.p1) + wave(x, hill.a2, hill.l2, hill.p2) : 12)
   const gradeAt = (x: number) =>
@@ -189,7 +196,7 @@ export function runStream(id: string, kind: string, day: RunDay): { stream: Stre
     d += v * dt
     t += dt
     const pos = sampleAt(path, d)
-    const ll = toLatLon(pos.x + r.normal(0, 1.2), pos.y + r.normal(0, 1.2))
+    const ll = toLatLon(pos.x + r.normal(0, 1.2), pos.y + r.normal(0, 1.2), origin)
     out.v!.push(+v.toFixed(3))
     out.hr!.push(Math.round(clamp(hr, 70, HR_MAX)))
     out.d!.push(Math.round(d))

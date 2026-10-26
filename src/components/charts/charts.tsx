@@ -1,4 +1,4 @@
-import { useMemo, useRef, type ReactNode } from 'react'
+import { useId, useMemo, useRef, type ReactNode } from 'react'
 import { zoneOf } from '../../lib/load'
 import { useMeasure, zoneColor } from './primitives'
 
@@ -214,6 +214,64 @@ export function Bars({ values, labels, colors, height = 120, highlight, marker, 
               </text>
             </g>
           )}
+        </svg>
+      )}
+    </div>
+  )
+}
+
+/** Capsule bars split into parts, stacked from the bottom: `parts[i]` is one bar, `colors` one per part. */
+export function StackedBars({
+  parts,
+  colors,
+  labels,
+  height = 120,
+  highlight,
+}: {
+  parts: number[][]
+  colors: string[]
+  labels?: (string | null)[]
+  height?: number
+  highlight?: number
+}) {
+  const [ref, w] = useMeasure<HTMLDivElement>()
+  const id = useId()
+  const totals = parts.map((p) => p.reduce((a, b) => a + b, 0))
+  const max = Math.max(...totals, 1)
+  const labelH = labels ? 18 : 0
+  const plot = height - labelH - 4
+  const n = parts.length
+  const slot = w ? w / n : 0
+  const bw = Math.max(2, Math.min(slot * 0.56, 18))
+  const cx = (i: number) => i * slot + slot / 2
+  return (
+    <div ref={ref} style={{ height }} className="w-full">
+      {w > 0 && (
+        <svg width={w} height={height} className="block overflow-visible">
+          {parts.map((p, i) => {
+            const bh = (totals[i] / max) * plot
+            const top = 4 + plot - bh
+            let y = 4 + plot
+            return (
+              <g key={i} opacity={highlight === undefined || highlight === i ? 1 : 0.55}>
+                <clipPath id={`${id}-${i}`}>
+                  <rect x={cx(i) - bw / 2} y={top} width={bw} height={bh} rx={Math.min(bw / 2, 4)} />
+                </clipPath>
+                <g clipPath={`url(#${id}-${i})`}>
+                  {p.map((v, k) => {
+                    const h = (v / max) * plot
+                    y -= h
+                    return v > 0 ? <rect key={k} x={cx(i) - bw / 2} y={y} width={bw} height={h} fill={colors[k]} /> : null
+                  })}
+                </g>
+                {labels?.[i] && (
+                  <text x={cx(i)} y={height - 3} textAnchor="middle" className={`font-mono text-[10px] ${i === highlight ? 'fill-fg-2' : 'fill-fg-4'}`}>
+                    {labels[i]}
+                  </text>
+                )}
+              </g>
+            )
+          })}
         </svg>
       )}
     </div>
