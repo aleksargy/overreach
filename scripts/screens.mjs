@@ -31,6 +31,8 @@ const SCREENS = [
   ['settings', '/settings'],
   // the first ones listed, found on their screens
   ['activity', { from: '/feed', link: 'a[href^="/activity/"]' }],
+  // the latest run's page, where its ghosts are offered
+  ['run-activity', { from: '/run', link: 'a[href^="/activity/"]' }],
   ['match', { from: '/football', link: 'a[href^="/match/"]' }],
   ['race', { from: '/run', link: 'a[href^="/race/"]' }],
   // the latest run's ghosts, found from its page
