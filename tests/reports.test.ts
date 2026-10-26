@@ -1,26 +1,40 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import type { Activity, Stream } from '../src/data/types'
-import { bestStretch, gapTo, ghostCandidates, pathOf, sameRoute } from '../src/lib/ghost'
+import { align, bestStretch, courseOf, gapTo, ghostsOf, pathOf } from '../src/lib/ghost'
 import { blockOf, weeklyMix } from '../src/lib/mix'
 import { raceReport, racesIn } from '../src/lib/race'
+import { summariseRun } from '../src/lib/running'
 
 const DAY = 86_400_000
 
-/** A 1 s stream along a circle of the given circumference, at the given speed for each stretch [metres, m/s]. */
-function loopRun(id: string, stretches: [number, number][], opts: { circumference?: number; east?: number; hr?: (m: number) => number; measure?: number } = {}): Stream {
-  const C = opts.circumference ?? stretches.reduce((a, [m]) => a + m, 0)
+/**
+ * A 1 s stream along a circle, at the given speed for each stretch [metres, m/s]: the circle is the whole
+ * distance unless given, and can be run the other way round, moved east, measured long by the watch, or
+ * broken by a spur out and back [how far round, how far out].
+ */
+function loopRun(
+  id: string,
+  stretches: [number, number][],
+  opts: { circumference?: number; east?: number; hr?: (m: number) => number; measure?: number; reverse?: boolean; spur?: [number, number] } = {},
+): Stream {
+  const spur = opts.spur ?? [0, 0]
+  const C = opts.circumference ?? stretches.reduce((a, [m]) => a + m, 0) - 2 * spur[1]
   const R = C / (2 * Math.PI)
   const s: Stream = { activityId: id, dt: 1, v: [], d: [], hr: [], lat: [], lon: [] }
   let d = 0
   for (const [len, v] of stretches) {
     for (const end = d + len; d < end; d += v) {
-      const a = (d / C) * 2 * Math.PI
+      // how far round the circle, and how far out along the spur
+      const into = d - spur[0]
+      const round = into <= 0 ? d : into < 2 * spur[1] ? spur[0] : d - 2 * spur[1]
+      const out = into > 0 && into < 2 * spur[1] ? spur[1] - Math.abs(into - spur[1]) : 0
+      const a = (round / C) * 2 * Math.PI * (opts.reverse ? -1 : 1)
       s.v!.push(v)
       s.d!.push(Math.round(d * (opts.measure ?? 1)))
       s.hr!.push(opts.hr ? opts.hr(d) : 150)
-      s.lat!.push(51.5 + (R * Math.sin(a)) / 110_540)
-      s.lon!.push(-0.12 + ((opts.east ?? 0) + R * (1 - Math.cos(a))) / (111_320 * Math.cos((51.5 * Math.PI) / 180)))
+      s.lat!.push(51.5 + ((R + out) * Math.sin(a)) / 110_540)
+      s.lon!.push(-0.12 + ((opts.east ?? 0) + R - (R + out) * Math.cos(a)) / (111_320 * Math.cos((51.5 * Math.PI) / 180)))
     }
   }
   return s
@@ -62,26 +76,53 @@ test('races are runs marked as a race, and the run on the day of the race you se
   )
 })
 
-test('ghosts on the same loop race you; a different loop is no ghost', () => {
-  const you = loopRun('you', [[5000, 3.6]])
-  const slower = loopRun('then', [[5000, 3.4]])
-  const elsewhere = loopRun('there', [[5000, 3.6]], { east: 600 })
-  const [p, q, z] = [pathOf(you)!, pathOf(slower)!, pathOf(elsewhere)!]
-  assert.ok(sameRoute(p, q))
-  assert.ok(!sameRoute(p, z))
-  const gap = gapTo(p, q)
+test('ghosts are your earlier runs on the same route the same way round, matched by place from the summaries', () => {
+  const on = (day: number) => `2026-10-${day}T09:00:00`
+  const streams = {
+    you: loopRun('you', [[5000, 3.6]]),
+    slower: loopRun('slower', [[5000, 3.4]]),
+    long: loopRun('long', [[5000, 3.5]], { measure: 1.03 }),
+    back: loopRun('back', [[5000, 3.6]], { reverse: true }),
+    off: loopRun('off', [[5000, 3.6]], { east: 300 }),
+    spur: loopRun('spur', [[5240, 3.6]], { spur: [2500, 120] }),
+    later: loopRun('later', [[5000, 3.6]]),
+    short: loopRun('short', [[3000, 3.6]]),
+  }
+  const summed = (id: keyof typeof streams, day: number) => run(id, streams[id], on(day), { run: summariseRun(streams[id]) })
+  const you = summed('you', 24)
+  const runs = [
+    you,
+    summed('slower', 17),
+    // a watch that measures 3% long is still the same route
+    summed('long', 15),
+    // the same loop the other way round, a loop 300 m east, and the same loop with a detour halfway: no ghosts
+    summed('back', 14),
+    summed('off', 13),
+    summed('spur', 12),
+    // nor is a run after this one, a shorter run, or one without an outline (summarised before ghosts, or over a year ago)
+    summed('later', 25),
+    summed('short', 11),
+    run('old', streams.you, on(10)),
+  ]
+  assert.deepEqual(
+    ghostsOf(you, runs).map((x) => x.id),
+    ['slower', 'long'],
+  )
+  // the detour is most of the way on the route, but the ghost would gain 240 m on it
+  const detour = align(you.run!, runs[5].run!)!
+  assert.ok(Math.min(...detour.shared) >= 0.9 && detour.detour > 150, `shared ${detour.shared}, detour ${detour.detour}`)
+
+  const p = pathOf(streams.you)!
+  const q = pathOf(streams.slower)!
+  const gap = gapTo(p, q, courseOf(p, q, you.run!, runs[1].run!)!)
   // 5000/3.4 − 5000/3.6 = 81.7 s ahead at the line, gained evenly
   assert.ok(Math.abs(gap[gap.length - 1].s - 81.7) < 2, `gap ${gap[gap.length - 1].s}`)
   assert.ok(Math.abs(bestStretch(gap)!.s - 16.3) < 1)
-  // candidates come from distance and where the runs started, before any stream is loaded
-  const a = run('you', you, '2026-10-24T09:00:00', { run: { spd: [], hr: [], grade: [], best: [], at: [51.5, -0.1] } })
-  const near = run('then', slower, '2026-10-17T09:00:00', { run: { spd: [], hr: [], grade: [], best: [], at: [51.5, -0.1] } })
-  const far = run('far', slower, '2026-10-10T09:00:00', { run: { spd: [], hr: [], grade: [], best: [], at: [53.4, -2.2] } })
-  const short = run('short', loopRun('short', [[3000, 3.6]]), '2026-10-03T09:00:00')
-  assert.deepEqual(
-    ghostCandidates(a, [a, near, far, short]).map((x) => x.id),
-    ['then'],
-  )
+  // by place, the watch that measured long is just slower: 5000/3.5 − 5000/3.6 = 39.7 s at the line, half that halfway
+  const l = pathOf(streams.long)!
+  const vsLong = gapTo(p, l, courseOf(p, l, you.run!, runs[2].run!)!)
+  assert.ok(Math.abs(vsLong[vsLong.length - 1].s - 39.7) < 2, `gap ${vsLong[vsLong.length - 1].s}`)
+  assert.ok(Math.abs(vsLong[25].s - 19.8) < 2, `halfway ${vsLong[25].s}`)
 })
 
 test('easy is zones 1 to 3, and a block is measured against the weeks it covers', () => {

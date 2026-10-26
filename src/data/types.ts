@@ -68,6 +68,8 @@ export interface GarminView {
 
 /** What one run tells the running analysis, worked out from its samples once. */
 export interface RunSummary {
+  /** how it was worked out: older summaries gain what's new from the stored stream (RUN_SUMMARY in lib/running) */
+  v?: number
   /** one entry per minute of moving time: average speed (m/s), heart rate (0 where it dropped out) and grade (%) */
   spd: number[]
   hr: number[]
@@ -76,6 +78,8 @@ export interface RunSummary {
   best: number[]
   /** where it started, rounded to about 10 km: enough to look up the weather */
   at?: [number, number]
+  /** where it went, a point every ROUTE_STEP (lib/ghost) metres and one at the finish, as whole metres east and north of `at`: x0, y0, x1, y1, … */
+  route?: number[]
   /** air temperature and dew point (°C) halfway through, from the weather service */
   tempC?: number
   dewC?: number

@@ -1,4 +1,5 @@
 import { ChevronRight } from 'lucide-react'
+import { useMemo } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router'
 import { Bars, StreamChart } from '../../components/charts/charts'
 import { RouteArt } from '../../components/charts/RouteArt'
@@ -12,7 +13,7 @@ import { useRunModel, useStream, useWorld } from '../../data/world'
 import { clock, dur, fmt, kmh, km, pace, signed, swimPace } from '../../lib/format'
 import { zoneBounds } from '../../lib/load'
 import { mean } from '../../lib/math'
-import { ghostCandidates } from '../../lib/ghost'
+import { ghostsOf } from '../../lib/ghost'
 import { racesIn } from '../../lib/race'
 import { runInsight } from '../../lib/running'
 
@@ -170,16 +171,16 @@ function RunAnalysis({ a }: { a: Activity }) {
   )
 }
 
-/** Earlier runs of about this distance from the same place: the ghost screen checks which took the same route. */
+/** Earlier runs on the same route the same way round, found from the outlines on the run summaries. */
 function Ghosts({ a }: { a: Activity }) {
   const w = useWorld()
-  const n = ghostCandidates(a, w.activities).length
+  const n = useMemo(() => ghostsOf(a, w.activities).length, [a, w])
   if (!n) return null
   return (
     <Link to={`/ghost/${a.id}`} className="press card mt-3 flex items-center gap-3 px-4 py-3.5">
       <span className="min-w-0 flex-1">
         <span className="block text-[15px] font-medium leading-5">Race your ghosts</span>
-        <span className="meta block">{n === 1 ? 'One earlier run' : `${n} earlier runs`} of about this distance from here, played back with this one</span>
+        <span className="meta block">{n === 1 ? 'One earlier run' : `${n} earlier runs`} on this route</span>
       </span>
       <ChevronRight size={16} strokeWidth={2} className="shrink-0 text-fg-4" />
     </Link>

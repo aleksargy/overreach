@@ -12,7 +12,11 @@
 // apart gives the engine trend, the heat cost and the football hangover.
 
 import type { Activity, Profile, RunSummary, Stream } from '../data/types'
+import { pathOf, routeOf } from './ghost'
 import { clamp, mean, median } from './math'
+
+/** bump when the run summary gains something, and sync adds it to the older ones from the stored stream: 2 is the outline ghosts are matched by */
+export const RUN_SUMMARY = 2
 
 /** Durations (s) of the best efforts kept for each run. */
 export const BEST_S = [60, 120, 180, 300, 420, 600, 900, 1200, 1800, 2700, 3600]
@@ -101,7 +105,8 @@ export function summariseRun(s: Stream): RunSummary | undefined {
 
   const first = s.lat?.findIndex((x) => Number.isFinite(x)) ?? -1
   const at: [number, number] | undefined = first >= 0 && s.lon && Number.isFinite(s.lon[first]) ? [r1(s.lat![first]), r1(s.lon[first])] : undefined
-  return { spd, hr, grade, best, ...(at ? { at } : {}) }
+  const path = at && pathOf(s)
+  return { v: RUN_SUMMARY, spd, hr, grade, best, ...(at ? { at } : {}), ...(path ? { route: routeOf(path, at!) } : {}) }
 }
 
 // ---------- the model ----------

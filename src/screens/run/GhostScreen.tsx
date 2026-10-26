@@ -8,7 +8,7 @@ import { Empty, Section } from '../../components/ui/bits'
 import type { Activity, Stream } from '../../data/types'
 import { loadStream, useWorld } from '../../data/world'
 import { clock, fmt, km } from '../../lib/format'
-import { bestStretch, gapTo, ghostCandidates, hrAlong, pathOf, positionAt, sameRoute, type Path } from '../../lib/ghost'
+import { bestStretch, courseOf, gapTo, ghostsOf, hrAlong, mineAt, pathOf, positionAt, type Course, type Path } from '../../lib/ghost'
 
 /** a whole run plays back in about this many seconds, however long it was */
 const PLAY_S = 24
@@ -30,31 +30,41 @@ function useStreams(list: Activity[]): Map<string, Stream> | null {
 interface Ghost {
   a: Activity
   p: Path
+  /** its run laid on yours by place */
+  c: Course
 }
 
-/** This run against every earlier run on the same route, played back together. */
+/** This run against your earlier runs on the same route, played back together. */
 export function GhostScreen() {
   const { id } = useParams()
   const w = useWorld()
   const a = id ? w.byId.get(id) : undefined
-  const candidates = useMemo(() => (a ? ghostCandidates(a, w.activities) : []), [a, w])
-  const streams = useStreams(a ? [a, ...candidates] : [])
+  const found = useMemo(() => (a ? ghostsOf(a, w.activities) : []), [a, w])
+  const streams = useStreams(a ? [a, ...found] : [])
   const field = useMemo(() => {
     const own = a && streams?.get(a.id)
     const you = own ? pathOf(own) : undefined
-    if (!a || !you) return null
-    const ghosts = candidates.flatMap((c): Ghost[] => {
-      const s = streams?.get(c.id)
+    if (!a?.run || !you) return null
+    const ghosts = found.flatMap((g): Ghost[] => {
+      const s = streams?.get(g.id)
       const p = s ? pathOf(s) : undefined
-      return p && sameRoute(you, p) ? [{ a: c, p }] : []
+      const c = p && g.run ? courseOf(you, p, a.run!, g.run) : undefined
+      return p && c ? [{ a: g, p, c }] : []
     })
     return { you, ghosts }
-  }, [a, streams, candidates])
+  }, [a, streams, found])
 
   if (!a) {
     return (
       <Screen title="Ghosts" back>
         <Empty title="Not found">This run isn’t in your data any more.</Empty>
+      </Screen>
+    )
+  }
+  if (!found.length) {
+    return (
+      <Screen title="Ghosts" back>
+        <Empty title="No ghosts on this route">None of your earlier runs went this way round. Run it again and you’ll have one to race.</Empty>
       </Screen>
     )
   }
@@ -68,7 +78,7 @@ export function GhostScreen() {
   if (!field || !field.ghosts.length) {
     return (
       <Screen title="Ghosts" back>
-        <Empty title="No ghosts on this route">None of your runs of about this distance went the same way round. Run it again and you’ll have one to race.</Empty>
+        <Empty title="Your runs didn’t load">The runs to race didn’t come through. Try again when you have a better signal.</Empty>
       </Screen>
     )
   }
@@ -104,15 +114,23 @@ function Race({ a, you, ghosts }: { a: Activity; you: Path; ghosts: Ghost[] }) {
 
   // the fastest earlier run on the route is the one to beat
   const best = ghosts.reduce((b, g) => (end(g.p) < end(b.p) ? g : b), ghosts[0])
-  const gaps = useMemo(() => ghosts.map((g) => ({ g, gap: gapTo(you, g.p) })), [you, ghosts])
+  const gaps = useMemo(() => ghosts.map((g) => ({ g, gap: gapTo(you, g.p, g.c) })), [you, ghosts])
   const vsBest = gaps.find((x) => x.g === best)!.gap
   const finish = vsBest[vsBest.length - 1].s
   const stretch = bestStretch(vsBest)
-  const hr = useMemo(() => [hrAlong(best.p, you), hrAlong(you, you)], [best, you])
-  const youAt = positionAt(you, you, t)
+  const hr = useMemo(() => [hrAlong(best.p, you, best.c), hrAlong(you, you)], [best, you])
+  const youAt = positionAt(you, t)
   const field = [
     { key: 'you', label: 'This run', date: a.start, m: youAt.m, done: t >= end(you), time: end(you), you: true },
-    ...ghosts.map((g) => ({ key: g.a.id, label: fmt(g.a.start, 'EEE d MMM'), date: g.a.start, m: positionAt(g.p, you, t).m, done: t >= end(g.p), time: end(g.p), you: false })),
+    ...ghosts.map((g) => ({
+      key: g.a.id,
+      label: fmt(g.a.start, 'EEE d MMM'),
+      date: g.a.start,
+      m: mineAt(g.c, positionAt(g.p, t).m),
+      done: t >= end(g.p),
+      time: end(g.p),
+      you: false,
+    })),
   ].sort((x, y) => (x.done && y.done ? x.time - y.time : y.m - x.m))
 
   return (
@@ -245,7 +263,7 @@ function GhostMap({ you, ghosts, t, best }: { you: Path; ghosts: Ghost[]; t: num
     return { P, d }
   }, [you, w])
   const dot = (p: Path) => {
-    const at = positionAt(p, you, t)
+    const at = positionAt(p, t)
     return geo!.P(at.lat, at.lon)
   }
   return (
