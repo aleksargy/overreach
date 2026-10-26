@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import type { Activity, Stream } from '../src/data/types'
-import { align, bestStretch, courseOf, gapTo, ghostsOf, pathOf } from '../src/lib/ghost'
+import { biggestGain, coursesOf, gapTo, pathOf, sharedStretch } from '../src/lib/ghost'
 import { blockOf, weeklyMix } from '../src/lib/mix'
 import { raceReport, racesIn } from '../src/lib/race'
 import { summariseRun } from '../src/lib/running'
@@ -35,6 +35,26 @@ function loopRun(
       s.hr!.push(opts.hr ? opts.hr(d) : 150)
       s.lat!.push(51.5 + ((R + out) * Math.sin(a)) / 110_540)
       s.lon!.push(-0.12 + ((opts.east ?? 0) + R - (R + out) * Math.cos(a)) / (111_320 * Math.cos((51.5 * Math.PI) / 180)))
+    }
+  }
+  return s
+}
+
+/** A 1 s stream along straight legs [east, north] in metres, from a start [east, north], at a steady speed. */
+function lineRun(id: string, legs: [number, number][], v: number, from: [number, number] = [0, 0]): Stream {
+  const pts = [from]
+  for (const [dx, dy] of legs) pts.push([pts[pts.length - 1][0] + dx, pts[pts.length - 1][1] + dy])
+  const s: Stream = { activityId: id, dt: 1, v: [], d: [], hr: [], lat: [], lon: [] }
+  let d = 0
+  for (let k = 0; k < legs.length; k++) {
+    const len = Math.hypot(...legs[k])
+    for (let into = 0; into < len; into += v, d += v) {
+      const [x, y] = [pts[k][0] + (legs[k][0] * into) / len, pts[k][1] + (legs[k][1] * into) / len]
+      s.v!.push(v)
+      s.d!.push(Math.round(d))
+      s.hr!.push(150)
+      s.lat!.push(51.5 + y / 110_540)
+      s.lon!.push(-0.12 + x / (111_320 * Math.cos((51.5 * Math.PI) / 180)))
     }
   }
   return s
@@ -104,25 +124,107 @@ test('ghosts are your earlier runs on the same route the same way round, matched
     summed('short', 11),
     run('old', streams.you, on(10)),
   ]
+  const courses = coursesOf(you, runs)
+  assert.equal(courses.length, 1)
+  const [whole] = courses
   assert.deepEqual(
-    ghostsOf(you, runs).map((x) => x.id),
+    whole.ghosts.map((g) => g.a.id),
     ['slower', 'long'],
   )
-  // the detour is most of the way on the route, but the ghost would gain 240 m on it
-  const detour = align(you.run!, runs[5].run!)!
-  assert.ok(Math.min(...detour.shared) >= 0.9 && detour.detour > 150, `shared ${detour.shared}, detour ${detour.detour}`)
+  assert.ok(whole.from === 0 && whole.to > 4900, `${whole.from}–${whole.to}`)
+  // the detour cuts what the loops share in two, and neither half is long enough to race
+  const spur = sharedStretch(you.run!, runs[5].run!)!
+  assert.ok(spur.mine[spur.mine.length - 1] - spur.mine[0] < 3000)
 
   const p = pathOf(streams.you)!
-  const q = pathOf(streams.slower)!
-  const gap = gapTo(p, q, courseOf(p, q, you.run!, runs[1].run!)!)
+  const [slower, long] = whole.ghosts
+  const gap = gapTo(p, pathOf(streams.slower)!, slower, whole)
   // 5000/3.4 − 5000/3.6 = 81.7 s ahead at the line, gained evenly
   assert.ok(Math.abs(gap[gap.length - 1].s - 81.7) < 2, `gap ${gap[gap.length - 1].s}`)
-  assert.ok(Math.abs(bestStretch(gap)!.s - 16.3) < 1)
+  assert.ok(Math.abs(biggestGain(gap)!.s - 16.3) < 1)
   // by place, the watch that measured long is just slower: 5000/3.5 − 5000/3.6 = 39.7 s at the line, half that halfway
-  const l = pathOf(streams.long)!
-  const vsLong = gapTo(p, l, courseOf(p, l, you.run!, runs[2].run!)!)
+  const vsLong = gapTo(p, pathOf(streams.long)!, long, whole)
   assert.ok(Math.abs(vsLong[vsLong.length - 1].s - 39.7) < 2, `gap ${vsLong[vsLong.length - 1].s}`)
   assert.ok(Math.abs(vsLong[25].s - 19.8) < 2, `halfway ${vsLong[25].s}`)
+})
+
+test('ghosts race you over the stretches you both ran, when they are long enough', () => {
+  const on = (day: number) => `2026-10-${day}T09:00:00`
+  const streams = {
+    // you: 4 km east, then 2 km north
+    you: lineRun(
+      'you',
+      [
+        [4000, 0],
+        [0, 2000],
+      ],
+      3.6,
+    ),
+    // the same way out, then south: 4 km shared
+    south: lineRun(
+      'south',
+      [
+        [4000, 0],
+        [0, -2000],
+      ],
+      3.5,
+    ),
+    // joined 1 km in, then the same way: 5 km shared
+    joined: lineRun(
+      'joined',
+      [
+        [3000, 0],
+        [0, 2000],
+      ],
+      3.4,
+      [1000, 0],
+    ),
+    // 2 km shared: too short to race
+    short: lineRun(
+      'short',
+      [
+        [2000, 0],
+        [0, -4000],
+      ],
+      3.5,
+    ),
+    // all of it
+    same: lineRun(
+      'same',
+      [
+        [4000, 0],
+        [0, 2000],
+      ],
+      3.5,
+    ),
+    // the same roads the other way
+    back: lineRun(
+      'back',
+      [
+        [0, -2000],
+        [-4000, 0],
+      ],
+      3.6,
+      [4000, 2000],
+    ),
+  }
+  const summed = (id: keyof typeof streams, day: number) => run(id, streams[id], on(day), { run: summariseRun(streams[id]) })
+  const you = summed('you', 24)
+  const runs = [you, summed('south', 20), summed('joined', 19), summed('short', 18), summed('same', 17), summed('back', 16)]
+  const courses = coursesOf(you, runs)
+  // the whole run with the one that ran all of it; from 1 km with the one that joined there too; the first 4 km with the one that turned south
+  assert.deepEqual(
+    courses.map((c) => [Math.round(c.from / 100) / 10, Math.round(c.to / 100) / 10, c.ghosts.map((g) => g.a.id)]),
+    [
+      [0, 6, ['same']],
+      [1, 6, ['joined', 'same']],
+      [0, 4, ['south', 'same']],
+    ],
+  )
+  // over the stretch from 1 km, both clocks start where it does: 5000/3.4 − 5000/3.6 = 81.7 s at the end
+  const joined = courses[1]
+  const gap = gapTo(pathOf(streams.you)!, pathOf(streams.joined)!, joined.ghosts[0], joined)
+  assert.ok(Math.abs(gap[0].s) < 1 && Math.abs(gap[gap.length - 1].s - 81.7) < 2, `gap ${gap[0].s} to ${gap[gap.length - 1].s}`)
 })
 
 test('easy is zones 1 to 3, and a block is measured against the weeks it covers', () => {
