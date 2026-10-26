@@ -135,8 +135,9 @@ export function enduranceFit(start: Date, sport: 'run' | 'ride', durationS: numb
         distance: dist,
         enhancedSpeed: v,
         enhancedAltitude: 30 + Math.sin(s / 400) * 12,
-        positionLat: Math.round(((51.5 + Math.sin(s / 900) * 0.01) * 2 ** 31) / 180),
-        positionLong: Math.round(((-0.12 + Math.cos(s / 900) * 0.016) * 2 ** 31) / 180),
+        // round a loop of about 1.1 km radius, as far round as the distance run, so the track and the distance agree
+        positionLat: Math.round(((51.5 + Math.sin(dist / 1107) * 0.01) * 2 ** 31) / 180),
+        positionLong: Math.round(((-0.12 + Math.cos(dist / 1107) * 0.016) * 2 ** 31) / 180),
         ...(sport === 'ride' ? { power: Math.round(170 + Math.sin(s / 200) * 40 + (r() - 0.5) * 30), cadence: 85 } : { cadence: 84 }),
       })
     if (lapDist >= lapM || s === durationS - 1) {

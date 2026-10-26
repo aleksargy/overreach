@@ -52,6 +52,16 @@ function loop(r: Rng, perimeter: number) {
   return { xs: xs.map((x) => x * scale), ys: ys.map((y) => y * scale) }
 }
 
+/** A long run: the 8 km loop from home (both laps, when it's run twice round), then a loop of its own for the rest. */
+function longRoute(total: number) {
+  const r = rng('route:8000')
+  const laps = r.pick([1, 2])
+  const lap = loop(r, 8000 / laps)
+  const pieces = [...Array.from({ length: laps }, () => lap), loop(rng(`route:long:${total}`), total - 8000)]
+  // every piece starts and ends at home, so they join up
+  return { xs: [0, ...pieces.flatMap((p) => p.xs.slice(1))], ys: [0, ...pieces.flatMap((p) => p.ys.slice(1))] }
+}
+
 /** A 400 m athletics track: two 84.39 m straights joined by 36.5 m radius bends. */
 function track() {
   const xs: number[] = []
@@ -151,7 +161,9 @@ export function runStream(id: string, kind: string, day: RunDay): { stream: Stre
   const onTrack = kind === 'intervals'
   // a route for every distance run from home, and the parkrun course: the same distance is the same way round, hills and all
   const route = rng(`route:${kind === 'race' ? 'parkrun' : total}`)
-  const shape = onTrack ? track() : loop(route, kind === 'long' || kind === 'race' ? total : total / route.pick([1, 2]))
+  const own = onTrack ? track() : loop(route, kind === 'long' || kind === 'race' ? total : total / route.pick([1, 2]))
+  // a long run goes round the 8 km loop first, so it shares a stretch with every 8 km run; its own loop is still drawn, so its hills stay put
+  const shape = kind === 'long' ? longRoute(total) : own
   const path = { ...shape, cum: polyLength(shape.xs, shape.ys) }
   const origin = kind === 'race' ? PARK : HOME
   // rolling road terrain; the track is flat
