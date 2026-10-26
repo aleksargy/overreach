@@ -6,7 +6,7 @@ import { memoryKV } from '../netlify/lib/kv'
 import { FOOTBALL_SUMMARY } from '../src/lib/football'
 import { detailOf, foldHrv, foldSleep, gmtToIso, hrProfile, mapActivity, sportOf } from '../netlify/lib/mapping'
 import { HISTORY_DAYS, loadAll, RUN_DAYS, runStep, type StepResult } from '../netlify/lib/sync'
-import { BEST_S } from '../src/lib/running'
+import { BEST_S, RUN_SUMMARY } from '../src/lib/running'
 import type { Daily, Stream } from '../src/data/types'
 import { fakeGarmin, footballFit } from './fake-garmin'
 
@@ -376,6 +376,28 @@ test('games summarised before the season heatmap get a trace from the stored str
   const after = Object.values((await loadAll(kv)).data.activities).filter((a) => a.sport === 'football')
   assert.ok(after.every((a) => a.football?.trace?.xy.length && a.football.v === FOOTBALL_SUMMARY))
   assert.equal(downloads(), before)
+})
+
+test('runs summarised before ghosts get an outline from the stored stream in one step, without a download', async () => {
+  const fake = fakeGarmin({ years: 0.1 })
+  const kv = memoryKV()
+  await syncToEnd(kv, fake)
+  const { data } = await loadAll(kv)
+  const runs = Object.values(data.activities).filter((a) => a.run)
+  assert.ok(runs.length && runs.every((a) => a.run?.route?.length && a.run.v === RUN_SUMMARY), 'a fresh sync keeps an outline of every run')
+  // as they were before the outline
+  for (const a of runs) a.run = { ...a.run!, route: undefined, v: undefined }
+  await kv.set('activities', data.activities)
+  const downloads = () => fake.calls['/download-service/files/activity/:x'] ?? 0
+  const before = downloads()
+  const step = await runStep({ kv, api: garmin('test-key', kv, { fetch: fake.fetch }), budgetMs: 25_000, now: fake.now })
+  const after = Object.values((await loadAll(kv)).data.activities).filter((a) => a.run)
+  assert.ok(
+    after.every((a) => a.run?.route?.length && a.run.v === RUN_SUMMARY && typeof a.run.tempC === 'number'),
+    'every run has its outline back, and keeps its weather',
+  )
+  assert.equal(downloads(), before)
+  assert.ok(step.done)
 })
 
 test('after more than six months away, the health history is walked again', async () => {

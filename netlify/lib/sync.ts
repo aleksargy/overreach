@@ -7,14 +7,16 @@
 //      so opening the app often doesn't mean calling Garmin often.
 //   2. runs and football games waiting for their FIT file: a run's minute-by-
 //      minute pace, heart rate and grade for the running analysis; a game's
-//      sprints and top speed
+//      sprints and top speed. Summaries made before they last gained something
+//      are brought up to date from the stream stored then, with no download.
 //   3. the weather for runs that have just been read (best effort, never blocks)
 //   4. activity history, 50 at a time, back HISTORY_DAYS
 //   5. health history, 180 days at a time, back HISTORY_DAYS
 
 import type { BodyEntry, Daily, GarminActivity, Stream } from '../../src/data/types'
 import { FOOTBALL_SUMMARY } from '../../src/lib/football'
-import { summariseRun } from '../../src/lib/running'
+import { pathOf, routeOf } from '../../src/lib/ghost'
+import { RUN_SUMMARY, summariseRun } from '../../src/lib/running'
 import { fitFromDownload, footballSummary, streamFromFit } from './fit'
 import { GarminError, OutOfTime, type Garmin } from './garmin'
 import type { KV } from './kv'
@@ -114,6 +116,18 @@ export async function loadAll(kv: KV): Promise<{ state: SyncState; data: Data }>
 
 export function isCaughtUp(s: SyncState) {
   return s.activitiesDone && s.dailiesDone && s.pending.length === 0 && !s.details?.length
+}
+
+/** A summary made before it last gained something (FOOTBALL_SUMMARY, RUN_SUMMARY). */
+const outdated = (a: GarminActivity) =>
+  (a.sport === 'football' && !!a.football && (a.football.v ?? 1) < FOOTBALL_SUMMARY) || (a.sport === 'run' && !!a.run && (a.run.v ?? 1) < RUN_SUMMARY)
+
+/** The summary brought up to date from the stored stream; with none to hand, the old numbers stay and aren't asked about again. */
+function updated(a: GarminActivity, stream: Stream | null): GarminActivity {
+  if (a.sport === 'football') return { ...a, football: (stream && footballSummary(stream)) || { ...a.football!, v: FOOTBALL_SUMMARY } }
+  // a run keeps its numbers and its weather, and gains the outline ghosts are matched by
+  const path = stream && a.run!.at && pathOf(stream)
+  return { ...a, run: { ...a.run!, ...(path ? { route: routeOf(path, a.run!.at!) } : {}), v: RUN_SUMMARY } }
 }
 
 async function lock(kv: KV, owner: string): Promise<boolean> {
@@ -300,14 +314,13 @@ async function step({ kv, api, budgetMs, forceRecent = false, historyDays = HIST
       state.pending.shift()
     }
 
-    // 2a. games summarised before the summary last gained something (the trace for the season heatmap):
-    // made again from the stream stored when the FIT file was read, so no Garmin call
-    for (const a of Object.values(data.activities)) {
-      if (time() <= 3_000) break
-      if (a.sport !== 'football' || !a.football || (a.football.v ?? 1) >= FOOTBALL_SUMMARY) continue
-      const stream = await kv.get<Stream>(`stream/${a.id}`)
-      // with no stream to hand, the old numbers stay and aren't asked about again
-      data.activities[a.id] = { ...a, football: (stream && footballSummary(stream)) || { ...a.football, v: FOOTBALL_SUMMARY } }
+    // 2a. summaries made before they last gained something (a game's trace for the season heatmap, a run's
+    // outline for ghosts): brought up to date from the stream stored when the FIT file was read, so no Garmin call
+    const stale = Object.values(data.activities).filter(outdated)
+    for (let k = 0; k < stale.length && time() > 3_000; k += 8) {
+      const batch = stale.slice(k, k + 8)
+      const streams = await Promise.all(batch.map((a) => kv.get<Stream>(`stream/${a.id}`)))
+      batch.forEach((a, i) => (data.activities[a.id] = updated(a, streams[i])))
       dirty.activities = true
     }
 
@@ -386,7 +399,7 @@ async function step({ kv, api, budgetMs, forceRecent = false, historyDays = HIST
     }
   }
 
-  const done = isCaughtUp(state)
+  const done = isCaughtUp(state) && !Object.values(data.activities).some(outdated)
   if (done) state.lastSync = now.toISOString()
   await save()
   return { done, added, total: Object.keys(data.activities).length, message: progress(), dataAt: state.dataAt }
@@ -403,9 +416,11 @@ async function step({ kv, api, budgetMs, forceRecent = false, historyDays = HIST
   }
 
   function progress(): string {
-    if (isCaughtUp(state)) return added ? `${added} new ${added === 1 ? 'activity' : 'activities'}` : 'Up to date'
+    const stale = Object.values(data.activities).filter(outdated).length
+    if (isCaughtUp(state) && !stale) return added ? `${added} new ${added === 1 ? 'activity' : 'activities'}` : 'Up to date'
     const toRead = state.pending.length + (state.details?.length ?? 0)
     if (toRead) return `Reading your runs and games: ${toRead} to go`
+    if (stale) return `Updating your runs and games: ${stale} to go`
     if (!state.activitiesDone) {
       const oldest = Object.values(data.activities).reduce((min, a) => (a.start < min ? a.start : min), now.toISOString())
       return `Activities back to ${monthYear(oldest)}`
