@@ -6,7 +6,7 @@
 2. Go through every screen on real data at 390 × 844. On the Run tab, check that the engine, critical speed, durability and costs appear, and that the reasons shown when there isn't enough data make sense. Loosen or tighten the evidence checks in `src/lib/running.ts` if needed.
 3. Check that run weather gets filled in from Netlify (it does from the Mac).
 4. Once there are ten or so rated games in each format, revisit `PAR`, `ENGINE_RANGE` and `BIG_MARGIN` in `src/lib/football.ts`. They're judgement calls, not fitted to data.
-5. Check the new reports on real data: whether the season heatmap gets the ends right (it says so when it can't tell), whether ghosts find Alex's repeated routes, and the race report after the marathon on 8 Nov. Ghosts match whole routes only; segments would be the next step.
+5. Check the new reports on real data: whether the season heatmap gets the ends right (it says so when it can't tell), and the race report after the marathon on 8 Nov. Ghosts match whole routes the same way round, which 6 of Alex's last 40 runs have; stretches shared with runs that went another way (segments), and loops run the other way round, would be the next step.
 6. Maybe later: D′ balance through interval sessions, showing how deep each rep goes, from critical speed and D′.
 
 ## Not checked yet
