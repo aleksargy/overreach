@@ -13,7 +13,7 @@ import { FORMATS, POSITIONS } from '../../lib/football'
 import { ago, fmt } from '../../lib/format'
 import { importHevy } from '../../lib/hevy'
 import { zoneBounds } from '../../lib/load'
-import { DISTANCES, formatGoal, parseGoal } from '../../lib/race'
+import { DISTANCES, formatGoal, parseGoal, typeGoal } from '../../lib/race'
 
 export function SettingsScreen() {
   return (
@@ -78,8 +78,9 @@ function RaceSettings() {
   const race = useStore((s) => s.profile.race)
   const set = useStore((s) => s.setProfile)
   const [goal, setGoal] = useState(race?.goalS ? formatGoal(race.goalS) : '')
+  const [typing, setTyping] = useState(false)
   const update = (patch: Partial<Race>) => race && set({ race: { ...race, ...patch } })
-  const goalOk = !goal || (race && parseGoal(goal, race.distanceM) !== undefined)
+  const goalOk = typing || !goal || (race && parseGoal(goal, race.distanceM) !== undefined)
   return (
     <Section title="Race">
       <div className="card">
@@ -106,10 +107,14 @@ function RaceSettings() {
                 <input
                   value={goal}
                   inputMode="numeric"
+                  autoComplete="off"
                   placeholder={race.distanceM >= 21_000 ? '3:30:00' : '19:30'}
+                  onFocus={() => setTyping(true)}
+                  onBlur={() => setTyping(false)}
                   onChange={(e) => {
-                    setGoal(e.target.value)
-                    update({ goalS: parseGoal(e.target.value, race.distanceM) })
+                    const text = typeGoal(e.target.value, race.distanceM)
+                    setGoal(text)
+                    update({ goalS: parseGoal(text, race.distanceM) })
                   }}
                   className={`${inputCls} tabular-nums`}
                 />

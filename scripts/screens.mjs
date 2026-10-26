@@ -70,7 +70,8 @@ try {
       await page.goto(`${base}/settings`)
       await page.getByRole('switch', { name: 'Training for a race' }).click()
       await page.locator('input[type="date"]').fill(new Date(Date.now() + 14 * 86_400_000).toISOString().slice(0, 10))
-      await page.getByPlaceholder('3:30:00').fill('3:30')
+      // typed the way the number pad does it, with no colons
+      await page.getByPlaceholder('3:30:00').pressSequentially('33000')
       await page.waitForTimeout(400)
     }
     mkdirSync(join('screens', mode), { recursive: true })
