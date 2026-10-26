@@ -32,6 +32,30 @@ const SCREENS = [
   // the first ones listed, found on their screens
   ['activity', { from: '/feed', link: 'a[href^="/activity/"]' }],
   ['match', { from: '/football', link: 'a[href^="/match/"]' }],
+  ['race', { from: '/run', link: 'a[href^="/race/"]' }],
+  // the latest run's ghosts, found from its page
+  ['ghost', { from: '/run', link: ['a[href^="/activity/"]', 'a[href^="/ghost/"]'] }],
+  // the log sheet with a few notes added, scrolled to them
+  [
+    'log',
+    {
+      from: '/football',
+      async sheet(page) {
+        await page.getByRole('button', { name: 'Log a match' }).click()
+        await page.waitForTimeout(500)
+        const add = page.getByRole('button', { name: 'Add', exact: true })
+        await add.first().click()
+        await page.keyboard.type('Won every header')
+        await page.keyboard.press('Enter')
+        await add.last().click()
+        await page.keyboard.type('Lost my man at corners')
+        await page.keyboard.press('Enter')
+        await page.getByText('How it went').click()
+        await page.getByRole('button', { name: /^Won every header/ }).click()
+        await page.getByText('How it went').scrollIntoViewIfNeeded()
+      },
+    },
+  ],
 ].filter(([name]) => !only.length || only.includes(name))
 
 const blobs = mkdtempSync(join(tmpdir(), 'overreach-screens-'))
@@ -76,16 +100,34 @@ try {
     mkdirSync(join('screens', mode), { recursive: true })
     for (const [name, where] of SCREENS) {
       let path = where
-      if (typeof where === 'object') {
+      if (where.sheet) {
         await page.goto(base + where.from)
         await page.waitForTimeout(900)
-        const link = page.locator(where.link).first()
-        // live mode on the fake has no logged matches, so no match report yet
-        if (!(await link.count())) {
+        await where.sheet(page)
+        await page.waitForTimeout(400)
+        const file = join('screens', mode, `${name}.png`)
+        await page.screenshot({ path: file })
+        console.log(file)
+        continue
+      }
+      if (typeof where === 'object') {
+        await page.goto(base + where.from)
+        // follow each link in turn: a screen that's only reached from another one
+        for (const [k, sel] of [where.link].flat().entries()) {
+          if (k) await page.goto(base + path)
+          await page.waitForTimeout(900)
+          const link = page.locator(sel).first()
+          // live mode on the fake has no logged matches, so no match report yet
+          if (!(await link.count())) {
+            path = undefined
+            break
+          }
+          path = await link.getAttribute('href')
+        }
+        if (!path) {
           console.log(`${join('screens', mode, name)}: nothing to open yet`)
           continue
         }
-        path = await link.getAttribute('href')
       }
       await page.goto(base + path)
       // let the springs settle and the charts draw
