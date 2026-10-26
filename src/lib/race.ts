@@ -23,6 +23,17 @@ export function parseGoal(text: string, distanceM: number): number | undefined {
   return distanceM >= 21_000 ? a * 3600 + b * 60 : a * 60 + b
 }
 
+/**
+ * Adds the colons to what's typed on the iPhone's number pad, which has none: for a half or
+ * longer 330 is 3:30 and 33000 is 3:30:00, below it 1930 is 19:30. Five or six digits are always h:mm:ss.
+ */
+export function typeGoal(text: string, distanceM: number): string {
+  const d = text.replace(/\D/g, '').slice(0, 6)
+  if (d.length >= 5) return `${d.slice(0, -4)}:${d.slice(-4, -2)}:${d.slice(-2)}`
+  const parts = distanceM >= 21_000 ? [d.slice(0, 1), d.slice(1, 3), d.slice(3)] : [d.slice(0, 2), d.slice(2)]
+  return parts.filter(Boolean).join(':')
+}
+
 export function formatGoal(s: number): string {
   const h = Math.floor(s / 3600)
   const m = Math.floor((s % 3600) / 60)
