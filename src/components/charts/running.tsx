@@ -132,12 +132,15 @@ export function GapChart({
   at,
   zero = true,
   format = gapLabel,
+  from = 0,
 }: {
   lines: GapLine[]
   height?: number
   at?: number
   zero?: boolean
   format?: (v: number) => string
+  /** where along the run the chart starts (m), for a stretch of it */
+  from?: number
 }) {
   const [ref, w] = useMeasure<HTMLDivElement>()
   const geo = useMemo(() => {
@@ -151,14 +154,15 @@ export function GapChart({
     const right = w - 44
     const top = 6
     const bottom = height - 20
-    const X = (m: number) => (m / m1) * right
+    const X = (m: number) => ((m - from) / (m1 - from || 1)) * right
     const Y = (s: number) => bottom - ((s - lo) / (hi - lo)) * (bottom - top)
     const path = (pts: GapLine['pts']) => pts.map((p, i) => `${i ? 'L' : 'M'}${X(p.m).toFixed(1)},${Y(p.s).toFixed(1)}`).join('')
-    const step = m1 > 30_000 ? 10_000 : m1 > 12_000 ? 5000 : m1 > 6000 ? 2000 : 1000
+    const span = m1 - from
+    const step = span > 30_000 ? 10_000 : span > 12_000 ? 5000 : span > 6000 ? 2000 : 1000
     const ticks: number[] = []
-    for (let m = step; m < m1 - step / 3; m += step) ticks.push(m)
+    for (let m = Math.ceil((from + step / 3) / step) * step; m < m1 - step / 3; m += step) ticks.push(m)
     return { X, Y, path, ticks, right, bottom, min, max }
-  }, [lines, w, height, zero])
+  }, [lines, w, height, zero, from])
   return (
     <div ref={ref} className="w-full" style={{ height }}>
       {geo && (

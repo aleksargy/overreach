@@ -13,7 +13,7 @@ import { useRunModel, useStream, useWorld } from '../../data/world'
 import { clock, dur, fmt, kmh, km, pace, signed, swimPace } from '../../lib/format'
 import { zoneBounds } from '../../lib/load'
 import { mean } from '../../lib/math'
-import { ghostsOf } from '../../lib/ghost'
+import { coursesOf } from '../../lib/ghost'
 import { racesIn } from '../../lib/race'
 import { runInsight } from '../../lib/running'
 
@@ -171,16 +171,21 @@ function RunAnalysis({ a }: { a: Activity }) {
   )
 }
 
-/** Earlier runs on the same route the same way round, found from the outlines on the run summaries. */
+/** Earlier runs over the same roads, found from the outlines on the run summaries: the ghost screen races them where you both ran. */
 function Ghosts({ a }: { a: Activity }) {
   const w = useWorld()
-  const n = useMemo(() => ghostsOf(a, w.activities).length, [a, w])
-  if (!n) return null
+  const courses = useMemo(() => coursesOf(a, w.activities), [a, w])
+  if (!courses.length) return null
+  const n = new Set(courses.flatMap((c) => c.ghosts.map((g) => g.a.id))).size
+  const whole = courses.filter((c) => c.to - c.from >= 0.9 * (a.distanceM ?? 0)).length
+  const where = whole === courses.length ? 'on this route' : whole ? 'on all or part of this route' : 'on stretches of this route'
   return (
     <Link to={`/ghost/${a.id}`} className="press card mt-3 flex items-center gap-3 px-4 py-3.5">
       <span className="min-w-0 flex-1">
         <span className="block text-[15px] font-medium leading-5">Race your ghosts</span>
-        <span className="meta block">{n === 1 ? 'One earlier run' : `${n} earlier runs`} on this route</span>
+        <span className="meta block">
+          {n === 1 ? 'One earlier run' : `${n} earlier runs`} {where}
+        </span>
       </span>
       <ChevronRight size={16} strokeWidth={2} className="shrink-0 text-fg-4" />
     </Link>
