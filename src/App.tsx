@@ -15,6 +15,8 @@ import { LogMatchSheet } from './screens/football/LogMatchSheet'
 import { MatchReportScreen } from './screens/football/MatchReportScreen'
 import { RatingReveal } from './screens/football/RatingReveal'
 import { RunScreen } from './screens/run/RunScreen'
+import { GhostScreen } from './screens/run/GhostScreen'
+import { RaceReportScreen } from './screens/run/RaceReportScreen'
 import { ExerciseScreen } from './screens/lift/ExerciseScreen'
 import { ExerciseSheet, PickExerciseSheet } from './screens/lift/ExerciseSheets'
 import { LiftScreen } from './screens/lift/LiftScreen'
@@ -30,6 +32,8 @@ const routes: RouteObject[] = [
     children: [
       { path: '/', element: <TodayScreen /> },
       { path: '/run', element: <RunScreen /> },
+      { path: '/race/:id', element: <RaceReportScreen /> },
+      { path: '/ghost/:id', element: <GhostScreen /> },
       { path: '/feed', element: <FeedScreen /> },
       { path: '/activity/:id', element: <ActivityScreen /> },
       { path: '/football', element: <FootballScreen /> },

@@ -1,9 +1,9 @@
-import { addWeeks, format, parseISO, startOfISOWeek } from 'date-fns'
+import { addDays, addWeeks, format, parseISO, startOfISOWeek } from 'date-fns'
 import { ChevronDown, ChevronRight, Mountain, Thermometer } from 'lucide-react'
 import { useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { ActivityList } from '../../components/ActivityRow'
-import { Bars, TrendChart } from '../../components/charts/charts'
+import { Bars, StackedBars, TrendChart } from '../../components/charts/charts'
 import { DriftChart, EffortCurve } from '../../components/charts/running'
 import { Screen } from '../../components/ui/Screen'
 import { Empty, SampleBadge, Section } from '../../components/ui/bits'
@@ -12,7 +12,8 @@ import { useRunModel, useWorld } from '../../data/world'
 import { clock, dur, fmt, km, pace } from '../../lib/format'
 import { zoneBounds, zoneOf } from '../../lib/load'
 import { mean } from '../../lib/math'
-import { daysTo, formatGoal, goalPaceS, raceName, taperShare, weeklyKm } from '../../lib/race'
+import { blockOf, weeklyMix } from '../../lib/mix'
+import { daysTo, formatGoal, goalPaceS, raceName, racesIn, taperShare, weeklyKm } from '../../lib/race'
 import { hrAtPace, type RunModel } from '../../lib/running'
 
 const WEEKS = 12
@@ -38,15 +39,18 @@ export function RunScreen() {
       ) : (
         <>
           {race && race.date && daysTo(race, w.now) >= 0 && <RaceCard race={race} m={m} />}
+          {race && race.date && daysTo(race, w.now) < 0 && daysTo(race, w.now) >= -30 && <RaceDone race={race} />}
           {m?.engineNow ? (
             <Engine m={m} />
           ) : (
             <Empty title="Fitness needs a few more runs">It’s worked out from runs with heart rate, minute by minute. About five is enough to start.</Empty>
           )}
           <Volume />
+          <Mix />
           {m?.durability && <Durability d={m.durability} run={(id) => w.byId.get(id)} />}
           {m?.cs && <CriticalSpeed cs={m.cs} />}
           {m && <Costs m={m} />}
+          <Races />
           <Section
             title="Recent runs"
             action={
@@ -150,6 +154,70 @@ function Volume() {
           />
         </div>
       </div>
+    </Section>
+  )
+}
+
+const MIX_COLORS = ['rgb(var(--z2))', 'rgb(var(--z4))', 'rgb(var(--z5))']
+
+/** Easy, steady and hard by heart rate, week by week, and this block against the one before. */
+function Mix() {
+  const w = useWorld()
+  const weeks = useMemo(() => weeklyMix(w.activities, w.now, WEEKS), [w])
+  const [now, before] = useMemo(() => [blockOf(w.activities, addDays(w.now, -56), w.now), blockOf(w.activities, addDays(w.now, -112), addDays(w.now, -56))], [w])
+  if (now.runs < 3) return null
+  const pct = (x: number) => Math.round(x * 100)
+  // only against a block your history fully covers
+  const compare = before.runs >= 3 && w.activities.some((a) => a.sport === 'run' && Date.parse(a.start) < addDays(w.now, -105).getTime())
+  const rows = [
+    { k: 'Distance a week', a: `${Math.round(now.kmPerWeek)} km`, b: `${Math.round(before.kmPerWeek)} km` },
+    { k: 'Runs of 90 min+', a: String(now.longRuns), b: String(before.longRuns) },
+    { k: 'Tempo and up a week', a: `${Math.round(now.hardMin)} min`, b: `${Math.round(before.hardMin)} min` },
+  ]
+  return (
+    <Section title="Easy and hard" action={<span className="meta">By heart rate</span>}>
+      <div className="card p-4">
+        <div className="flex items-baseline gap-2">
+          <span className="num text-[28px]">{pct(now.easy)}%</span>
+          <span className="text-[13px] text-fg-3">of your running easy</span>
+        </div>
+        <p className="meta mt-1.5">
+          Over the last 8 weeks, in zones 1 to 3
+          {compare && Math.abs(pct(now.easy) - pct(before.easy)) >= 3 ? `, ${pct(now.easy) > pct(before.easy) ? 'up' : 'down'} from ${pct(before.easy)}% the 8 weeks before.` : '.'}
+        </p>
+        <div className="mt-4">
+          <StackedBars
+            parts={weeks.map((x) => [x.easyS, x.tempoS, x.hardS].map((s) => s / 60))}
+            colors={MIX_COLORS}
+            labels={weeks.map((x, i) => (i % 4 === 0 ? format(x.start, 'd MMM') : null))}
+            highlight={WEEKS - 1}
+            height={110}
+          />
+        </div>
+        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-fg-3">
+          {['Easy, zones 1–3', 'Tempo, zone 4', 'Hard, zone 5'].map((label, i) => (
+            <span key={label} className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full" style={{ background: MIX_COLORS[i] }} /> {label}
+            </span>
+          ))}
+        </div>
+      </div>
+      {compare && (
+        <div className="card mt-2 overflow-hidden">
+          <div className="grid grid-cols-[1fr_84px_84px] gap-2 border-b border-line px-4 py-2.5 text-[12px] font-medium text-fg-4">
+            <span>This block against the one before</span>
+            <span className="text-right">Last 8 wks</span>
+            <span className="text-right">8 before</span>
+          </div>
+          {rows.map((r) => (
+            <div key={r.k} className="grid grid-cols-[1fr_84px_84px] gap-2 border-b border-line px-4 py-2.5 last:border-0">
+              <span className="text-[14px] text-fg-2">{r.k}</span>
+              <span className="text-right text-[15px] font-medium tabular-nums">{r.a}</span>
+              <span className="text-right text-[15px] tabular-nums text-fg-3">{r.b}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </Section>
   )
 }
@@ -362,6 +430,61 @@ function RaceCard({ race, m }: { race: Race; m: RunModel | null }) {
         </div>
       )}
     </section>
+  )
+}
+
+/** After race day, for a month: the result, and the way into the report. */
+function RaceDone({ race }: { race: Race }) {
+  const w = useWorld()
+  const a = racesIn(w.activities, race).find((x) => x.start.slice(0, 10) === race.date)
+  if (!a) return null
+  const under = race.goalS !== undefined ? race.goalS - a.durationS : undefined
+  return (
+    <Link to={`/race/${a.id}`} className="press mb-10 block">
+      <div className="flex items-center justify-between gap-3">
+        <span className="label">{raceName(race.distanceM)}</span>
+        <span className="meta">{fmt(race.date, 'EEE d MMM')}</span>
+      </div>
+      <div className="mt-4 flex items-baseline gap-2">
+        <span className="num-hero -ml-1 text-[72px]">{clock(a.durationS)}</span>
+      </div>
+      {under !== undefined && (
+        <div className={`mt-2 text-[15px] font-medium ${under >= 0 ? 'text-good' : 'text-warn'}`}>
+          {under >= 0 ? `${clock(under)} inside your goal` : `${clock(-under)} over your goal`}
+        </div>
+      )}
+      <div className="link mt-3">
+        Race report <ChevronRight size={15} strokeWidth={2} />
+      </div>
+    </Link>
+  )
+}
+
+/** Every race this year, newest first, each with its report. */
+function Races() {
+  const w = useWorld()
+  const yearAgo = w.now.getTime() - 365 * 86_400_000
+  const list = racesIn(w.activities, w.profile.race)
+    .filter((a) => Date.parse(a.start) >= yearAgo)
+    .slice(0, 5)
+  if (!list.length) return null
+  return (
+    <Section title="Races">
+      <div className="card list overflow-hidden">
+        {list.map((a) => (
+          <Link key={a.id} to={`/race/${a.id}`} className="flex items-center gap-3 px-4 py-3 transition-colors duration-150 active:bg-ink-2">
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[15px] font-medium leading-5">{a.name}</span>
+              <span className="meta block truncate">
+                {fmt(a.start, 'EEE d MMM')} · {km(a.distanceM, 1)} km
+              </span>
+            </span>
+            <span className="num text-[17px]">{clock(a.durationS)}</span>
+            <ChevronRight size={16} strokeWidth={2} className="text-fg-4" />
+          </Link>
+        ))}
+      </div>
+    </Section>
   )
 }
 
