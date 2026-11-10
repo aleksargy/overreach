@@ -7,7 +7,7 @@ import { useStore } from '../../data/store'
 import type { Activity, Format, Match, MatchPoint, Position } from '../../data/types'
 import { useUi } from '../../data/ui'
 import { loadFootballAnalysis, useWorld } from '../../data/world'
-import { FEEL, FORMATS, POSITIONS, baselineFor, formatOf, headline, rateMatch, suggestPoints } from '../../lib/football'
+import { FEEL, FORMATS, POSITIONS, baselineFor, formatOf, headline, rateMatch, suggestPoints, usualOf } from '../../lib/football'
 import { dur, fmt, km } from '../../lib/format'
 import { uid } from '../../lib/rng'
 import { PointsEditor } from './PointsEditor'
@@ -39,10 +39,13 @@ function Form({ activityId, matchId }: { activityId?: string; matchId?: string }
 
   const [linked, setLinked] = useState<string | undefined>(editing?.activityId ?? activityId ?? candidates.find((a) => !w.matchByActivity.has(a.id))?.id)
   const linkedAct = linked ? w.byId.get(linked) : undefined
-  const guess = (a?: Activity) => (a ? formatOf(a, w.matches, w.matchByActivity, p.format) : p.format)
+  // what you usually play, from your games: there are no football settings
+  const usual = useMemo(() => usualOf(w.matches), [w])
+  const usualFormat = usual.format ?? 11
+  const guess = (a?: Activity) => (a ? formatOf(a, w.matches, w.matchByActivity, usualFormat) : usualFormat)
   // the side and position you last had in this format, since an 11s club and a 7s team usually differ
   const lastIn = (f: Format) => w.matches.find((m) => m.format === f)
-  const teamFor = (f: Format) => lastIn(f)?.team ?? (p.team || 'My team')
+  const teamFor = (f: Format) => lastIn(f)?.team ?? usual.team ?? 'My team'
   const [format, setFormat] = useState<Format>(editing?.format ?? guess(linkedAct))
   const [team, setTeam] = useState(editing?.team ?? teamFor(format))
   const [teamTyped, setTeamTyped] = useState(!!editing)
@@ -51,7 +54,7 @@ function Form({ activityId, matchId }: { activityId?: string; matchId?: string }
   const [scoreAgainst, setAgainst] = useState(editing?.scoreAgainst ?? 0)
   const [goals, setGoals] = useState(editing?.goals ?? 0)
   const [assists, setAssists] = useState(editing?.assists ?? 0)
-  const [position, setPosition] = useState<Position>(editing?.position ?? lastIn(format)?.position ?? p.position)
+  const [position, setPosition] = useState<Position>(editing?.position ?? lastIn(format)?.position ?? usual.position ?? 'MID')
   const [positionPicked, setPositionPicked] = useState(!!editing)
   const [points, setPoints] = useState<MatchPoint[]>(editing?.points ?? [])
   const [feel, setFeel] = useState(editing?.feel ?? 6)
@@ -61,7 +64,7 @@ function Form({ activityId, matchId }: { activityId?: string; matchId?: string }
   const pickFormat = (f: Format) => {
     setFormat(f)
     if (!teamTyped) setTeam(teamFor(f))
-    if (!positionPicked) setPosition(lastIn(f)?.position ?? p.position)
+    if (!positionPicked) setPosition(lastIn(f)?.position ?? usual.position ?? 'MID')
   }
 
   useEffect(() => {

@@ -1,7 +1,7 @@
 import { parseISO } from 'date-fns'
 import type { Format, Match } from '../../data/types'
 import type { World } from '../../data/world'
-import { formatOf, playerCard, result, type Physical } from '../../lib/football'
+import { formatOf, playerCard, result, usualOf, type Physical } from '../../lib/football'
 import { mean } from '../../lib/math'
 
 export function seasonStart(now: Date): Date {
@@ -29,7 +29,7 @@ export function season(w: World) {
   const ms = w.matches.filter((m) => parseISO(m.date) >= from)
   // physical records come from the watch, so games you haven't rated count too
   const games = w.activities.filter((a) => a.sport === 'football' && parseISO(a.start) >= from)
-  const gameFormat = new Map(games.map((a) => [a.id, formatOf(a, w.matches, w.matchByActivity, w.profile.format)]))
+  const gameFormat = new Map(games.map((a) => [a.id, formatOf(a, w.matches, w.matchByActivity, usualOf(w.matches).format ?? 11)]))
   const counts = new Map<Format, number>()
   for (const m of ms) counts.set(m.format, (counts.get(m.format) ?? 0) + 1)
   for (const a of games) if (!w.matchByActivity.has(a.id)) counts.set(gameFormat.get(a.id)!, (counts.get(gameFormat.get(a.id)!) ?? 0) + 1)
@@ -43,7 +43,8 @@ export function season(w: World) {
     games: games.length,
     goals: ms.reduce((a, m) => a + m.goals, 0),
     assists: ms.reduce((a, m) => a + m.assists, 0),
-    card: playerCard(rowsFor(w, ms), w.profile.position),
+    // the card covers every format: it's drawn for the position you've played most this season
+    card: playerCard(rowsFor(w, ms), usualOf(ms).position ?? 'MID'),
     formats,
     /** one format's season: results, form and records only against the same kind of game */
     format(f: Format) {

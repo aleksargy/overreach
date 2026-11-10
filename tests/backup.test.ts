@@ -4,7 +4,7 @@ import { SAMPLE_ROUTINES } from '../src/data/exercises'
 import { counts, describe, hasContent, merge, readBackup, withoutStarters, type Backup } from '../src/lib/backup'
 import type { BodyEntry, Match, Profile, Routine, Workout } from '../src/data/types'
 
-const profile = { name: 'Alex', hrMax: 189, hrRest: 47, team: 'Sunday Lads', format: 11, position: 'MID' } as Profile
+const profile: Profile = { name: 'Alex', hrMax: 189, hrRest: 47 }
 const match = (id: string, note = '') => ({ id, date: '2026-10-19', note }) as unknown as Match
 const workout = (id: string) => ({ id, name: 'Push', start: '2026-10-20T18:00:00.000Z', exercises: [], source: 'manual' }) as unknown as Workout
 const weighIn = (id: string) => ({ id, date: '2026-10-21T07:00:00.000Z', weightKg: 78.4, source: 'manual' }) as BodyEntry

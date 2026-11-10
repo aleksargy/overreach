@@ -308,9 +308,6 @@ export interface Profile {
   zones?: number[]
   /** the race you're training for */
   race?: Race
-  team: string
-  format: Format
-  position: Position
 }
 
 export interface SyncState {

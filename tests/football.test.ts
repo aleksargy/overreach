@@ -13,6 +13,7 @@ import {
   seasonPitch,
   suggestPoints,
   usualFormatAt,
+  usualOf,
   withPoints,
   type Physical,
 } from '../src/lib/football'
@@ -116,6 +117,19 @@ test('games rated with moments read as points, and only points in your own words
   assert.ok(!offer.some((p) => p.key))
   // a first game has nothing to offer
   assert.deepEqual(suggestPoints([]), [])
+})
+
+test('what you usually play comes from your games, with no settings', () => {
+  assert.deepEqual(usualOf([]), { format: undefined, position: undefined, team: undefined })
+  const games = [
+    match('a', '2026-10-04T10:30:00', 11, { team: 'Real Ale Madrid', position: 'MID' }),
+    match('b', '2026-10-11T10:30:00', 11, { team: 'Real Ale Madrid', position: 'MID' }),
+    match('c', '2026-10-14T19:00:00', 7, { team: 'Ctrl Alt Defeat', position: 'ANY' }),
+    match('d', '2026-10-28T19:00:00', 7, { team: 'Ctrl Alt Defeat', position: 'FWD' }),
+  ]
+  // 11s and 7s twice each: the latest game breaks the tie; midfield is played most; the team is the last one
+  assert.deepEqual(usualOf(games), { format: 7, position: 'MID', team: 'Ctrl Alt Defeat' })
+  assert.deepEqual(usualOf(games.slice(0, 3)), { format: 11, position: 'MID', team: 'Ctrl Alt Defeat' })
 })
 
 test('a big point in your own words can make the headline', () => {
