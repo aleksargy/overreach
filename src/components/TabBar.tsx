@@ -13,7 +13,7 @@ const TABS = [
 
 export function TabBar() {
   return (
-    <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-40 bg-ink-0/95 pb-[env(safe-area-inset-bottom,0px)] shadow-[0_-1px_0_rgb(var(--fg)/0.13)] backdrop-blur-xl">
+    <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-40 bg-ink-0 pb-[env(safe-area-inset-bottom,0px)] shadow-[0_-1px_0_rgb(var(--fg)/0.13)]">
       <div className="gutter mx-auto grid h-[var(--tabbar-h)] max-w-app grid-cols-5">
         {TABS.map((t, i) => (
           <NavLink
