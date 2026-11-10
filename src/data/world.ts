@@ -46,7 +46,7 @@ let sampleCache: { key: string; data: SampleData } | null = null
 let worldCache: { day: string; inputs: unknown[]; world: World } | null = null
 
 export function getSample(now: Date, profile: Profile): SampleData {
-  const key = `${isoDay(now)}:${profile.hrMax}:${profile.name}:${profile.position}`
+  const key = `${isoDay(now)}:${profile.hrMax}:${profile.name}`
   if (!sampleCache || sampleCache.key !== key) sampleCache = { key, data: buildSample(now, profile) }
   return sampleCache.data
 }

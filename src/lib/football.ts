@@ -43,6 +43,21 @@ export function suggestPoints(matches: Match[]): MatchPoint[] {
   return [...used.values()].sort((a, b) => b.n - a.n).map((x) => ({ text: x.p.text, good: x.p.good, big: x.p.big }))
 }
 
+/**
+ * What you usually play, from the games you've logged: the format and the position you've had most (the latest
+ * breaks a tie) and the team you last played for. There's no setting for any of it; before a first game it's empty.
+ */
+export function usualOf(matches: Pick<Match, 'date' | 'format' | 'position' | 'team'>[]): { format?: Format; position?: Position; team?: string } {
+  const newest = [...matches].sort((a, b) => b.date.localeCompare(a.date))
+  const most = <T>(pick: (m: (typeof newest)[number]) => T): T | undefined => {
+    const n = new Map<T, number>()
+    for (const m of newest) n.set(pick(m), (n.get(pick(m)) ?? 0) + 1)
+    // a Map keeps the order things were first seen in, newest first, so the latest wins a tie
+    return [...n.entries()].reduce<[T, number] | undefined>((best, x) => (!best || x[1] > best[1] ? x : best), undefined)?.[0]
+  }
+  return { format: most((m) => m.format), position: most((m) => m.position), team: newest[0]?.team }
+}
+
 /** Points that keep coming up: the same words in more than one game, most often first. */
 export function recurringPoints(matches: Match[], min = 2): { text: string; good: boolean; games: number }[] {
   const by = new Map<string, { text: string; good: boolean; games: number }>()

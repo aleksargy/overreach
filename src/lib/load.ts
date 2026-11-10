@@ -1,7 +1,23 @@
 import { addDays, differenceInCalendarDays, parseISO, startOfDay } from 'date-fns'
-import type { Activity, Profile, ZoneSeconds } from '../data/types'
-import { ewma, round } from './math'
+import type { Activity, Daily, Profile, ZoneSeconds } from '../data/types'
+import { ewma, median, round } from './math'
 import { isoDay } from './format'
+
+/**
+ * Max and resting HR from what the watch measured, for when Garmin's zone settings don't say: resting is the
+ * middle of your last 28 mornings, max the second highest of your three highest readings in a year (so one spike
+ * from a loose strap doesn't count). Each is left out when there isn't enough to go on.
+ */
+export function heartRatesFrom(dailies: Pick<Daily, 'date' | 'rhr'>[], activities: Pick<Activity, 'start' | 'maxHr'>[], now: Date): { hrMax?: number; hrRest?: number } {
+  const since = isoDay(addDays(now, -28))
+  const rests = dailies.filter((d) => d.date >= since && d.rhr && d.rhr > 30 && d.rhr < 100).map((d) => d.rhr!)
+  const yearAgo = addDays(now, -365).getTime()
+  const tops = activities
+    .filter((a) => Date.parse(a.start) >= yearAgo && a.maxHr && a.maxHr > 120 && a.maxHr < 230)
+    .map((a) => a.maxHr!)
+    .sort((a, b) => b - a)
+  return { ...(tops.length >= 3 ? { hrMax: tops[1] } : {}), ...(rests.length >= 7 ? { hrRest: Math.round(median(rests)) } : {}) }
+}
 
 /** Lower bound (bpm) of zones 1–5: your Garmin zones once synced, else 50–90% of max HR, the way Garmin defaults them. */
 export function zoneBounds(p: Pick<Profile, 'hrMax' | 'zones'>): number[] {

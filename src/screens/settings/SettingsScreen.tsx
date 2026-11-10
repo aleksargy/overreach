@@ -1,17 +1,15 @@
 import { ArchiveRestore, Check, CloudCheck, CloudUpload, Download, ExternalLink, RefreshCw } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Screen } from '../../components/ui/Screen'
-import { Field, NumInput, Section, Segmented, Toggle, inputCls } from '../../components/ui/bits'
+import { Field, Section, Segmented, Toggle, inputCls } from '../../components/ui/bits'
 import { APP_NAME, APP_TAGLINE } from '../../config'
 import { ApiError, getStatus, syncAll, type ServerStatus } from '../../data/api'
 import { useStore } from '../../data/store'
-import type { Format, Position, Race } from '../../data/types'
+import type { Race } from '../../data/types'
 import { useUi } from '../../data/ui'
 import { useWorld } from '../../data/world'
 import { backupOf, counts, describe, readBackup } from '../../lib/backup'
-import { FORMATS, POSITIONS } from '../../lib/football'
 import { ago, fmt } from '../../lib/format'
-import { zoneBounds } from '../../lib/load'
 import { DISTANCES, formatGoal, parseGoal, typeGoal } from '../../lib/race'
 
 export function SettingsScreen() {
@@ -20,7 +18,6 @@ export function SettingsScreen() {
       <Profile />
       <RaceSettings />
       <Garmin />
-      <Football />
       <YourData />
       <footer className="mt-14 text-center">
         <div className="display text-[20px] font-extrabold leading-none">{APP_NAME}</div>
@@ -30,44 +27,15 @@ export function SettingsScreen() {
   )
 }
 
+/** Just your name: heart rates and zones come from the watch, and the match log remembers your team, format and position. */
 function Profile() {
-  const p = useStore((s) => s.profile)
+  const name = useStore((s) => s.profile.name)
   const set = useStore((s) => s.setProfile)
-  const z = zoneBounds(p)
   return (
     <Section title="You" className="!mt-0">
-      <div className="flex flex-col gap-4">
-        <Field label="Name">
-          <input value={p.name} onChange={(e) => set({ name: e.target.value })} className={inputCls} />
-        </Field>
-        <div className="grid grid-cols-2 gap-2">
-          <Field label="Max heart rate">
-            <NumInput label="Max heart rate" value={p.hrMax} onChange={(v) => v && v > 120 && v < 230 && set({ hrMax: v })} className={`${inputCls} tabular-nums`} />
-          </Field>
-          <Field label="Resting heart rate">
-            <NumInput label="Resting heart rate" value={p.hrRest} onChange={(v) => v && v > 30 && v < 100 && set({ hrRest: v })} className={`${inputCls} tabular-nums`} />
-          </Field>
-        </div>
-        <div>
-          <div className="flex h-2.5 gap-[2px]">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <span key={i} className="flex-1" style={{ background: `rgb(var(--z${i}))` }} />
-            ))}
-          </div>
-          <div className="mt-2 grid grid-cols-5 text-[12.5px] tabular-nums text-fg-3">
-            {z.slice(0, 5).map((b, i) => (
-              <span key={i}>
-                Z{i + 1} <span className="text-fg-2">{Math.round(b)}+</span>
-              </span>
-            ))}
-          </div>
-          <p className="meta mt-2.5">
-            {p.zones
-              ? 'Your zones from Garmin. Training load is Garmin’s own where the watch worked one out, and from time in these zones where it didn’t.'
-              : 'Zones are 50, 60, 70, 80 and 90% of max until you sync, then they come from your Garmin settings.'}
-          </p>
-        </div>
-      </div>
+      <Field label="Name">
+        <input value={name} onChange={(e) => set({ name: e.target.value })} className={inputCls} />
+      </Field>
     </Section>
   )
 }
@@ -126,28 +94,6 @@ function RaceSettings() {
   )
 }
 
-function Football() {
-  const p = useStore((s) => s.profile)
-  const set = useStore((s) => s.setProfile)
-  return (
-    <Section title="Football">
-      <div className="flex flex-col gap-4">
-        <Field label="Your team">
-          <input value={p.team} onChange={(e) => set({ team: e.target.value })} className={inputCls} />
-        </Field>
-        <div>
-          <div className="label mb-2.5">Usual format</div>
-          <Segmented size="sm" value={p.format} onChange={(v: Format) => set({ format: v })} options={FORMATS.map((f) => ({ value: f, label: `${f}s` }))} />
-        </div>
-        <div>
-          <div className="label mb-2.5">Usual position</div>
-          <Segmented size="sm" value={p.position} onChange={(v: Position) => set({ position: v })} options={POSITIONS.map((x) => ({ value: x.key, label: x.label }))} />
-        </div>
-      </div>
-    </Section>
-  )
-}
-
 const OFFLINE = 'Can’t reach the sync functions. They go live once the app is deployed to Netlify.'
 const PREVIEW = import.meta.env.VITE_PREVIEW === '1'
 
@@ -184,6 +130,7 @@ function Garmin() {
   const [bump, setBump] = useState(0)
   const server = useServerStatus(sync.passphrase, bump)
   const live = w.mode === 'live'
+  const setUp = !sync.lastSync || sync.status === 'error'
 
   const run = async () => {
     setBusy(true)
@@ -215,32 +162,35 @@ function Garmin() {
           </span>
           {garmin && <Toggle label="Use Garmin data" on={sync.mode === 'live'} onChange={(on) => setSync({ mode: on ? 'live' : 'sample' })} />}
         </div>
-        <ol className="border-t border-fg/[0.13] py-3 text-[14.5px] leading-snug text-fg-2">
-          {[
-            <>
-              Make a Personal API key in{' '}
-              <a
-                href="https://connect.garmin.com/app/settings/personalApiToken"
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-0.5 text-fg underline decoration-fg-4 underline-offset-2"
-              >
-                Garmin Connect <ExternalLink size={12} />
-              </a>
-              .
-            </>,
-            <>
-              In Netlify, add two environment variables: <code className="font-mono text-[12.5px] text-fg">GARMIN_PERSONAL_API_KEY</code> and a passphrase of your choice as{' '}
-              <code className="font-mono text-[12.5px] text-fg">OVERREACH_PASSPHRASE</code>.
-            </>,
-            <>Type the same passphrase here and sync. The key never leaves the server.</>,
-          ].map((step, i) => (
-            <li key={i} className="flex gap-3 py-1.5">
-              <span className="w-4 shrink-0 text-[14px] font-medium tabular-nums text-fg-4">{i + 1}</span>
-              <span>{step}</span>
-            </li>
-          ))}
-        </ol>
+        {/* how to connect, until it's connected, and again if a sync fails (a key that's run out, say) */}
+        {setUp && (
+          <ol className="border-t border-fg/[0.13] py-3 text-[14.5px] leading-snug text-fg-2">
+            {[
+              <>
+                Make a Personal API key in{' '}
+                <a
+                  href="https://connect.garmin.com/app/settings/personalApiToken"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-0.5 text-fg underline decoration-fg-4 underline-offset-2"
+                >
+                  Garmin Connect <ExternalLink size={12} />
+                </a>
+                .
+              </>,
+              <>
+                In Netlify, add two environment variables: <code className="font-mono text-[12.5px] text-fg">GARMIN_PERSONAL_API_KEY</code> and a passphrase of your choice as{' '}
+                <code className="font-mono text-[12.5px] text-fg">OVERREACH_PASSPHRASE</code>.
+              </>,
+              <>Type the same passphrase here and sync. The key never leaves the server.</>,
+            ].map((step, i) => (
+              <li key={i} className="flex gap-3 py-1.5">
+                <span className="w-4 shrink-0 text-[14px] font-medium tabular-nums text-fg-4">{i + 1}</span>
+                <span>{step}</span>
+              </li>
+            ))}
+          </ol>
+        )}
         <div className="flex flex-col gap-3 border-t border-fg/[0.13] pt-4">
           <Field label="Passphrase">
             <input

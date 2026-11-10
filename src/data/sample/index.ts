@@ -18,9 +18,6 @@ export const SAMPLE_PROFILE: Profile = {
   name: 'Alex',
   hrMax: 192,
   hrRest: 48,
-  team: 'Real Ale Madrid',
-  format: 11,
-  position: 'MID',
 }
 
 const DAYS = 84
@@ -285,7 +282,8 @@ function sampleMatch(a: Activity, analysis: FootballAnalysis, history: { match: 
   const feel = clamp(Math.round(5.5 + res * 0.8 + goals * 0.6 + assists * 0.3 + r.normal(0, 1)), 2, 10)
   const team = eleven ? 'Real Ale Madrid' : 'Ctrl Alt Defeat'
   const opponent = r.pick(eleven ? OPPONENTS_11 : OPPONENTS_7)
-  const position = eleven ? profile.position : 'ANY'
+  // the sample player is a midfielder in the 11s and goes all over in the 7s
+  const position = eleven ? 'MID' : 'ANY'
   const baseline = baselineFor(format, history)
   const { rating, breakdown } = rateMatch({ format, scoreFor, scoreAgainst, goals, assists, points, position, feel, analysis, baseline })
   const m: Match = {

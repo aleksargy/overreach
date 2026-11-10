@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import type { Activity, Daily } from '../src/data/types'
+import { heartRatesFrom } from '../src/lib/load'
 import { readiness, recoveryNeedH } from '../src/lib/readiness'
 
 const HOUR = 3_600_000
@@ -91,4 +92,18 @@ test('recovery follows Garmin’s training-effect bands, or the load against you
   // a very long easy run Garmin rated modestly still counts by its load
   assert.equal(at(2.9, 170), 48)
   assert.equal(at(2.9, 250), 72)
+})
+
+test('max and resting heart rate come from what the watch measured when Garmin’s settings don’t say', () => {
+  // resting: the middle of the last 28 mornings; September's are too old to count
+  const mornings: Pick<Daily, 'date' | 'rhr'>[] = [
+    ...Array.from({ length: 20 }, (_, i) => ({ date: new Date(Date.UTC(2026, 8, 1 + i)).toISOString().slice(0, 10), rhr: 60 })),
+    ...Array.from({ length: 9 }, (_, i) => ({ date: day(20 + i), rhr: [46, 47, 47, 48, 48, 48, 49, 50, 52][i] })),
+  ]
+  const run = (daysAgo: number, maxHr?: number) => ({ start: new Date(NOW.getTime() - daysAgo * 86_400_000).toISOString(), maxHr })
+  // max: one spike from a loose strap doesn't count, a year-old reading neither
+  const runs = [run(3, 214), run(9, 188), run(20, 186), run(40, 179), run(400, 199), run(2)]
+  assert.deepEqual(heartRatesFrom(mornings, runs, NOW), { hrMax: 188, hrRest: 48 })
+  // too little to go on says nothing
+  assert.deepEqual(heartRatesFrom(mornings.slice(0, 3), runs.slice(0, 2), NOW), {})
 })

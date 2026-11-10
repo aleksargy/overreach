@@ -4,6 +4,7 @@
 import { useStore } from './store'
 import type { BodyEntry, Daily, GarminActivity, Stream } from './types'
 import type { Backup } from '../lib/backup'
+import { heartRatesFrom } from '../lib/load'
 
 export interface ServerStatus {
   configured: boolean
@@ -89,15 +90,17 @@ export async function fetchStream(activityId: string): Promise<Stream | null> {
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
-/** Store what the server has. The first sync also takes max and resting HR from Garmin's zone settings. */
+/** Store what the server has. Max and resting HR and the zones come from the watch: there's nowhere to set them here. */
 async function pull() {
-  const { sync, setGarmin, setProfile, setSync } = useStore.getState()
+  const { setGarmin, setProfile, setSync } = useStore.getState()
   const data = await pullData()
-  if (!sync.lastSync && data.profile) {
-    const { hrMax, hrRest } = data.profile
-    setProfile({ ...(hrMax && hrMax > 120 ? { hrMax } : {}), ...(hrRest && hrRest > 30 ? { hrRest } : {}) })
-  }
-  // zones always follow your Garmin settings: there's nowhere to edit them here
+  // Garmin's zone settings say, or else what the watch measured
+  const measured = heartRatesFrom(data.dailies, data.activities, new Date())
+  const set = data.profile ?? {}
+  const hrMax = set.hrMax && set.hrMax > 120 && set.hrMax < 230 ? set.hrMax : measured.hrMax
+  const hrRest = set.hrRest && set.hrRest > 30 && set.hrRest < 100 ? set.hrRest : measured.hrRest
+  const was = useStore.getState().profile
+  if ((hrMax && hrMax !== was.hrMax) || (hrRest && hrRest !== was.hrRest)) setProfile({ ...(hrMax ? { hrMax } : {}), ...(hrRest ? { hrRest } : {}) })
   const zones = data.profile?.zones
   if (zones?.length === 5 && zones.join() !== useStore.getState().profile.zones?.join()) setProfile({ zones })
   setGarmin({ activities: data.activities, dailies: data.dailies, body: data.body })
