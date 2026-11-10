@@ -76,7 +76,7 @@ function Shell() {
 
   // Screens pad their bottom by this so the minimised workout bar never covers content.
   useEffect(() => {
-    document.documentElement.style.setProperty('--mini-h', mini ? '60px' : '0px')
+    document.documentElement.style.setProperty('--mini-h', mini ? '57px' : '0px')
   }, [mini])
 
   // Pick up new Garmin data when the app opens or comes back to the foreground.

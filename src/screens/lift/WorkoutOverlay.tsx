@@ -296,6 +296,7 @@ function ExerciseBlock({ w, we, index, count }: { w: World; we: WorkoutExercise;
   )
 }
 
+/** The rest timer: a strip across the foot of the board, like the header, whose rule fills as the rest runs down. */
 function RestBar() {
   const rest = useUi((s) => s.rest)
   const nudge = useUi((s) => s.nudgeRest)
@@ -316,38 +317,31 @@ function RestBar() {
       {rest && (
         <motion.div
           key="rest"
-          className="pointer-events-none absolute inset-x-0 bottom-0 pb-[max(12px,env(safe-area-inset-bottom,0px))]"
-          initial={{ y: 120 }}
+          className="absolute inset-x-0 bottom-0 bg-ink-0 pb-[env(safe-area-inset-bottom,0px)]"
+          initial={{ y: '100%' }}
           animate={{ y: 0 }}
-          exit={{ y: 140 }}
+          exit={{ y: '100%' }}
           transition={{ type: 'spring', stiffness: 420, damping: 38 }}
         >
-          <div className="gutter pointer-events-auto mx-auto max-w-app">
-            <div className="relative overflow-hidden rounded-card bg-ink-1 shadow-[0_-10px_40px_rgba(0,0,0,0.55),inset_0_0_0_1px_rgb(var(--fg)/0.2)]">
-              <div className="absolute inset-x-0 top-0 h-[2px]">
-                <div
-                  className={`h-full transition-[width] duration-300 ease-linear ${over ? 'bg-good' : 'bg-fg'}`}
-                  style={{ width: `${Math.min(1, 1 - left / rest.total) * 100}%` }}
-                />
-              </div>
-              <div className="flex items-center gap-3 px-4 pb-3 pt-3.5">
-                <div className="min-w-0 flex-1">
-                  <div className={`label ${over ? 'text-good' : ''}`}>{over ? 'Go' : 'Rest'}</div>
-                  <div className="meta truncate">{over ? 'Next set' : rest.label}</div>
-                </div>
-                <Digits className={`num text-[46px] !font-light ${over ? 'text-good' : ''}`}>{clock(left)}</Digits>
-                <div className="flex gap-1.5">
-                  <button onClick={() => nudge(-15)} className="chip h-10 px-2.5">
-                    −15
-                  </button>
-                  <button onClick={() => nudge(15)} className="chip h-10 px-2.5">
-                    +15
-                  </button>
-                  <button onClick={stop} className="chip chip-on h-10 px-3 font-semibold">
-                    {over ? 'OK' : 'Skip'}
-                  </button>
-                </div>
-              </div>
+          <div className="h-[2px] bg-fg/[0.13]">
+            <div className={`h-full transition-[width] duration-300 ease-linear ${over ? 'bg-good' : 'bg-fg'}`} style={{ width: `${Math.min(1, 1 - left / rest.total) * 100}%` }} />
+          </div>
+          <div className="gutter mx-auto flex max-w-app items-center gap-3 py-3">
+            <div className="min-w-0 flex-1">
+              <div className={`label ${over ? 'text-good' : ''}`}>{over ? 'Go' : 'Rest'}</div>
+              <div className="meta truncate">{over ? 'Next set' : rest.label}</div>
+            </div>
+            <Digits className={`num text-[46px] !font-light ${over ? 'text-good' : ''}`}>{clock(left)}</Digits>
+            <div className="flex gap-1.5">
+              <button onClick={() => nudge(-15)} className="chip h-10 px-2.5">
+                −15
+              </button>
+              <button onClick={() => nudge(15)} className="chip h-10 px-2.5">
+                +15
+              </button>
+              <button onClick={stop} className="chip chip-on h-10 px-3 font-semibold">
+                {over ? 'OK' : 'Skip'}
+              </button>
             </div>
           </div>
         </motion.div>
@@ -438,7 +432,7 @@ function FinishSheet({ open, onClose }: { open: boolean; onClose: () => void }) 
   )
 }
 
-/** Sits above the tab bar while a workout is minimised. */
+/** Sits on the tab bar while a workout is minimised: a strip of the board whose top rule fills as the sets get ticked. */
 export function MiniWorkoutBar() {
   const active = useStore((s) => s.active)
   const open = useUi((s) => s.workoutOpen)
@@ -450,15 +444,12 @@ export function MiniWorkoutBar() {
   const total = active.exercises.reduce((a, we) => a + working(we).length, 0)
   const left = rest ? Math.max(0, Math.ceil((rest.until - now) / 1000)) : 0
   return (
-    <div className="fixed inset-x-0 bottom-[calc(var(--tabbar-h)+env(safe-area-inset-bottom,0px))] z-40">
-      <div className="gutter mx-auto max-w-app pb-2">
-        <button
-          onClick={() => setOpen(true)}
-          className="press relative flex h-[52px] w-full items-center gap-3 overflow-hidden rounded-card bg-ink-1 px-3.5 text-left shadow-[0_10px_30px_rgba(0,0,0,0.5),inset_0_0_0_1px_rgb(var(--fg)/0.2)]"
-        >
-          <span className="absolute inset-x-0 top-0 h-[2px]">
-            <span className="block h-full bg-fg" style={{ width: `${total ? (done / total) * 100 : 0}%` }} />
-          </span>
+    <div className="fixed inset-x-0 bottom-[calc(var(--tabbar-h)+env(safe-area-inset-bottom,0px))] z-40 bg-ink-0">
+      <div className="h-px bg-fg/[0.13]">
+        <div className="h-full bg-fg transition-[width] duration-500" style={{ width: `${total ? (done / total) * 100 : 0}%` }} />
+      </div>
+      <button onClick={() => setOpen(true)} className="block w-full text-left transition-colors duration-150 active:bg-ink-2">
+        <span className="gutter mx-auto flex h-14 max-w-app items-center gap-3">
           <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-bad" />
           <span className="min-w-0 flex-1">
             <span className="display block truncate text-[19px] font-bold leading-none">{active.name}</span>
@@ -468,8 +459,8 @@ export function MiniWorkoutBar() {
           </span>
           <Digits className="num text-[24px] !font-normal">{clock((now - Date.parse(active.start)) / 1000)}</Digits>
           <ChevronUp size={18} className="text-fg-3" />
-        </button>
-      </div>
+        </span>
+      </button>
     </div>
   )
 }
