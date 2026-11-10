@@ -81,7 +81,7 @@ function Weight({ body, now }: { body: BodyEntry[]; now: Date }) {
         )}
       </div>
       <div className="mt-4 flex items-baseline">
-        <Ticker value={last.v} dp={1} className="num-hero -ml-0.5 text-[104px]" duration={1000} />
+        <Ticker value={last.v} dp={1} className="num-hero -ml-0.5 text-[81px]" duration={1000} />
         <span className="unit ml-2 text-[16px]">kg</span>
       </div>
       <div className="meta mt-4">{Math.abs(perWeek) < 0.05 ? 'Holding steady' : `${perWeek < 0 ? 'Losing' : 'Gaining'} ${Math.abs(perWeek).toFixed(2)} kg a week`}</div>
@@ -135,7 +135,7 @@ function Recovery({ dailies }: { dailies: Daily[] }) {
               <div key={m.key} className="flex flex-col">
                 <div className="label">{m.label}</div>
                 <div className="mt-3 flex items-baseline">
-                  <span className="num text-[36px]">{m.show(week)}</span>
+                  <span className="num text-[28px]">{m.show(week)}</span>
                   {m.unit && <span className="unit">{m.unit}</span>}
                 </div>
                 <div className="mt-1.5">
@@ -165,7 +165,7 @@ function SleepStages({ d }: { d: Daily }) {
   return (
     <Section title="Last night" action={d.sleepScore ? <span className="meta">Sleep score {d.sleepScore}</span> : undefined}>
       <div>
-        <div className="num text-[44px] !font-normal">{hm(d.sleepS ?? 0)}</div>
+        <div className="num text-[34px] !font-normal">{hm(d.sleepS ?? 0)}</div>
         <div className="mt-5 flex h-3 gap-[2px]">{parts.map((p) => (p.s > 0 ? <span key={p.key} style={{ width: `${(p.s / total) * 100}%`, background: p.color }} /> : null))}</div>
         <div className="mt-4 grid grid-cols-4 gap-2">
           {parts.map((p) => (
@@ -174,7 +174,7 @@ function SleepStages({ d }: { d: Daily }) {
                 <span className="h-2 w-2" style={{ background: p.color }} />
                 {p.key}
               </div>
-              <div className="num mt-1.5 text-[21px]">{hm(p.s)}</div>
+              <div className="num mt-1.5 text-[16.5px]">{hm(p.s)}</div>
             </div>
           ))}
         </div>

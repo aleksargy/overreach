@@ -141,7 +141,7 @@ export function Stepper({
       <Plus size={18} />
     </button>
   )
-  const num = <Bump value={value} className={`min-w-[1.4ch] text-center ${big ? 'num-hero text-[92px] leading-[0.9]' : 'num text-[40px] !font-normal'}`} />
+  const num = <Bump value={value} className={`min-w-[1.4ch] text-center ${big ? 'num-hero text-[72px] leading-[0.9]' : 'num text-[31px] !font-normal'}`} />
   return (
     <div className="flex flex-col items-center gap-2">
       {label && <div className="label">{label}</div>}
@@ -258,4 +258,4 @@ export function NumInput({
 
 /** a number written on a chalk line */
 export const numInputCls =
-  'num h-10 w-full min-w-0 rounded-none border-b border-fg/25 bg-transparent text-center text-[24px] placeholder:text-fg-4 focus:border-fg focus:outline-none'
+  'num h-10 w-full min-w-0 rounded-none border-b border-fg/25 bg-transparent text-center text-[19px] placeholder:text-fg-4 focus:border-fg focus:outline-none'

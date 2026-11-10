@@ -108,19 +108,19 @@ export function MatchReportScreen() {
       <div className="ruled mt-7">
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 pb-5 pt-6">
           <div className="min-w-0">
-            <div className="display line-clamp-2 break-words text-[21px] font-bold leading-[1.05]">{m.team}</div>
+            <div className="display line-clamp-2 break-words text-[16.5px] font-bold leading-[1.05]">{m.team}</div>
             <div className="meta mt-1">You</div>
           </div>
           <div className="flex flex-col items-center">
             <div className="flex items-center gap-3">
-              <span className="num-hero text-[84px] !font-normal">{m.scoreFor}</span>
-              <span className="num-hero text-[40px] text-fg-4">–</span>
-              <span className="num-hero text-[84px] text-fg-2">{m.scoreAgainst}</span>
+              <span className="num-hero text-[66px] !font-normal">{m.scoreFor}</span>
+              <span className="num-hero text-[31px] text-fg-4">–</span>
+              <span className="num-hero text-[66px] text-fg-2">{m.scoreAgainst}</span>
             </div>
             <div className={`mt-3 text-[13px] font-medium ${r === 'W' ? 'text-z2' : r === 'L' ? 'text-z5' : 'text-fg-3'}`}>{r === 'W' ? 'Win' : r === 'L' ? 'Defeat' : 'Draw'}</div>
           </div>
           <div className="min-w-0 text-right">
-            <div className="display line-clamp-2 break-words text-[21px] font-bold leading-[1.05] text-fg-2">{m.opponent}</div>
+            <div className="display line-clamp-2 break-words text-[16.5px] font-bold leading-[1.05] text-fg-2">{m.opponent}</div>
             <div className="meta mt-1">Them</div>
           </div>
         </div>
@@ -133,7 +133,7 @@ export function MatchReportScreen() {
           ].map((x) => (
             <div key={x.k} className="py-4">
               <div className="label">{x.k}</div>
-              <div className="num mt-2.5 truncate text-[30px]">{x.v}</div>
+              <div className="num mt-2.5 truncate text-[23px]">{x.v}</div>
             </div>
           ))}
         </div>
@@ -145,7 +145,7 @@ export function MatchReportScreen() {
           <div className="flex items-center gap-4">
             <RatingBadge rating={m.rating} size="lg" />
             <div>
-              <div className={`display text-[30px] font-bold leading-none ${tone.text}`}>{tone.word}</div>
+              <div className={`display text-[23px] font-bold leading-none ${tone.text}`}>{tone.word}</div>
               {ratingMedian !== undefined && (
                 <div className="meta mt-2 flex items-center gap-2">
                   Your {m.format}s median {ratingMedian.toFixed(1)} <Delta value={m.rating - ratingMedian} />
@@ -156,7 +156,7 @@ export function MatchReportScreen() {
           <div className="list mt-4 [--inset:0px]">
             <div className="flex items-baseline justify-between py-2.5 text-[14.5px] text-fg-3">
               <span>Everyone starts on</span>
-              <span className="num text-[20px]">6.00</span>
+              <span className="num text-[15.5px]">6.00</span>
             </div>
             {m.breakdown.map((f) => (
               <div key={f.key} className="flex items-center justify-between gap-3 py-2.5">
@@ -170,7 +170,7 @@ export function MatchReportScreen() {
                       style={{ width: `${Math.min(50, Math.abs(f.value) * 30)}%` }}
                     />
                   </span>
-                  <span className={`num w-12 text-right text-[20px] ${f.value > 0 ? 'text-good' : f.value < 0 ? 'text-bad' : 'text-fg-3'}`}>{signed(f.value, 2)}</span>
+                  <span className={`num w-12 text-right text-[15.5px] ${f.value > 0 ? 'text-good' : f.value < 0 ? 'text-bad' : 'text-fg-3'}`}>{signed(f.value, 2)}</span>
                 </span>
               </div>
             ))}
@@ -216,13 +216,13 @@ export function MatchReportScreen() {
             <div className="mt-6 grid grid-cols-3 gap-x-3">
               <div>
                 <div className="label">Sprints by half</div>
-                <div className="num mt-2 text-[32px]">
+                <div className="num mt-2 text-[25px]">
                   {an.sprintsByHalf[0]} <span className="font-light text-fg-4">/</span> {an.sprintsByHalf[1]}
                 </div>
               </div>
               <div>
                 <div className="label">Legs went</div>
-                <div className={`num mt-2 text-[32px] ${an.fadeMinute !== undefined ? 'text-bad' : 'text-good'}`}>
+                <div className={`num mt-2 text-[25px] ${an.fadeMinute !== undefined ? 'text-bad' : 'text-good'}`}>
                   {an.fadeMinute !== undefined ? `${ordinal(an.fadeMinute)} min` : 'Never'}
                 </div>
               </div>
@@ -266,7 +266,7 @@ export function MatchReportScreen() {
           <div className="flex items-center gap-2">
             <span className="text-[14px] text-fg-3">Delete this match?</span>
             <button
-              className="btn h-10 bg-bad px-4 text-[14px] text-ink-0"
+              className="btn h-10 bg-bad px-4 text-[13px] text-ink-0"
               onClick={() => {
                 deleteMatch(m.id)
                 nav('/football')
@@ -274,7 +274,7 @@ export function MatchReportScreen() {
             >
               Delete
             </button>
-            <button className="btn-ghost h-10 px-4 text-[14px]" onClick={() => setConfirmDelete(false)}>
+            <button className="btn-ghost h-10 px-4 text-[13px]" onClick={() => setConfirmDelete(false)}>
               Keep
             </button>
           </div>
@@ -318,7 +318,7 @@ function PhysStat({ label, value, unit, delta, dp = 1 }: { label: string; value:
   return (
     <div className="min-w-0">
       <div className="label truncate">{label}</div>
-      <div className="num mt-2.5 text-[30px]">
+      <div className="num mt-2.5 text-[23px]">
         {value}
         {unit && <span className="unit ml-0.5 text-[12px]">{unit}</span>}
       </div>

@@ -47,7 +47,7 @@ export function WorkoutRow({ w, records }: { w: Workout; records?: number }) {
           {fmt(w.start, 'EEE d MMM')} · {dur(secs)}
         </span>
       </span>
-      <span className="num text-[22px]">
+      <span className="num text-[17px]">
         {workingSets(w)}
         <span className="unit ml-0.5 text-[12px]">sets</span>
       </span>

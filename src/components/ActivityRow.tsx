@@ -64,7 +64,7 @@ export function ActivityRow({ a, match }: { a: Activity; match?: Match }) {
           <span className="rounded-[4px] px-2 py-1 text-[12px] font-semibold leading-none text-mark ring-1 ring-inset ring-mark/50">Rate</span>
         ))}
       <span className="shrink-0 text-right">
-        <span className="num block text-[22px] leading-5">
+        <span className="num block text-[17px] leading-5">
           {h.value}
           <span className="unit ml-0.5 text-[12px]">{h.unit}</span>
         </span>

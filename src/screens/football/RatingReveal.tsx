@@ -57,12 +57,12 @@ export function RatingReveal() {
             <div className="mt-8 flex flex-col items-center">
               <div className="label">Match rating</div>
               {/* it counts up, then gets circled in its colour */}
-              <span className="mt-7 transition-colors duration-500" style={{ color: done ? color : 'rgb(var(--fg))' }}>
+              <span className="mt-2 transition-colors duration-500" style={{ color: done ? color : 'rgb(var(--fg))' }}>
                 <Circled on={done} color={color} delay={0.05} seed={Math.round(m.rating * 10)}>
-                  <Ticker value={m.rating} dp={1} duration={1400} className="num-hero block text-[150px] !font-normal" />
+                  <Ticker value={m.rating} dp={1} duration={1400} className="num-hero block text-[117px] !font-normal" />
                 </Circled>
               </span>
-              <motion.div className="display mt-9 text-[26px] font-bold leading-none" style={{ color }} initial={{ opacity: 0, y: 8 }} animate={done ? { opacity: 1, y: 0 } : {}}>
+              <motion.div className="display mt-4 text-[20px] font-bold leading-none" style={{ color }} initial={{ opacity: 0, y: 8 }} animate={done ? { opacity: 1, y: 0 } : {}}>
                 {tone.word}
               </motion.div>
             </div>
@@ -82,7 +82,7 @@ export function RatingReveal() {
                   transition={{ delay: 0.5 + i * 0.07 }}
                 >
                   <span className="text-[14.5px] text-fg-2">{f.label}</span>
-                  <span className={`num text-[19px] ${f.value > 0 ? 'text-good' : f.value < 0 ? 'text-bad' : 'text-fg-3'}`}>{signed(f.value, 2)}</span>
+                  <span className={`num text-[15px] ${f.value > 0 ? 'text-good' : f.value < 0 ? 'text-bad' : 'text-fg-3'}`}>{signed(f.value, 2)}</span>
                 </motion.div>
               ))}
               <motion.div
@@ -92,7 +92,7 @@ export function RatingReveal() {
                 transition={{ delay: 0.5 + m.breakdown.length * 0.07 }}
               >
                 <span className="text-[13px] text-fg-3">Everyone starts on 6.0</span>
-                <span className="num text-[26px]" style={{ color }}>
+                <span className="num text-[20px]" style={{ color }}>
                   {m.rating.toFixed(1)}
                 </span>
               </motion.div>

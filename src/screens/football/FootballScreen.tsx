@@ -141,14 +141,14 @@ export function FootballScreen() {
             ].map((x) => (
               <div key={x.k}>
                 <div className="label">{x.k}</div>
-                <Ticker value={x.v} className="num-hero mt-3 block text-[60px]" />
+                <Ticker value={x.v} className="num-hero mt-3 block text-[47px]" />
               </div>
             ))}
           </div>
           <div className="mt-6 grid grid-cols-3 gap-x-3">
             <div>
               <div className="label">Record</div>
-              <div className="num mt-2.5 text-[27px]">
+              <div className="num mt-2.5 text-[21px]">
                 <span className="text-z2">{fs.w}</span>
                 <span className="text-fg-4"> · </span>
                 <span className="text-fg-2">{fs.d}</span>
@@ -158,11 +158,11 @@ export function FootballScreen() {
             </div>
             <div>
               <div className="label">Win rate</div>
-              <div className="num mt-2.5 text-[27px]">{Math.round((fs.w / fs.apps) * 100)}%</div>
+              <div className="num mt-2.5 text-[21px]">{Math.round((fs.w / fs.apps) * 100)}%</div>
             </div>
             <div>
               <div className="label">Avg rating</div>
-              <div className={`num mt-2.5 text-[27px] ${ratingTone(fs.avgRating).text}`}>{fs.avgRating.toFixed(2)}</div>
+              <div className={`num mt-2.5 text-[21px] ${ratingTone(fs.avgRating).text}`}>{fs.avgRating.toFixed(2)}</div>
             </div>
           </div>
         </Section>
@@ -176,7 +176,7 @@ export function FootballScreen() {
               return (
                 <Link key={m.id} to={`/match/${m.id}`} className="press flex flex-col items-center gap-2">
                   <ResultMark r={r} className="aspect-square w-full text-[19px]" />
-                  <span className={`num text-[17px] ${ratingTone(m.rating).text}`}>{m.rating.toFixed(1)}</span>
+                  <span className={`num text-[13.5px] ${ratingTone(m.rating).text}`}>{m.rating.toFixed(1)}</span>
                 </Link>
               )
             })}
@@ -266,7 +266,7 @@ function UnratedRow({ a, now, onRate }: { a: Activity; now: Date; onRate: () => 
           {dur(a.durationS)} · {km(a.distanceM, 1)} km{a.football ? ` · ${a.football.sprints} sprints` : ''}
         </span>
       </span>
-      <span className="btn-primary h-9 px-4 text-[17px]">Rate</span>
+      <span className="btn-primary h-9 px-4 text-[13.5px]">Rate</span>
     </button>
   )
 }
@@ -275,7 +275,7 @@ function Record({ label, value, unit, m, act }: { label: string; value: string; 
   const inner = (
     <>
       <div className="label truncate">{label}</div>
-      <div className="num mt-3 text-[34px]">
+      <div className="num mt-3 text-[27px]">
         {value}
         {unit && <span className="unit">{unit}</span>}
       </div>
@@ -312,7 +312,7 @@ function RivalRow({ r }: { r: Rivalry }) {
           {r.games} games · {r.scored}–{r.conceded} on goals
         </span>
       </span>
-      <span className="num shrink-0 text-[21px]">
+      <span className="num shrink-0 text-[16.5px]">
         <span className="text-z2">{r.w}</span>
         <span className="text-fg-4"> · </span>
         <span className="text-fg-2">{r.d}</span>

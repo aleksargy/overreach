@@ -64,7 +64,9 @@ function useBox<T extends HTMLElement>(): [React.RefObject<T | null>, { w: numbe
 
 /**
  * The one thing on a screen worth a look, circled. Wrap the number itself;
- * the loop is drawn around it once the screen has settled.
+ * the loop is drawn around it once the screen has settled. The loop's room is
+ * kept as a margin, so it never runs over the words around it or out past the
+ * gutter: don't pad for it where it's used.
  */
 export function Circled({
   children,
@@ -88,14 +90,17 @@ export function Circled({
     // an ellipse has to be a good deal bigger than the box it clears
     const w = box.w * 1.24 + 18
     const h = box.h * 1.3 + 12
-    return { w, h, d: loopPath(w, h, seed) }
+    // the loop drifts out to 4% past its ellipse, and the stroke adds a pixel
+    return { w, h, d: loopPath(w, h, seed), x: (w * 1.04 - box.w) / 2 + 1, y: (h * 1.04 - box.h) / 2 + 1 }
   }, [box, seed])
   return (
-    <span ref={ref} className={`relative inline-block ${className}`}>
+    // the room is kept before the loop is drawn, so nothing moves when it is
+    <span ref={ref} className={`relative inline-block ${className}`} style={geo ? { margin: `${geo.y.toFixed(1)}px ${geo.x.toFixed(1)}px` } : undefined}>
       {children}
       {on && geo && box && (
         <svg
           aria-hidden="true"
+          data-mark="circle"
           className="pointer-events-none absolute overflow-visible"
           width={geo.w}
           height={geo.h}

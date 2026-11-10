@@ -129,7 +129,7 @@ export function RoutineScreen() {
                     >
                       <Minus size={15} />
                     </button>
-                    <span className="num w-5 text-center text-[26px]">{it.sets}</span>
+                    <span className="num w-5 text-center text-[20px]">{it.sets}</span>
                     <button
                       aria-label={`One more set of ${ex.name}`}
                       disabled={it.sets >= 10}

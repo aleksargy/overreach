@@ -71,7 +71,7 @@ export function FeedScreen() {
           return (
             <section key={k}>
               <div className="flex items-baseline justify-between gap-3 border-b border-fg/[0.13] pb-2">
-                <h2 className="display text-[21px] font-bold leading-none">
+                <h2 className="display text-[16.5px] font-bold leading-none">
                   {format(start, 'd MMM')} – {format(endOfISOWeek(start), 'd MMM')}
                 </h2>
                 <span className="meta">

@@ -53,7 +53,7 @@ export function ZoneBar({ zones, height = 8, labels }: { zones: ZoneSeconds; hei
                 <span className="h-1.5 w-1.5 rounded-full" style={{ background: zoneColor(i) }} />
                 <span className="text-[12px] font-medium text-fg-3">Z{i + 1}</span>
               </div>
-              <div className="num mt-1.5 text-[22px]">{Math.round((s / total) * 100)}%</div>
+              <div className="num mt-1.5 text-[17px]">{Math.round((s / total) * 100)}%</div>
               <div className="meta mt-0.5 text-[12px]">{Math.round(s / 60)} min</div>
             </div>
           ))}

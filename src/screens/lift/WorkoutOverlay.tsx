@@ -94,13 +94,13 @@ function Live() {
             <ChevronDown size={26} strokeWidth={1.75} />
           </button>
           <div className="min-w-0 flex-1">
-            <div className="display truncate text-[23px] font-bold leading-none">{active.name}</div>
+            <div className="display truncate text-[18px] font-bold leading-none">{active.name}</div>
             <div className="meta mt-1">
               {done} of {total} sets
             </div>
           </div>
-          <Digits className="num mr-2 text-[26px] !font-normal text-fg-2">{clock(elapsed)}</Digits>
-          <button onClick={() => setFinishing(true)} className="btn-primary h-10 px-4 text-[17px]">
+          <Digits className="num mr-2 text-[20px] !font-normal text-fg-2">{clock(elapsed)}</Digits>
+          <button onClick={() => setFinishing(true)} className="btn-primary h-10 px-4 text-[13.5px]">
             Finish
           </button>
         </div>
@@ -202,9 +202,9 @@ function ExerciseBlock({ w, we, index, count }: { w: World; we: WorkoutExercise;
     <section className="border-b border-fg/[0.13] py-6">
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
-          <h3 className="display text-[28px] font-bold leading-none">{ex.name}</h3>
+          <h3 className="display text-[22px] font-bold leading-none">{ex.name}</h3>
           <div className="mt-2.5 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-            <span className="num text-[22px] text-fg-2">{targetText(ex, target)}</span>
+            <span className="num text-[17px] text-fg-2">{targetText(ex, target)}</span>
             <MoveNote t={target} />
             {perSide.length > 0 && <span className="meta">{perSide.map(fmtKg).join(' + ')} a side</span>}
           </div>
@@ -248,7 +248,7 @@ function ExerciseBlock({ w, we, index, count }: { w: World; we: WorkoutExercise;
           <button
             aria-label={r.s.kind === 'warmup' ? 'Warm-up set. Tap to count it' : 'Tap to make it a warm-up'}
             onClick={() => patchSet(r.s.id, { kind: r.s.kind === 'warmup' ? 'working' : 'warmup' })}
-            className={`num h-10 text-left text-[21px] ${r.s.kind === 'warmup' ? 'text-z1' : r.s.done ? 'text-fg' : 'text-fg-3'}`}
+            className={`num h-10 text-left text-[16.5px] ${r.s.kind === 'warmup' ? 'text-z1' : r.s.done ? 'text-fg' : 'text-fg-3'}`}
           >
             {r.label}
           </button>
@@ -331,7 +331,7 @@ function RestBar() {
               <div className={`label ${over ? 'text-good' : ''}`}>{over ? 'Go' : 'Rest'}</div>
               <div className="meta truncate">{over ? 'Next set' : rest.label}</div>
             </div>
-            <Digits className={`num text-[46px] !font-light ${over ? 'text-good' : ''}`}>{clock(left)}</Digits>
+            <Digits className={`num text-[36px] !font-light ${over ? 'text-good' : ''}`}>{clock(left)}</Digits>
             <div className="flex gap-1.5">
               <button onClick={() => nudge(-15)} className="chip h-10 px-2.5">
                 −15
@@ -394,11 +394,11 @@ function FinishSheet({ open, onClose }: { open: boolean; onClose: () => void }) 
       <div className="flex items-baseline gap-8">
         <div>
           <div className="label mb-2">Time</div>
-          <div className="num text-[34px]">{dur(mins * 60)}</div>
+          <div className="num text-[27px]">{dur(mins * 60)}</div>
         </div>
         <div>
           <div className="label mb-2">Sets</div>
-          <div className="num text-[34px]">{done}</div>
+          <div className="num text-[27px]">{done}</div>
         </div>
       </div>
       {left > 0 && done > 0 && (
@@ -452,12 +452,12 @@ export function MiniWorkoutBar() {
         <span className="gutter mx-auto flex h-14 max-w-app items-center gap-3">
           <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-bad" />
           <span className="min-w-0 flex-1">
-            <span className="display block truncate text-[19px] font-bold leading-none">{active.name}</span>
+            <span className="display block truncate text-[15px] font-bold leading-none">{active.name}</span>
             <span className="meta mt-0.5 block">
               {done} of {total} sets{rest ? (left ? ` · rest ${clock(left)}` : ' · go') : ''}
             </span>
           </span>
-          <Digits className="num text-[24px] !font-normal">{clock((now - Date.parse(active.start)) / 1000)}</Digits>
+          <Digits className="num text-[19px] !font-normal">{clock((now - Date.parse(active.start)) / 1000)}</Digits>
           <ChevronUp size={18} className="text-fg-3" />
         </span>
       </button>

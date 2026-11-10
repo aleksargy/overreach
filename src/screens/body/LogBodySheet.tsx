@@ -44,7 +44,7 @@ function Form() {
             <Minus size={18} />
           </button>
           <div className="flex items-baseline">
-            <NumInput label="Weight in kg" decimal value={kg} onChange={setKg} className="num-hero w-[3.4ch] bg-transparent text-center text-[88px] focus:outline-none" />
+            <NumInput label="Weight in kg" decimal value={kg} onChange={setKg} className="num-hero w-[3.4ch] bg-transparent text-center text-[69px] focus:outline-none" />
             <span className="unit">kg</span>
           </div>
           <button aria-label="Plus 0.1 kg" onClick={() => step(0.1)} className="press grid h-11 w-11 place-items-center rounded-full bg-fg text-ink-0">

@@ -63,7 +63,7 @@ export function ExerciseScreen() {
         <div className="label flex items-baseline gap-3">
           Next time <MoveNote t={t} />
         </div>
-        <div className="num-hero mt-4 text-[76px]">{targetText(ex, t)}</div>
+        <div className="num-hero mt-4 text-[59px]">{targetText(ex, t)}</div>
         <p className="meta mt-5">{rule(ex)}</p>
       </section>
 
@@ -92,7 +92,7 @@ export function ExerciseScreen() {
               {history.slice(0, 12).map((h) => (
                 <Link key={h.workoutId + h.date} to={`/lift/history/${h.workoutId}`} className="flex items-baseline gap-3 py-3 transition-colors duration-150 active:bg-ink-2">
                   <span className="meta w-[76px] shrink-0">{fmt(h.date, 'd MMM yy')}</span>
-                  <span className="num min-w-0 flex-1 truncate text-right text-[22px]">{setsLine(ex, h.sets)}</span>
+                  <span className="num min-w-0 flex-1 truncate text-right text-[17px]">{setsLine(ex, h.sets)}</span>
                 </Link>
               ))}
             </div>

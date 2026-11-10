@@ -30,7 +30,7 @@ export default {
         sans: ['"Sofia Sans Semi Condensed Variable"', 'system-ui', '-apple-system', '"Segoe UI"', 'sans-serif'],
         mono: ['"Sofia Sans Semi Condensed Variable"', 'system-ui', 'sans-serif'],
         // anything chalked up big: numbers, titles, buttons
-        display: ['"Big Shoulders Variable"', '"Sofia Sans Semi Condensed Variable"', 'Impact', 'sans-serif'],
+        display: ['"Libre Franklin Variable"', '"Franklin Gothic Medium"', '"Sofia Sans Semi Condensed Variable"', 'sans-serif'],
       },
       borderRadius: { card: '6px', sheet: '18px' },
       maxWidth: { app: '520px' },

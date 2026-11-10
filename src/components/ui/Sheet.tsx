@@ -63,7 +63,7 @@ export function Sheet({ open, onClose, title, kicker, children, footer }: Props)
                 <div className="gutter flex items-center justify-between gap-3 pt-3">
                   <div className="min-w-0">
                     {kicker && <div className="label mb-1">{kicker}</div>}
-                    {title && <h2 className="display text-[30px] font-bold leading-none">{title}</h2>}
+                    {title && <h2 className="display text-[23px] font-bold leading-none">{title}</h2>}
                   </div>
                   <button onClick={onClose} aria-label="Close" className="press grid h-8 w-8 shrink-0 place-items-center rounded-full text-fg-2 ring-1 ring-inset ring-fg/25">
                     <X size={16} strokeWidth={2} />
