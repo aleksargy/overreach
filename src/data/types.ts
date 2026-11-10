@@ -171,7 +171,7 @@ export interface Daily {
 export type Position = 'GK' | 'DEF' | 'MID' | 'FWD' | 'ANY'
 export type Format = 5 | 6 | 7 | 8 | 11
 
-/** the fixed moments games were rated with before notes; they live on as suggestions */
+/** the fixed moments games were rated with before notes; old games are still read with them */
 export type MomentKey = 'worldie' | 'nutmeg' | 'lastDitch' | 'bigSave' | 'sitter' | 'error' | 'ownGoal' | 'lostHead'
 
 /** Something that went well or badly, in your words. A big one counts double. */
