@@ -9,7 +9,7 @@ export const POINTS_CAP = 0.6
 
 export const pointValue = (p: MatchPoint) => (p.good ? 1 : -1) * (p.big ? BIG_POINT : POINT)
 
-/** The fixed moments games were rated with before notes. They're offered as suggestions now. */
+/** The fixed moments games were rated with before notes. Old games are still read with them; they're no longer offered. */
 export const MOMENTS: (MatchPoint & { key: MomentKey })[] = [
   { key: 'worldie', text: 'Scored a worldie', good: true, big: true },
   { key: 'nutmeg', text: 'Nutmeg', good: true },
@@ -32,13 +32,15 @@ export function withPoints(m: SavedMatch): Match {
 
 const norm = (text: string) => text.trim().toLowerCase().replace(/\s+/g, ' ')
 
-/** What to offer when you add a point: the ones you've written before, most used first, then the old moments. */
+/**
+ * What to offer when you add a point: the ones you've written before, most used first. Only your own words:
+ * nothing ready-made, so a point that came from the old moments isn't offered either.
+ */
 export function suggestPoints(matches: Match[]): MatchPoint[] {
   const used = new Map<string, { p: MatchPoint; n: number }>()
   // newest first, so a point keeps the size you gave it last time
-  for (const m of matches) for (const p of m.points) used.set(norm(p.text), { p: used.get(norm(p.text))?.p ?? p, n: (used.get(norm(p.text))?.n ?? 0) + 1 })
-  const mine = [...used.values()].sort((a, b) => b.n - a.n).map((x) => ({ text: x.p.text, good: x.p.good, big: x.p.big, key: x.p.key }))
-  return [...mine, ...MOMENTS.filter((x) => !used.has(norm(x.text)))]
+  for (const m of matches) for (const p of m.points) if (!p.key) used.set(norm(p.text), { p: used.get(norm(p.text))?.p ?? p, n: (used.get(norm(p.text))?.n ?? 0) + 1 })
+  return [...used.values()].sort((a, b) => b.n - a.n).map((x) => ({ text: x.p.text, good: x.p.good, big: x.p.big }))
 }
 
 /** Points that keep coming up: the same words in more than one game, most often first. */

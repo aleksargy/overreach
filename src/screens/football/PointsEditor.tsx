@@ -88,7 +88,6 @@ function Column({ good, points, onChange, add }: { good: boolean; points: MatchP
           enterKeyHint="done"
           maxLength={60}
           aria-label={good ? 'Something that went well' : 'Something that went badly'}
-          placeholder={good ? 'Won every header' : 'Lost my man'}
           className="mt-1 h-10 w-full rounded-none border-b border-fg/40 bg-transparent text-[16px] text-fg placeholder:text-fg-4 focus:border-fg focus:outline-none"
         />
       ) : (

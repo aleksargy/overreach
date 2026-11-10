@@ -87,7 +87,7 @@ test('what went well and badly moves the rating, a big point double, and never m
   assert.equal(capped.breakdown.find((f) => f.key === 'pointsCap')?.value, -1.2)
 })
 
-test('games rated with moments read as points, and old points come back as suggestions', () => {
+test('games rated with moments read as points, and only points in your own words come back as suggestions', () => {
   const old = { ...match('o', '2026-09-01T10:30:00', 11), points: undefined, moments: ['ownGoal', 'nutmeg'] } as unknown as Match
   const m = withPoints(old)
   assert.deepEqual(m.points, [
@@ -107,13 +107,15 @@ test('games rated with moments read as points, and old points come back as sugge
     }),
   ]
   assert.deepEqual(recurringPoints(games), [{ text: 'Lost my man at corners', good: false, games: 2 }])
-  const offer = suggestPoints(games)
+  // the old game's moments are read, but nothing ready-made is offered: just what you wrote, most used first
+  const offer = suggestPoints([m, ...games])
   assert.deepEqual(
-    offer.slice(0, 2).map((p) => p.text),
+    offer.map((p) => p.text),
     ['Lost my man at corners', 'Pressed well'],
   )
-  // then the old moments, as a start
-  assert.ok(offer.some((p) => p.key === 'worldie'))
+  assert.ok(!offer.some((p) => p.key))
+  // a first game has nothing to offer
+  assert.deepEqual(suggestPoints([]), [])
 })
 
 test('a big point in your own words can make the headline', () => {
