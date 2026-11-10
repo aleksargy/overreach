@@ -2,12 +2,12 @@
 
 ## Next
 
-1. Check the running model against Alex's real runs: do the engine, heat, hill and football costs, durability and critical speed match how those runs felt?
-2. Go through every screen on real data at 390 × 844. On the Run tab, check that the engine, critical speed, durability and costs appear, and that the reasons shown when there isn't enough data make sense. Loosen or tighten the evidence checks in `src/lib/running.ts` if needed.
-3. Check that run weather gets filled in from Netlify (it does from the Mac).
-4. Once there are ten or so rated games in each format, revisit `PAR`, `ENGINE_RANGE` and `BIG_MARGIN` in `src/lib/football.ts`. They're judgement calls, not fitted to data.
-5. Check the new reports on real data: whether the season heatmap gets the ends right (it says so when it can't tell), and the race report after the marathon on 8 Nov. Ghosts race the stretches Alex shared with earlier runs (28 of the last 40 runs have one); loops run the other way round would be the next step.
-6. Maybe later: D′ balance through interval sessions, showing how deep each rep goes, from critical speed and D′.
+1. Alex's first weeks on the Lift tab: does double progression suit how he trains, and are each exercise's rep range and weight step right for him? He can change them per exercise, but the defaults should be close.
+2. Whether the things that get circled are the ones he'd have circled, and whether it's the right amount. The bars are `min` on each series in `src/lib/series.ts` (three weeks for a morning's reading) and `headline` in `src/lib/standout.ts` for Today (twice that, and no more than a day and a half old). Replayed over 60 mornings of his data, Today circled something on 17 and each tab on 11 to 15.
+3. If the lines still read canned: have Claude write Today's one line from the day's numbers on the server, once a day. It needs an Anthropic API key in Netlify and sends those numbers out, so it's Alex's call.
+4. Check that run weather gets filled in from Netlify (it does from the Mac).
+5. Once there are ten or so rated games in each format, revisit `PAR`, `ENGINE_RANGE` and `BIG_MARGIN` in `src/lib/football.ts`. They're judgement calls, not fitted to data.
+6. Check the season heatmap's ends on real data (it says so when it can't tell). Ghosts: loops run the other way round would be the next step.
 
 ## Not checked yet
 
@@ -17,7 +17,8 @@ Everything so far was built and tested against the fake Garmin and generated sam
 - Open-Meteo: only tested against a fake so far.
 - Netlify itself: function time limits, the scheduled job, Blobs in production, and that a preview with no functions behaves.
 - On the iPhone: the home-screen install, the offline shell, exporting a backup through the share sheet, and the backup coming back after removing and re-adding the app.
-- The running model's evidence checks on real data, which is noisier (GPS drift, wrist heart rate).
+- The running model's fitness trend on real data, which is noisier (GPS drift, wrist heart rate).
+- The Lift tab with real sessions: nothing has been logged in it yet.
 
 ## Ideas on the shelf
 
