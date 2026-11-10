@@ -27,11 +27,7 @@ export function Screen({ title, kicker, actions, back, bare, hero, children, bot
 
   return (
     <div className={bottomPad ? 'pb-[calc(var(--tabbar-h)+var(--mini-h)+40px)]' : 'pb-10'}>
-      <div
-        className={`sticky top-[env(safe-area-inset-top,0px)] z-30 transition-colors duration-200 ${
-          scrolled ? 'bg-ink-0/95 shadow-[0_1px_0_rgb(var(--fg)/0.13)] backdrop-blur-xl' : 'bg-ink-0/0'
-        }`}
-      >
+      <div className={`sticky top-[env(safe-area-inset-top,0px)] z-30 transition-colors duration-200 ${scrolled ? 'bg-ink-0 shadow-[0_1px_0_rgb(var(--fg)/0.13)]' : 'bg-ink-0/0'}`}>
         <div className="gutter mx-auto grid h-12 max-w-app grid-cols-[1fr_auto_1fr] items-center">
           <div className="flex">
             {back && (
