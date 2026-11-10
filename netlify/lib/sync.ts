@@ -15,8 +15,7 @@
 
 import type { BodyEntry, Daily, GarminActivity, Stream } from '../../src/data/types'
 import { FOOTBALL_SUMMARY } from '../../src/lib/football'
-import { pathOf, routeOf } from '../../src/lib/ghost'
-import { RUN_SUMMARY, summariseRun } from '../../src/lib/running'
+import { RUN_SUMMARY, summariseRun, summaryExtras } from '../../src/lib/running'
 import { fitFromDownload, footballSummary, streamFromFit } from './fit'
 import { GarminError, OutOfTime, type Garmin } from './garmin'
 import type { KV } from './kv'
@@ -125,9 +124,8 @@ const outdated = (a: GarminActivity) =>
 /** The summary brought up to date from the stored stream; with none to hand, the old numbers stay and aren't asked about again. */
 function updated(a: GarminActivity, stream: Stream | null): GarminActivity {
   if (a.sport === 'football') return { ...a, football: (stream && footballSummary(stream)) || { ...a.football!, v: FOOTBALL_SUMMARY } }
-  // a run keeps its numbers and its weather, and gains the outline ghosts are matched by
-  const path = stream && a.run!.at && pathOf(stream)
-  return { ...a, run: { ...a.run!, ...(path ? { route: routeOf(path, a.run!.at!) } : {}), v: RUN_SUMMARY } }
+  // a run keeps its numbers and its weather, and gains what's new: the outline ghosts are matched by, its best times
+  return { ...a, run: { ...a.run!, ...(stream ? summaryExtras(stream, a.run!.at) : {}), v: RUN_SUMMARY } }
 }
 
 async function lock(kv: KV, owner: string): Promise<boolean> {
@@ -315,7 +313,7 @@ async function step({ kv, api, budgetMs, forceRecent = false, historyDays = HIST
     }
 
     // 2a. summaries made before they last gained something (a game's trace for the season heatmap, a run's
-    // outline for ghosts): brought up to date from the stream stored when the FIT file was read, so no Garmin call
+    // outline for ghosts and its best times): brought up to date from the stream stored when the FIT file was read, so no Garmin call
     const stale = Object.values(data.activities).filter(outdated)
     for (let k = 0; k < stale.length && time() > 3_000; k += 8) {
       const batch = stale.slice(k, k + 8)

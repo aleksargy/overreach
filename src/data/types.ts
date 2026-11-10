@@ -76,6 +76,8 @@ export interface RunSummary {
   grade: number[]
   /** best average speed (m/s) held for each duration in BEST_S (lib/running); 0 where the run was shorter */
   best: number[]
+  /** fastest time (s) over each distance in BEST_M (lib/running), by the clock; 0 where the run was shorter */
+  bestD?: number[]
   /** where it started, rounded to about 10 km: enough to look up the weather */
   at?: [number, number]
   /** where it went, a point every ROUTE_STEP (lib/ghost) metres and one at the finish, as whole metres east and north of `at`: x0, y0, x1, y1, … */

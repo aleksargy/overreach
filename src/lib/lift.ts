@@ -1,23 +1,19 @@
-import type { Exercise, LiftSummary, SetEntry, Workout } from '../data/types'
-import { clamp, round } from './math'
+// Lifting: what to do next session, what you've done, and how it's moving.
+//
+// The plan is double progression, the plainest rule that works: every exercise
+// has a rep range. Get the top of the range on every set and the weight goes
+// up next time, starting again from the bottom of the range. Until then the
+// weight stays and the target is one more rep. Miss the bottom of the range two
+// sessions running and a tenth comes off, to build back up.
 
-/** Estimated 1RM from a set, using reps in reserve from RPE (Epley on reps + RIR). */
-export function e1rm(kg: number | undefined, reps: number | undefined, rpe?: number): number {
-  if (!kg || !reps) return 0
-  const rir = rpe ? clamp(10 - rpe, 0, 5) : 0
-  const eff = reps + rir
-  return eff <= 1 ? kg : kg * (1 + eff / 30)
-}
+import { MUSCLES } from '../data/exercises'
+import type { Exercise, LiftSummary, Routine, SetEntry, Workout } from '../data/types'
+import { round } from './math'
 
 export const isWorking = (s: SetEntry) => s.done && s.kind !== 'warmup'
 
-/** e1RM only means something for plain loaded lifts; bodyweight work is judged on reps and added kg. */
-export const hasE1rm = (ex: Pick<Exercise, 'kind'>) => ex.kind === 'weight'
-
-export function setLoad(ex: Exercise, s: SetEntry, bodyweight = 0): number {
-  if (ex.kind === 'weighted-bodyweight') return (s.kg ?? 0) + bodyweight
-  return s.kg ?? 0
-}
+/** Tracked by the weight on the bar, or the weight added to you. */
+export const loaded = (ex: Pick<Exercise, 'kind'>) => ex.kind === 'weight' || ex.kind === 'weighted-bodyweight'
 
 export function volume(w: Workout): number {
   let v = 0
@@ -53,137 +49,88 @@ export function historyFor(exerciseId: string, workouts: Workout[], excludeId?: 
   return out.sort((a, b) => b.date.localeCompare(a.date))
 }
 
-export function bestE1rm(ex: Exercise, sets: SetEntry[], bw = 0): number {
-  let best = 0
-  for (const s of sets) if (s.kind !== 'warmup') best = Math.max(best, e1rm(setLoad(ex, s, bw), s.reps, s.rpe))
-  return best
+const work = (sets: SetEntry[]) => sets.filter((s) => s.kind !== 'warmup')
+const countOf = (ex: Pick<Exercise, 'kind'>, s: SetEntry) => (ex.kind === 'duration' ? (s.secs ?? 0) : (s.reps ?? 0))
+
+/** The most you moved in a session: the heaviest working set of a loaded lift, the most reps or the longest hold of anything else. */
+export function topOf(ex: Pick<Exercise, 'kind'>, sets: SetEntry[]): number {
+  return Math.max(0, ...work(sets).map((s) => (loaded(ex) ? (s.kg ?? 0) : countOf(ex, s))))
 }
 
-export interface Suggestion {
-  tag: 'first' | 'up' | 'reps' | 'hold' | 'deload' | 'easy'
+export interface Target {
+  /** the plan against last time: your first go, more weight, more reps, or backing off */
+  move: 'first' | 'up' | 'more' | 'back'
+  /** kg on the bar, or added to you; missing until there's a session to go on, or while it's bodyweight alone */
   kg?: number
-  reps: string
-  rpe: number
-  text: string
-}
-
-/**
- * What to do next time, from the last session's working sets.
- * Double progression: earn the top of the rep range at or under target RPE,
- * then add load and drop back to the bottom of the range.
- */
-export function suggest(ex: Exercise, history: ExerciseSession[], readinessScore?: number): Suggestion {
-  const [lo, hi] = ex.repRange
-  const t = ex.targetRpe
-  const isDuration = ex.kind === 'duration'
-  const unit = isDuration ? 's' : ''
-  let s: Suggestion
-
-  const last = history[0]
-  const work = last?.sets.filter((x) => x.kind !== 'warmup') ?? []
-  if (!last || !work.length) {
-    s = {
-      tag: 'first',
-      reps: `${lo}–${hi}${unit}`,
-      rpe: t,
-      text: isDuration ? `First time. Hold for ${lo}–${hi}s with a little left in the tank.` : `First time. Pick a load you could do ${hi} times with 2 reps left.`,
-    }
-  } else {
-    const vals = work.map((x) => (isDuration ? (x.secs ?? 0) : (x.reps ?? 0)))
-    const minVal = Math.min(...vals)
-    const maxRpe = Math.max(...work.map((x) => x.rpe ?? t))
-    const kg = Math.max(...work.map((x) => x.kg ?? 0))
-    const stalls = countStalls(history, lo)
-    if (minVal >= hi && maxRpe <= t + 0.5) {
-      if (isDuration) s = { tag: 'up', reps: `${hi + 5}s`, rpe: t, text: `Held ${hi}s on every set. Push the hold to ${hi + 5}s.` }
-      else if (ex.kind === 'bodyweight')
-        s = { tag: 'up', reps: `${hi}+`, rpe: t, text: `Hit ${hi}+ on every set at RPE ${fmtRpe(maxRpe)}. Time for a harder variation or a weight belt.` }
-      else {
-        const next = round(kg + ex.increment, 2)
-        s = {
-          tag: 'up',
-          kg: next,
-          reps: `${lo}–${hi}`,
-          rpe: t,
-          text: `Hit ${hi} on every set at RPE ${fmtRpe(maxRpe)} or less. Go up to ${fmtKg(next)} kg and start back at ${lo}.`,
-        }
-      }
-    } else if (stalls >= 2 && kg > 0) {
-      const next = roundTo(kg * 0.9, ex.increment || 2.5)
-      s = { tag: 'deload', kg: next, reps: `${lo}–${hi}`, rpe: 7, text: `Stuck under ${lo} reps twice in a row. Drop to ${fmtKg(next)} kg and build back up.` }
-    } else if (minVal >= lo && maxRpe <= 9) {
-      const target = Math.min(hi, minVal + (isDuration ? 5 : 1))
-      s = {
-        tag: 'reps',
-        kg: kg || undefined,
-        reps: `${target}${unit}`,
-        rpe: t,
-        text: kg ? `Stay at ${fmtKg(kg)} kg and chase ${target}${unit} on every set.` : `Same again, chasing ${target}${unit} on every set.`,
-      }
-    } else {
-      s = {
-        tag: 'hold',
-        kg: kg || undefined,
-        reps: `${lo}${unit}`,
-        rpe: t,
-        text: kg ? `That was a grind. Hold ${fmtKg(kg)} kg and own ${lo}${unit} on every set first.` : `Hold here and own ${lo}${unit} on every set first.`,
-      }
-    }
-  }
-  if (readinessScore !== undefined && readinessScore < 45 && s.tag !== 'first') {
-    return {
-      ...s,
-      tag: 'easy',
-      kg: s.tag === 'up' ? history[0] && Math.max(...history[0].sets.map((x) => x.kg ?? 0)) : s.kg,
-      rpe: 7,
-      text: `Readiness is ${readinessScore} today, so no heroics: repeat last time's load and cap it at RPE 7.`,
-    }
-  }
-  return s
-}
-
-function countStalls(history: ExerciseSession[], lo: number): number {
-  let n = 0
-  for (const h of history.slice(0, 3)) {
-    const work = h.sets.filter((x) => x.kind !== 'warmup')
-    if (work.length && Math.min(...work.map((x) => x.reps ?? 0)) < lo) n++
-    else break
-  }
-  return n
+  /** reps (or seconds) to get on every set */
+  count: number
+  /** the change, in a few characters: "+2.5 kg", "+1 rep"; empty the first time */
+  note: string
 }
 
 const roundTo = (x: number, step: number) => Math.round(x / step) * step
 export const fmtKg = (x: number) => (Number.isInteger(x) ? String(x) : x.toFixed(x * 10 === Math.round(x * 10) ? 1 : 2))
-export const fmtRpe = (x: number) => (Number.isInteger(x) ? String(x) : x.toFixed(1))
 
-export const RPE_SCALE: { rpe: number; label: string }[] = [
-  { rpe: 6, label: '4+ reps left' },
-  { rpe: 6.5, label: '3–4 left' },
-  { rpe: 7, label: '3 reps left' },
-  { rpe: 7.5, label: '2–3 left' },
-  { rpe: 8, label: '2 reps left' },
-  { rpe: 8.5, label: '1–2 left' },
-  { rpe: 9, label: '1 rep left' },
-  { rpe: 9.5, label: 'Maybe 1 more' },
-  { rpe: 10, label: 'Nothing left' },
-]
-
-export function rpeTone(rpe?: number): string {
-  if (!rpe) return 'bg-ink-3 text-fg-3'
-  if (rpe < 7) return 'bg-z1 text-ink-0'
-  if (rpe < 8) return 'bg-z2 text-ink-0'
-  if (rpe < 9) return 'bg-z3 text-ink-0'
-  if (rpe < 10) return 'bg-z4 text-ink-0'
-  return 'bg-z5 text-ink-0'
+/** What to do on every set next time, from the last session's working sets. */
+export function targetFor(ex: Exercise, history: ExerciseSession[]): Target {
+  const [lo, hi] = ex.repRange
+  const timed = ex.kind === 'duration'
+  const sets = work(history[0]?.sets ?? [])
+  if (!sets.length) return { move: 'first', count: lo, note: '' }
+  const least = Math.min(...sets.map((s) => countOf(ex, s)))
+  const more = (count: number): Target => {
+    const d = count - least
+    return { move: 'more', count, note: timed ? `+${d} s` : `+${d} ${d === 1 ? 'rep' : 'reps'}` }
+  }
+  // nothing to load: another rep, or a longer hold
+  if (!loaded(ex)) return more(Math.max(lo, least + (timed ? 5 : 1)))
+  const kg = topOf(ex, sets)
+  const step = ex.increment || 2.5
+  // the top of the range on every set: more weight, back to the bottom of the range
+  if (least >= hi) return { move: 'up', kg: round(kg + step, 2), count: lo, note: `+${fmtKg(step)} kg` }
+  // under the range twice running at this weight: a tenth off, and build back
+  if (kg > 0 && stuck(ex, history, kg)) {
+    const next = Math.min(kg - step, roundTo(kg * 0.9, step))
+    if (next > 0) return { move: 'back', kg: next, count: Math.round((lo + hi) / 2), note: `−${fmtKg(round(kg - next, 2))} kg` }
+  }
+  return { ...more(Math.min(hi, Math.max(lo, least + 1))), kg: kg || undefined }
 }
 
-/** Session RPE (Foster's 1–10) runs on a wider scale than set RPE, so it gets its own colours. */
-export function srpeTone(n: number): string {
-  if (n <= 3) return 'bg-z1 text-ink-0'
-  if (n <= 5) return 'bg-z2 text-ink-0'
-  if (n <= 7) return 'bg-z3 text-ink-0'
-  if (n <= 9) return 'bg-z4 text-ink-0'
-  return 'bg-z5 text-ink-0'
+/** The last two sessions were both at this weight and both fell short of the range. */
+function stuck(ex: Exercise, history: ExerciseSession[], kg: number): boolean {
+  const short = (h?: ExerciseSession) => {
+    const sets = work(h?.sets ?? [])
+    return sets.length > 0 && topOf(ex, sets) === kg && Math.min(...sets.map((s) => countOf(ex, s))) < ex.repRange[0]
+  }
+  return short(history[0]) && short(history[1])
+}
+
+/** The target in a glance: "62.5 kg × 8", "+10 kg × 6", "12 reps", "45 s"; the range when it's your first go. */
+export function targetText(ex: Exercise, t: Target): string {
+  const [lo, hi] = ex.repRange
+  if (ex.kind === 'duration') return t.move === 'first' ? `${lo}–${hi} s` : `${t.count} s`
+  if (ex.kind === 'bodyweight') return t.move === 'first' ? `${lo}–${hi} reps` : `${t.count} reps`
+  if (t.move === 'first') return `${lo}–${hi} reps`
+  if (ex.kind === 'weighted-bodyweight') return `${t.kg ? `+${fmtKg(t.kg)} kg` : 'Bodyweight'} × ${t.count}`
+  return `${t.kg ? `${fmtKg(t.kg)} kg` : '?'} × ${t.count}`
+}
+
+/** "72.5 × 8", "+10 × 6", "12 reps", "45 s" */
+export function setText(ex: Pick<Exercise, 'kind'>, s: SetEntry): string {
+  if (ex.kind === 'duration') return `${s.secs ?? 0} s`
+  if (ex.kind === 'bodyweight') return `${s.reps ?? 0} reps`
+  if (ex.kind === 'weighted-bodyweight') return s.kg ? `+${fmtKg(s.kg)} × ${s.reps ?? 0}` : `BW × ${s.reps ?? 0}`
+  return `${fmtKg(s.kg ?? 0)} × ${s.reps ?? 0}`
+}
+
+/** A session's working sets on one line: "60 × 8, 8, 7", or set by set when the weight changed. */
+export function setsLine(ex: Pick<Exercise, 'kind'>, sets: SetEntry[]): string {
+  const w = work(sets)
+  if (!w.length) return ''
+  if (loaded(ex) && w.every((s) => s.kg === w[0].kg))
+    return `${ex.kind === 'weighted-bodyweight' ? (w[0].kg ? `+${fmtKg(w[0].kg)}` : 'BW') : fmtKg(w[0].kg ?? 0)} × ${w.map((s) => s.reps ?? 0).join(', ')}`
+  if (!loaded(ex)) return `${w.map((s) => countOf(ex, s)).join(', ')}${ex.kind === 'duration' ? ' s' : ''}`
+  return w.map((s) => setText(ex, s)).join(', ')
 }
 
 /** Plates per side for a barbell load. */
@@ -199,38 +146,108 @@ export function plates(total: number, bar = 20): number[] {
   return out
 }
 
-export interface PR {
+export interface LiftRecord {
   exerciseId: string
-  kind: 'e1rm' | 'weight' | 'reps'
-  label: string
+  /** the number worth circling: "65 kg", "60 × 12" */
+  value: string
+  /** "Heaviest yet", "Most reps at 60 kg" */
+  text: string
 }
 
-export function prsFor(w: Workout, all: Workout[], exercises: Map<string, Exercise>, bw = 0): PR[] {
-  const prs: PR[] = []
+/** What a session set a new best in: the heaviest yet, or more reps than ever at that weight or heavier. One per exercise, and none the first time you log it. */
+export function recordsIn(w: Workout, all: Workout[], exercises: Map<string, Exercise>): LiftRecord[] {
+  const out: LiftRecord[] = []
   for (const we of w.exercises) {
     const ex = exercises.get(we.exerciseId)
-    if (!ex || ex.kind === 'duration') continue
     const sets = we.sets.filter(isWorking)
-    if (!sets.length) continue
-    const prev = historyFor(ex.id, all, w.id).filter((h) => h.date < w.start)
-    if (!prev.length) continue
-    const prevSets = prev.flatMap((h) => h.sets.filter((x) => x.kind !== 'warmup'))
-    const nowBest = bestE1rm(ex, sets, bw)
-    const prevBest = bestE1rm(ex, prevSets, bw)
-    // 2% clears the wobble RPE adds to the estimate, so a trophy means real progress
-    if (hasE1rm(ex) && nowBest > prevBest * 1.02) {
-      prs.push({ exerciseId: ex.id, kind: 'e1rm', label: `e1RM ${fmtKg(round(nowBest, 1))} kg` })
+    if (!ex || !sets.length) continue
+    const before = historyFor(ex.id, all, w.id)
+      .filter((h) => h.date < w.start)
+      .flatMap((h) => work(h.sets))
+    if (!before.length) continue
+    const top = topOf(ex, sets)
+    if (!loaded(ex)) {
+      if (top > topOf(ex, before))
+        out.push({ exerciseId: ex.id, value: ex.kind === 'duration' ? `${top} s` : `${top} reps`, text: ex.kind === 'duration' ? 'Longest hold yet' : 'Most reps yet' })
       continue
     }
-    const nowKg = Math.max(...sets.map((x) => x.kg ?? 0))
-    const prevKg = Math.max(...prevSets.map((x) => x.kg ?? 0))
-    if (nowKg > prevKg && nowKg > 0) {
-      prs.push({ exerciseId: ex.id, kind: 'weight', label: ex.kind === 'weighted-bodyweight' ? `Most added, +${fmtKg(nowKg)} kg` : `Heaviest ${fmtKg(nowKg)} kg` })
+    const plus = ex.kind === 'weighted-bodyweight' ? '+' : ''
+    if (top > topOf(ex, before)) {
+      out.push({ exerciseId: ex.id, value: `${plus}${fmtKg(top)} kg`, text: 'Heaviest yet' })
       continue
     }
-    const nowReps = Math.max(...sets.map((x) => x.reps ?? 0))
-    const prevReps = Math.max(...prevSets.filter((x) => (x.kg ?? 0) >= nowKg).map((x) => x.reps ?? 0), 0)
-    if (nowReps > prevReps) prs.push({ exerciseId: ex.id, kind: 'reps', label: `${nowReps} reps${nowKg ? ` at ${fmtKg(nowKg)} kg` : ''}` })
+    const reps = (list: SetEntry[]) => Math.max(0, ...list.filter((s) => (s.kg ?? 0) >= top).map((s) => s.reps ?? 0))
+    if (reps(sets) > reps(before))
+      out.push({ exerciseId: ex.id, value: `${top ? `${plus}${fmtKg(top)}` : 'BW'} × ${reps(sets)}`, text: top ? `Most reps at ${plus}${fmtKg(top)} kg` : 'Most reps yet' })
   }
-  return prs
+  return out
+}
+
+export interface Progress {
+  ex: Exercise
+  /** the most you moved each session, oldest first */
+  points: { t: number; v: number }[]
+  now: number
+  /** against the first session in the window */
+  change: number
+  /** sessions in the window */
+  sessions: number
+}
+
+/** How your lifts have moved over the last `weeks`, the ones you do most first. A lift needs two sessions in that time to show. */
+export function progressOf(workouts: Workout[], exercises: Map<string, Exercise>, now: Date, weeks = 8): Progress[] {
+  const from = now.getTime() - weeks * 7 * 86_400_000
+  const ids = new Set(workouts.flatMap((w) => w.exercises.map((e) => e.exerciseId)))
+  const out: Progress[] = []
+  for (const id of ids) {
+    const ex = exercises.get(id)
+    if (!ex) continue
+    const points = historyFor(id, workouts)
+      .map((h) => ({ t: Date.parse(h.date), v: topOf(ex, h.sets) }))
+      .filter((p) => p.v > 0)
+      .reverse()
+    const recent = points.filter((p) => p.t >= from)
+    if (recent.length < 2) continue
+    const last = recent[recent.length - 1].v
+    out.push({ ex, points: points.slice(-16), now: last, change: round(last - recent[0].v, 2), sessions: recent.length })
+  }
+  return out.sort((a, b) => b.sessions - a.sessions || b.points[b.points.length - 1].t - a.points[a.points.length - 1].t)
+}
+
+/** What a number on a lift means, with its unit: "62.5 kg", "+7.5 kg", "12 reps", "45 s". */
+export function amount(ex: Pick<Exercise, 'kind'>, v: number, signed = false): string {
+  const n = `${signed && v > 0 ? '+' : v < 0 ? '−' : ''}${fmtKg(Math.abs(v))}`
+  if (ex.kind === 'duration') return `${n} s`
+  if (ex.kind === 'bodyweight') return `${n} ${Math.abs(v) === 1 ? 'rep' : 'reps'}`
+  return `${ex.kind === 'weighted-bodyweight' && !signed ? '+' : ''}${n} kg`
+}
+
+const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase()
+
+/** The last time a workout was done: by its id, or by its name for a session started again from history. Workouts newest first. */
+export const lastDone = (r: Routine, workouts: Workout[]) => workouts.find((w) => w.routineId === r.id || same(w.name, r.name))
+
+/** The workout that's waited longest: one you haven't done yet first, then the one done longest ago. Workouts newest first. */
+export function nextRoutine(routines: Routine[], workouts: Workout[]): Routine | undefined {
+  let pick: { r: Routine; t: number } | undefined
+  for (const r of routines) {
+    if (!r.items.length) continue
+    const t = Date.parse(lastDone(r, workouts)?.start ?? '') || 0
+    if (!pick || t < pick.t) pick = { r, t }
+  }
+  return pick?.r
+}
+
+/** What a workout mostly trains: its three biggest muscle groups by sets, biggest first. */
+export function focusOf(r: Routine, exercises: Map<string, Exercise>): string {
+  const sets = new Map<string, number>()
+  for (const it of r.items) {
+    const m = exercises.get(it.exerciseId)?.muscle
+    if (m) sets.set(m, (sets.get(m) ?? 0) + it.sets)
+  }
+  const names = [...sets.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([m]) => MUSCLES.find((x) => x.key === m)?.label ?? m)
+  return names.map((n, i) => (i ? n.toLowerCase() : n)).join(', ')
 }

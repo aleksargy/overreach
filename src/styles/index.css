@@ -1,49 +1,56 @@
-@import '@fontsource-variable/geist/wght.css';
-@import '@fontsource-variable/geist-mono/wght.css';
+@import '@fontsource-variable/big-shoulders/standard.css';
+@import '@fontsource-variable/sofia-sans-semi-condensed/wght.css';
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 /*
-  Overreach design tokens. Dark only, quiet on purpose: the chrome is
-  near-black and grey, and colour is reserved for data (HR zones, ratings,
-  readiness, sports). Values are RGB triplets so Tailwind opacity modifiers
-  work (bg-z4/20).
+  The board. Overreach looks like the board in a dressing room: slate, with
+  everything on it drawn in chalk. One stick of chalk does the lot, so numbers,
+  rules and chart lines share a stroke; fills are hatched, not flooded; and the
+  one number worth a look gets circled (--mark). Coloured chalk is for data
+  only: HR zones, sports, ratings, readiness. Values are RGB triplets so
+  Tailwind opacity modifiers work (bg-z4/20).
 */
 :root {
   color-scheme: dark;
-  --ink-0: 8 8 10;
-  --ink-1: 20 20 23;
-  --ink-2: 29 29 33;
-  --ink-3: 42 42 48;
-  --line: 36 36 41;
-  --line-2: 54 54 61;
-  --fg: 245 245 247;
-  --fg-2: 190 190 198;
-  --fg-3: 132 132 142;
-  --fg-4: 82 82 92;
+  /* slate, and the panels that sit on it */
+  --ink-0: 14 17 16;
+  --ink-1: 21 25 24;
+  --ink-2: 30 35 33;
+  --ink-3: 43 49 47;
+  /* chalk rules, already mixed with the slate */
+  --line: 39 42 40;
+  --line-2: 60 63 60;
+  /* chalk, fresh to nearly rubbed out */
+  --fg: 238 234 224;
+  --fg-2: 190 188 179;
+  --fg-3: 134 135 128;
+  --fg-4: 86 89 84;
 
   /* intensity, easy to max */
-  --z1: 96 165 250;
-  --z2: 52 211 153;
-  --z3: 245 197 66;
-  --z4: 251 146 60;
-  --z5: 248 113 113;
+  --z1: 136 176 232;
+  --z2: 140 212 168;
+  --z3: 240 212 118;
+  --z4: 240 160 104;
+  --z5: 236 122 122;
 
   /* categorical, for anything that splits by sport */
-  --run: 255 122 89;
-  --football: 163 230 53;
-  --ride: 45 212 191;
-  --swim: 99 152 255;
-  --strength: 167 139 250;
-  --other: 148 163 184;
+  --run: 244 146 112;
+  --football: 176 220 108;
+  --ride: 108 206 194;
+  --swim: 124 164 238;
+  --strength: 186 166 240;
+  --other: 150 160 166;
 
-  --good: 52 211 153;
-  --warn: 251 191 36;
-  --bad: 248 113 113;
+  --good: 140 212 168;
+  --warn: 240 178 96;
+  --bad: 236 122 122;
+  /* the chalk that circles things */
+  --mark: 244 216 122;
 
-  --tabbar-h: 58px;
+  --tabbar-h: 60px;
   --mini-h: 0px;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -73,9 +80,12 @@
   body {
     margin: 0;
     font-family: theme('fontFamily.sans');
-    font-size: 15px;
-    line-height: 1.45;
+    font-size: 15.5px;
+    line-height: 1.42;
     overscroll-behavior-y: none;
+    /* where the board was last wiped */
+    background-image: radial-gradient(130% 420px at 12% -120px, rgb(var(--fg) / 0.05), transparent 70%);
+    background-repeat: no-repeat;
   }
   /* paint the band under the status bar so scrolled content never shows through */
   body::before {
@@ -109,10 +119,10 @@
   :focus-visible {
     outline: 2px solid rgb(var(--fg));
     outline-offset: 2px;
-    border-radius: 6px;
+    border-radius: 4px;
   }
   ::selection {
-    background: rgb(var(--fg) / 0.25);
+    background: rgb(var(--mark) / 0.3);
   }
 }
 
@@ -122,27 +132,56 @@
     padding-left: max(16px, env(safe-area-inset-left, 0px));
     padding-right: max(16px, env(safe-area-inset-right, 0px));
   }
+
+  /* ---- type: Big Shoulders for anything chalked up big, Sofia Sans for reading ---- */
+  .display {
+    font-family: theme('fontFamily.display');
+    letter-spacing: 0.01em;
+  }
+  /* a screen's title */
+  .t-page {
+    @apply display text-[40px] font-bold leading-[0.98];
+  }
+  /* a section's title, sat on its rule */
+  .t-section {
+    @apply display text-[22px] font-bold leading-[1.05];
+  }
+  /* a back-page headline */
+  .t-story {
+    @apply display text-balance text-[38px] font-extrabold leading-[0.98];
+  }
+  /* names in rows and blocks */
+  .t-name {
+    @apply display text-[21px] font-bold leading-[1.05];
+  }
   /* small sentence-case caption above a value */
   .label {
-    @apply text-[13px] font-medium leading-4 text-fg-3;
+    @apply text-[13.5px] font-medium leading-4 text-fg-3;
   }
   /* secondary line: dates, units, context */
   .meta {
-    @apply text-[13px] leading-[18px] text-fg-3;
+    @apply text-[13.5px] leading-[18px] text-fg-3;
   }
+  /* numbers in rows and tables */
   .num {
-    @apply font-medium leading-none tracking-[-0.03em];
-    font-variant-numeric: tabular-nums;
+    @apply display font-semibold leading-none;
   }
-  /* hero numbers: big and light */
+  /* hero numbers: tall and light, one stroke of chalk */
   .num-hero {
-    @apply font-light leading-[0.82] tracking-[-0.055em];
-    font-variant-numeric: tabular-nums;
+    @apply display font-light leading-[0.84];
+    letter-spacing: -0.005em;
   }
+  /* the unit after a number */
+  .unit {
+    @apply ml-1 font-sans text-[13.5px] font-medium tracking-normal text-fg-3;
+  }
+
+  /* ---- surfaces: nothing is filled in; a box is a chalk outline ---- */
   .card {
-    @apply rounded-card bg-ink-1 ring-1 ring-inset ring-fg/[0.045];
+    @apply rounded-card;
+    box-shadow: inset 0 0 0 1px rgb(var(--fg) / 0.13);
   }
-  /* rows inside a card, split by hairlines that start after the icon */
+  /* rows split by chalk rules that start after the icon */
   .list > * {
     position: relative;
   }
@@ -151,30 +190,60 @@
     position: absolute;
     top: 0;
     right: 0;
-    left: var(--inset, 16px);
+    left: var(--inset, 0px);
     height: 1px;
-    background: rgb(var(--line));
+    background: rgb(var(--fg) / 0.1);
   }
+  /* rows straight on the board, ruled top and bottom */
+  .ruled {
+    border-top: 1px solid rgb(var(--fg) / 0.13);
+    border-bottom: 1px solid rgb(var(--fg) / 0.13);
+  }
+  /* a chalk rule across the whole board */
+  .rule {
+    height: 1px;
+    background: rgb(var(--fg) / 0.13);
+  }
+  /* shading: diagonal chalk strokes inside an outline; set --h to colour it */
+  .hatch {
+    background-image: repeating-linear-gradient(-45deg, rgb(var(--h, var(--fg)) / 0.5) 0 1px, transparent 1px 4.5px);
+    box-shadow: inset 0 0 0 1px rgb(var(--h, var(--fg)) / 0.55);
+  }
+  /* filled in solid */
+  .solid {
+    background: rgb(var(--h, var(--fg)));
+  }
+
   .press {
     @apply transition duration-150 ease-snap active:scale-[0.98] active:opacity-80;
   }
   .btn {
-    @apply press inline-flex h-12 items-center justify-center gap-2 rounded-full px-5 text-[15px] font-semibold;
+    @apply press display inline-flex h-[52px] items-center justify-center gap-2 rounded-[5px] px-5 text-[20px] font-bold;
+    letter-spacing: 0.035em;
   }
   .btn-primary {
     @apply btn bg-fg text-ink-0;
   }
   .btn-ghost {
-    @apply btn bg-ink-2 text-fg;
+    @apply btn text-fg;
+    box-shadow: inset 0 0 0 1px rgb(var(--fg) / 0.32);
   }
   .chip {
-    @apply press inline-flex h-8 items-center gap-1.5 rounded-full bg-ink-2 px-3.5 text-[13px] font-medium text-fg-2;
+    @apply press inline-flex h-8 items-center gap-1.5 rounded-[5px] px-3 text-[13.5px] font-medium text-fg-2;
+    box-shadow: inset 0 0 0 1px rgb(var(--fg) / 0.2);
   }
   .chip-on {
     @apply bg-fg text-ink-0;
+    box-shadow: none;
   }
   .link {
     @apply press inline-flex items-center gap-0.5 text-[14px] font-medium text-fg-3;
+  }
+  /* figures that tick over: every digit the same width, since the display face has no tabular set */
+  .digit {
+    display: inline-block;
+    width: 0.43em;
+    text-align: center;
   }
   .no-scrollbar::-webkit-scrollbar {
     display: none;
@@ -184,7 +253,11 @@
   }
 }
 
-/* the "how did you play" slider: a plain track that fills to the thumb */
+.font-mono {
+  font-variant-numeric: tabular-nums;
+}
+
+/* the "how did you play" slider: a chalk line that's solid up to the thumb */
 input[type='range'].feel {
   -webkit-appearance: none;
   appearance: none;
@@ -192,97 +265,37 @@ input[type='range'].feel {
   background: transparent;
 }
 input[type='range'].feel::-webkit-slider-runnable-track {
-  height: 4px;
+  height: 2px;
   border-radius: 99px;
-  background: linear-gradient(90deg, rgb(var(--fg)) var(--p, 50%), rgb(var(--ink-3)) var(--p, 50%));
+  background: linear-gradient(90deg, rgb(var(--fg)) var(--p, 50%), rgb(var(--fg) / 0.22) var(--p, 50%));
 }
 input[type='range'].feel::-moz-range-track {
-  height: 4px;
+  height: 2px;
   border-radius: 99px;
-  background: rgb(var(--ink-3));
+  background: rgb(var(--fg) / 0.22);
 }
 input[type='range'].feel::-moz-range-progress {
-  height: 4px;
+  height: 2px;
   border-radius: 99px;
   background: rgb(var(--fg));
 }
 input[type='range'].feel::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 28px;
-  height: 28px;
-  margin-top: -12px;
+  width: 24px;
+  height: 24px;
+  margin-top: -11px;
   border-radius: 50%;
-  background: rgb(var(--fg));
-  box-shadow: 0 4px 14px rgb(0 0 0 / 0.5);
+  background: rgb(var(--ink-0));
+  box-shadow: inset 0 0 0 2px rgb(var(--fg));
 }
 input[type='range'].feel::-moz-range-thumb {
-  width: 28px;
-  height: 28px;
-  border: 0;
+  width: 24px;
+  height: 24px;
+  border: 2px solid rgb(var(--fg));
   border-radius: 50%;
-  background: rgb(var(--fg));
+  background: rgb(var(--ink-0));
 }
 
-/* player card tiers: three metal stops per tier */
-.tier-bronze {
-  --m1: #ffd9b8;
-  --m2: #c47a45;
-  --m3: #5a3218;
-  --tint: 196 122 69;
-}
-.tier-silver {
-  --m1: #ffffff;
-  --m2: #aab4c3;
-  --m3: #4a5260;
-  --tint: 170 180 195;
-}
-.tier-gold {
-  --m1: #fff4c2;
-  --m2: #e6bd45;
-  --m3: #7a5a10;
-  --tint: 230 189 69;
-}
-.tier-elite {
-  --m1: rgb(var(--z1));
-  --m2: rgb(var(--z3));
-  --m3: rgb(var(--z5));
-  --tint: 180 140 255;
-}
-.metal-bg {
-  background: linear-gradient(135deg, var(--m3) 0%, var(--m1) 38%, var(--m2) 58%, var(--m3) 100%);
-}
-.tier-elite .metal-bg {
-  background: linear-gradient(135deg, rgb(var(--z1)), rgb(var(--z2)) 25%, rgb(var(--z3)) 50%, rgb(var(--z4)) 75%, rgb(var(--z5)));
-}
-.metal-text {
-  background: linear-gradient(160deg, var(--m1) 10%, var(--m2) 55%, var(--m1) 90%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-.tier-elite .metal-text {
-  background: linear-gradient(120deg, rgb(var(--z1)), rgb(var(--z2)) 30%, rgb(var(--z3)) 55%, rgb(var(--z4)) 80%, rgb(var(--z5)));
-  -webkit-background-clip: text;
-  background-clip: text;
-}
-.sheen::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(105deg, transparent 35%, rgb(255 255 255 / 0.13) 47%, rgb(255 255 255 / 0.02) 53%, transparent 62%);
-  transform: translateX(-120%);
-  animation: sheen 5.5s cubic-bezier(0.2, 0.8, 0.2, 1) 0.6s infinite;
-  pointer-events: none;
-}
-@keyframes sheen {
-  0% {
-    transform: translateX(-120%);
-  }
-  40%,
-  100% {
-    transform: translateX(120%);
-  }
-}
 @keyframes bump {
   0% {
     transform: scale(1);

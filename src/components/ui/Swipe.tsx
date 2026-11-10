@@ -9,7 +9,7 @@ import { useRef, type ReactNode } from 'react'
 export function Swipeable({
   onSwipe,
   hint,
-  surface = 'bg-ink-1',
+  surface = '',
   className = '',
   children,
 }: {

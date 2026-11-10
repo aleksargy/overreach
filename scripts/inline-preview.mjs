@@ -31,7 +31,7 @@ if (/<!--/.test(safeJs)) console.warn('warning: bundle contains "<!--"; check th
 const page = `<title>${title}</title>
 <meta charset="utf-8">
 <meta name="claude:viewport-fit-sides" content="cover">
-<meta name="theme-color" content="#08080a">
+<meta name="theme-color" content="#0e1110">
 <style>${slimCss}</style>
 <div id="root"></div>
 <script type="module">${safeJs}</script>

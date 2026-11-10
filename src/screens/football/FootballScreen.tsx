@@ -7,6 +7,7 @@ import { RatingBadge } from '../../components/ActivityRow'
 import { PitchHeatmap } from '../../components/charts/PitchHeatmap'
 import { SportDot } from '../../components/icons/SportIcon'
 import { IconButton, Screen } from '../../components/ui/Screen'
+import { StandoutLine } from '../../components/ui/Standout'
 import { Empty, SampleBadge, Section, Segmented } from '../../components/ui/bits'
 import { Swipeable } from '../../components/ui/Swipe'
 import { Ticker } from '../../components/ui/Ticker'
@@ -18,7 +19,11 @@ import { POSITIONS, headToHead, ratingTone, recordWords, recurringPoints, result
 import { PlayerCard } from './PlayerCard'
 import { season } from './season'
 
-const RESULT_CLS = { W: 'bg-z2/15 text-z2', D: 'bg-fg/10 text-fg-2', L: 'bg-z5/15 text-z5' } as const
+/** A result the way you'd chalk a form guide: a win filled in, a draw shaded, a defeat left as an outline. */
+export function ResultMark({ r, className = '' }: { r: 'W' | 'D' | 'L'; className?: string }) {
+  const cls = r === 'W' ? 'solid text-ink-0 [--h:var(--z2)]' : r === 'D' ? 'hatch text-fg' : 'text-z5 shadow-[inset_0_0_0_1px_rgb(var(--z5)/0.6)]'
+  return <span className={`display grid place-items-center font-bold ${cls} ${className}`}>{r}</span>
+}
 
 /** the format you last looked at, kept while the app is open */
 let lastPicked: Format | undefined
@@ -75,9 +80,10 @@ export function FootballScreen() {
               ))}
             </AnimatePresence>
           </div>
-          <p className="mt-2 px-1 text-[12px] text-fg-4">Swipe a game left if you&rsquo;d rather not rate it.</p>
+          <p className="meta mt-2 text-fg-4">Swipe a game left if you&rsquo;d rather not rate it.</p>
         </div>
       )}
+      {w.news.football && <StandoutLine s={w.news.football} className="mb-9" />}
 
       {s.card ? (
         <div>
@@ -86,17 +92,17 @@ export function FootballScreen() {
             <Info size={14} strokeWidth={1.75} className="mr-1" /> How the card is built
           </button>
           {explain && (
-            <div className="card list mt-3 overflow-hidden">
+            <div className="list mt-3">
               {s.card.attrs.map((a) => (
-                <div key={a.key} className="flex items-baseline justify-between gap-3 px-4 py-2.5 text-[14px]">
+                <div key={a.key} className="flex items-baseline justify-between gap-3 py-2.5 text-[14.5px]">
                   <span className="text-fg-2">
-                    <span className="mr-2 font-semibold tracking-[0.02em] text-fg">{a.key}</span>
+                    <span className="mr-2 font-semibold text-fg">{a.key}</span>
                     {a.label}
                   </span>
-                  <span className="text-right text-[13px] text-fg-3">{a.hint}</span>
+                  <span className="text-right text-[13.5px] text-fg-3">{a.hint}</span>
                 </div>
               ))}
-              <p className="px-4 py-3 text-[13px] leading-snug text-fg-3">
+              <p className="meta py-3 leading-snug">
                 Pace, stamina and work rate come from your watch. Shooting and passing come from what you log. Each game is judged against its own format first, so a goal in 11s
                 counts for more than one in 7s. Tiers: bronze under 65, silver 65+, gold 75+, in form 85+.
               </p>
@@ -121,45 +127,42 @@ export function FootballScreen() {
             }}
             options={s.formats.map((x) => ({ value: x, label: `${x}-a-side` }))}
           />
-          <p className="meta mt-2.5 px-1">Results, form and records only compare games of the same format.</p>
+          <p className="meta mt-3">Results, form and records only compare games of the same format.</p>
         </div>
       )}
 
       {fs && fs.apps > 0 && (
         <Section title="Season">
-          <div className="card overflow-hidden">
-            <div className="grid grid-cols-3">
-              {[
-                { k: 'Apps', v: fs.apps },
-                { k: 'Goals', v: fs.goals },
-                { k: 'Assists', v: fs.assists },
-              ].map((x) => (
-                <div key={x.k} className="px-4 pb-4 pt-4">
-                  <div className="label">{x.k}</div>
-                  <Ticker value={x.v} className="num-hero mt-3 block text-[44px]" />
-                </div>
-              ))}
+          <div className="grid grid-cols-3 gap-x-3">
+            {[
+              { k: 'Apps', v: fs.apps },
+              { k: 'Goals', v: fs.goals },
+              { k: 'Assists', v: fs.assists },
+            ].map((x) => (
+              <div key={x.k}>
+                <div className="label">{x.k}</div>
+                <Ticker value={x.v} className="num-hero mt-3 block text-[60px]" />
+              </div>
+            ))}
+          </div>
+          <div className="mt-6 grid grid-cols-3 gap-x-3">
+            <div>
+              <div className="label">Record</div>
+              <div className="num mt-2.5 text-[27px]">
+                <span className="text-z2">{fs.w}</span>
+                <span className="text-fg-4"> · </span>
+                <span className="text-fg-2">{fs.d}</span>
+                <span className="text-fg-4"> · </span>
+                <span className="text-z5">{fs.l}</span>
+              </div>
             </div>
-            <div className="mx-4 h-px bg-line" />
-            <div className="grid grid-cols-3">
-              <div className="px-4 py-4">
-                <div className="label">Record</div>
-                <div className="num mt-2.5 text-[20px]">
-                  <span className="text-z2">{fs.w}</span>
-                  <span className="text-fg-4"> · </span>
-                  <span className="text-fg-2">{fs.d}</span>
-                  <span className="text-fg-4"> · </span>
-                  <span className="text-z5">{fs.l}</span>
-                </div>
-              </div>
-              <div className="px-4 py-4">
-                <div className="label">Win rate</div>
-                <div className="num mt-2.5 text-[20px]">{Math.round((fs.w / fs.apps) * 100)}%</div>
-              </div>
-              <div className="px-4 py-4">
-                <div className="label">Avg rating</div>
-                <div className={`num mt-2.5 text-[20px] ${ratingTone(fs.avgRating).text}`}>{fs.avgRating.toFixed(2)}</div>
-              </div>
+            <div>
+              <div className="label">Win rate</div>
+              <div className="num mt-2.5 text-[27px]">{Math.round((fs.w / fs.apps) * 100)}%</div>
+            </div>
+            <div>
+              <div className="label">Avg rating</div>
+              <div className={`num mt-2.5 text-[27px] ${ratingTone(fs.avgRating).text}`}>{fs.avgRating.toFixed(2)}</div>
             </div>
           </div>
         </Section>
@@ -172,8 +175,8 @@ export function FootballScreen() {
               const r = result(m)
               return (
                 <Link key={m.id} to={`/match/${m.id}`} className="press flex flex-col items-center gap-2">
-                  <span className={`grid aspect-square w-full place-items-center rounded-[10px] text-[15px] font-semibold ${RESULT_CLS[r]}`}>{r}</span>
-                  <span className={`text-[13px] font-medium tabular-nums ${ratingTone(m.rating).text}`}>{m.rating.toFixed(1)}</span>
+                  <ResultMark r={r} className="aspect-square w-full text-[19px]" />
+                  <span className={`num text-[17px] ${ratingTone(m.rating).text}`}>{m.rating.toFixed(1)}</span>
                 </Link>
               )
             })}
@@ -214,7 +217,7 @@ export function FootballScreen() {
             </div>
           )}
           <PitchHeatmap points={pitch.points} format={f} attacking={pitch.sure} />
-          <p className="mt-2.5 px-1 text-[12px] text-fg-4">
+          <p className="meta mt-3 text-fg-4">
             {pitch.sure
               ? 'Every half turned so you attack left to right, judged from where you stood at kick-off.'
               : 'Every half laid the same way round, but which end you attacked couldn’t be told, so it may be back to front.'}
@@ -230,7 +233,7 @@ export function FootballScreen() {
               {favourite && <Rival label="Favourite fixture" r={favourite} />}
             </div>
           )}
-          <div className="card list overflow-hidden">
+          <div className="list">
             {met.map((r) => (
               <RivalRow key={r.opponent} r={r} />
             ))}
@@ -240,7 +243,7 @@ export function FootballScreen() {
 
       {fs && fs.matches.length > 0 && (
         <Section title="Matches">
-          <div className="card list overflow-hidden [--inset:60px]">
+          <div className="list">
             {fs.matches.map((m) => (
               <MatchRow key={m.id} m={m} />
             ))}
@@ -258,12 +261,12 @@ function UnratedRow({ a, now, onRate }: { a: Activity; now: Date; onRate: () => 
     <button onClick={onRate} className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors duration-150 active:bg-ink-2">
       <SportDot sport="football" size={40} />
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[15px] font-medium leading-5">{when}</span>
+        <span className="block truncate text-[16px] font-semibold leading-5">{when}</span>
         <span className="meta block truncate">
           {dur(a.durationS)} · {km(a.distanceM, 1)} km{a.football ? ` · ${a.football.sprints} sprints` : ''}
         </span>
       </span>
-      <span className="rounded-full bg-fg px-4 py-2 text-[14px] font-semibold leading-none text-ink-0">Rate</span>
+      <span className="btn-primary h-9 px-4 text-[17px]">Rate</span>
     </button>
   )
 }
@@ -272,9 +275,9 @@ function Record({ label, value, unit, m, act }: { label: string; value: string; 
   const inner = (
     <>
       <div className="label truncate">{label}</div>
-      <div className="num mt-3 text-[28px]">
+      <div className="num mt-3 text-[34px]">
         {value}
-        {unit && <span className="ml-1 text-[13px] font-normal tracking-normal text-fg-3">{unit}</span>}
+        {unit && <span className="unit">{unit}</span>}
       </div>
       <div className="meta mt-1.5 truncate">{m ? `${fmt(m.date, 'd MMM')} · ${m.opponent}` : act ? `${fmt(act.start, 'd MMM')} · not rated` : ''}</div>
     </>
@@ -292,7 +295,7 @@ function Rival({ label, r }: { label: string; r: Rivalry }) {
   return (
     <div className="card p-4">
       <div className="label truncate">{label}</div>
-      <div className="mt-2.5 line-clamp-2 text-[17px] font-semibold leading-tight">{r.opponent}</div>
+      <div className="t-name mt-2.5 line-clamp-2">{r.opponent}</div>
       <div className="meta mt-1.5">
         {recordWords(r).replace(/^./, (c) => c.toUpperCase())} · {r.scored}–{r.conceded}
       </div>
@@ -302,14 +305,14 @@ function Rival({ label, r }: { label: string; r: Rivalry }) {
 
 function RivalRow({ r }: { r: Rivalry }) {
   return (
-    <div className="flex items-center gap-3 px-4 py-3">
+    <div className="flex items-center gap-3 py-3">
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[15px] font-medium leading-5">{r.opponent}</span>
+        <span className="block truncate text-[16px] font-semibold leading-5">{r.opponent}</span>
         <span className="meta block truncate">
           {r.games} games · {r.scored}–{r.conceded} on goals
         </span>
       </span>
-      <span className="num shrink-0 text-[15px]">
+      <span className="num shrink-0 text-[21px]">
         <span className="text-z2">{r.w}</span>
         <span className="text-fg-4"> · </span>
         <span className="text-fg-2">{r.d}</span>
@@ -324,10 +327,10 @@ function RivalRow({ r }: { r: Rivalry }) {
 export function MatchRow({ m }: { m: Match }) {
   const r = result(m)
   return (
-    <Link to={`/match/${m.id}`} className="flex items-center gap-3 px-4 py-3 transition-colors duration-150 active:bg-ink-2">
-      <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-[9px] text-[13px] font-semibold ${RESULT_CLS[r]}`}>{r}</span>
+    <Link to={`/match/${m.id}`} className="flex items-center gap-3 py-3 transition-colors duration-150 active:bg-ink-2">
+      <ResultMark r={r} className="h-8 w-8 shrink-0 text-[17px]" />
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[15px] font-medium leading-5">
+        <span className="block truncate text-[16px] font-semibold leading-5">
           {m.scoreFor}–{m.scoreAgainst} vs {m.opponent}
         </span>
         <span className="meta block truncate">

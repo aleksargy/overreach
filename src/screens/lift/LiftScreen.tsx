@@ -1,243 +1,232 @@
 import { differenceInCalendarDays, format, parseISO } from 'date-fns'
-import { Play, Plus, Search } from 'lucide-react'
-import { useMemo, useState } from 'react'
-import { Link, useSearchParams } from 'react-router'
+import { ChevronRight, Plus, Search } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useNavigate } from 'react-router'
+import { Sparkline } from '../../components/charts/primitives'
 import { IconButton, Screen } from '../../components/ui/Screen'
-import { SampleBadge, Section, Segmented, inputCls } from '../../components/ui/bits'
+import { StandoutLine } from '../../components/ui/Standout'
+import { Empty, SampleBadge, Section, inputCls } from '../../components/ui/bits'
 import { MUSCLES } from '../../data/exercises'
 import { useStore } from '../../data/store'
 import type { Muscle, Routine } from '../../data/types'
 import { useUi } from '../../data/ui'
 import { useWorld, type World } from '../../data/world'
-import { bestE1rm, fmtKg, hasE1rm, historyFor, prsFor, suggest, volume, workingSets } from '../../lib/lift'
-import { planNext, setsByMuscle } from '../../lib/plan'
-import { toneFor } from '../../lib/readiness'
-import { EQUIPMENT_LABEL, MUSCLE_LABEL, SuggestionTag, WorkoutRow, targetText, tonnes } from './parts'
+import { amount, focusOf, historyFor, lastDone, nextRoutine, progressOf, recordsIn, targetFor, targetText, topOf } from '../../lib/lift'
+import { uid } from '../../lib/rng'
+import { EQUIPMENT_LABEL, MUSCLE_LABEL, MoveNote, WorkoutRow, daysAgo, useBegin } from './parts'
 
-type Tab = 'train' | 'history' | 'exercises'
+/** How long ago a workout was last done, in days; undefined if never. */
+const sinceDone = (r: Routine, w: World) => {
+  const last = lastDone(r, w.workouts)
+  return last ? differenceInCalendarDays(w.now, parseISO(last.start)) : undefined
+}
 
+/** Make a blank workout and open it for editing. */
+export function useNewWorkout() {
+  const save = useStore((s) => s.saveRoutine)
+  const nav = useNavigate()
+  return () => {
+    const id = `r-${uid()}`
+    save({ id, name: 'New workout', focus: '', items: [] })
+    nav(`/lift/workout/${id}?edit=1`)
+  }
+}
+
+/** Lifting: what to do next, your workouts, and how the weights are moving. */
 export function LiftScreen() {
   const w = useWorld()
-  const open = useUi((s) => s.open)
-  const [params, setParams] = useSearchParams()
-  const tab = (params.get('tab') as Tab | null) ?? 'train'
-  const month = w.workouts.filter((x) => differenceInCalendarDays(w.now, parseISO(x.start)) < 28)
+  const active = useStore((s) => s.active)
+  const create = useNewWorkout()
+  const next = useMemo(() => nextRoutine(w.routines, w.workouts), [w])
+  // a workout that was started and left with nothing in it is tidied away on the way back here
+  useEffect(() => {
+    const { routines, deleteRoutine } = useStore.getState()
+    for (const r of routines) if (!r.items.length) deleteRoutine(r.id)
+  }, [])
+  const month = w.workouts.filter((x) => differenceInCalendarDays(w.now, parseISO(x.start)) < 28).length
   return (
     <Screen
       title="Lift"
       kicker={
         <span className="flex items-center gap-2">
-          {w.workouts.length ? `${month.length} ${month.length === 1 ? 'session' : 'sessions'} in 4 weeks` : 'Log your first session'} {w.mode === 'sample' && <SampleBadge />}
+          {w.workouts.length ? `${month} ${month === 1 ? 'session' : 'sessions'} in 4 weeks` : 'Your workouts, and what to lift'} {w.mode === 'sample' && <SampleBadge />}
         </span>
       }
       actions={
-        <IconButton label="New exercise" onClick={() => open({ type: 'exercise' })}>
+        <IconButton label="New workout" onClick={create}>
           <Plus size={18} />
         </IconButton>
       }
     >
-      <Segmented
-        value={tab}
-        onChange={(t) => setParams(t === 'train' ? {} : { tab: t }, { replace: true })}
-        options={[
-          { value: 'train', label: 'Train' },
-          { value: 'history', label: 'History' },
-          { value: 'exercises', label: 'Exercises' },
-        ]}
-      />
-      {tab === 'train' && <Train w={w} />}
-      {tab === 'history' && <History w={w} />}
-      {tab === 'exercises' && <Library w={w} />}
+      {active ? (
+        <InProgress />
+      ) : next ? (
+        <NextUp w={w} routine={next} />
+      ) : (
+        <section>
+          <div className="label">Start here</div>
+          <h2 className="display mt-3 text-balance text-[62px] font-extrabold leading-[0.9]">Make your first workout</h2>
+          <p className="mt-5 text-[17px] leading-snug text-fg-2">Your exercises, in the order you do them. From the second session it tells you what to lift.</p>
+          <button onClick={create} className="btn-primary mt-6 w-full">
+            New workout
+          </button>
+        </section>
+      )}
+      {w.news.lift && !active && <StandoutLine s={w.news.lift} className="mt-9" />}
+      <Workouts w={w} skip={active ? undefined : next?.id} onNew={create} />
+      <ProgressList w={w} />
+      {w.workouts.length > 0 && (
+        <Section
+          title="Recent"
+          action={
+            <Link to="/lift/history" className="link">
+              History <ChevronRight size={15} strokeWidth={2} />
+            </Link>
+          }
+        >
+          <div className="list">
+            {w.workouts.slice(0, 3).map((x) => (
+              <WorkoutRow key={x.id} w={x} records={recordsIn(x, w.workouts, w.exerciseById).length} />
+            ))}
+          </div>
+        </Section>
+      )}
     </Screen>
   )
 }
 
-function useBegin() {
-  const active = useStore((s) => s.active)
-  const start = useStore((s) => s.startWorkout)
-  const setOpen = useUi((s) => s.setWorkoutOpen)
-  return (r?: Routine) => {
-    if (!active) start(r)
-    setOpen(true)
-  }
-}
-
-function Train({ w }: { w: World }) {
-  const active = useStore((s) => s.active)
+/** The workout that's waited longest, with what to lift on every exercise. */
+function NextUp({ w, routine }: { w: World; routine: Routine }) {
   const begin = useBegin()
-  const plan = useMemo(
-    () =>
-      planNext({
-        now: w.now,
-        routines: w.routines,
-        workouts: w.workouts,
-        exercises: w.exerciseById,
-        activities: w.activities,
-        nextFootball: w.nextFootball,
-        readiness: w.readiness?.score,
-      }),
-    [w],
-  )
-  const month = w.workouts.filter((x) => differenceInCalendarDays(w.now, parseISO(x.start)) < 28)
-  const monthPrs = useMemo(() => month.reduce((a, x) => a + prsFor(x, w.workouts, w.exerciseById).length, 0), [month, w])
-
+  const since = sinceDone(routine, w)
   return (
-    <>
-      {active ? <ActiveCard /> : plan && <UpNext w={w} routine={plan.routine} reasons={plan.reasons} onStart={() => begin(plan.routine)} />}
-
-      <Section title="Routines">
-        <div className="flex flex-col gap-2">
-          {plan?.statuses.map((st) => (
-            <div key={st.routine.id} className="card flex items-center gap-3 p-3.5">
-              <span className="min-w-0 flex-1">
-                <span className="block text-[17px] font-semibold tracking-[-0.02em] leading-none">{st.routine.name}</span>
-                <span className="mt-1 block truncate text-[13px] text-fg-3">{st.routine.focus}</span>
-                <span className="mt-1.5 block text-[13px] tabular-nums text-fg-3">
-                  {st.routine.items.length} exercises · {st.sets} sets ·{' '}
-                  {st.daysSince === undefined ? 'not done yet' : st.daysSince === 0 ? 'done today' : st.daysSince === 1 ? 'yesterday' : `${st.daysSince} days ago`}
-                </span>
-              </span>
-              <button
-                onClick={() => begin(st.routine)}
-                className="press grid h-11 w-11 shrink-0 place-items-center rounded-full border border-line-2 bg-ink-2 text-fg"
-                aria-label={`Start ${st.routine.name}`}
-              >
-                <Play size={16} fill="currentColor" />
-              </button>
-            </div>
-          ))}
-          <button
-            onClick={() => begin()}
-            className="press flex h-14 items-center justify-center gap-2 rounded-card border border-dashed border-line-2 text-[14px] font-semibold text-fg-2"
-          >
-            <Plus size={16} /> Empty workout
-          </button>
-        </div>
-      </Section>
-
-      <MuscleSets w={w} />
-
-      <Section title="Last 4 weeks">
-        <div className="card grid grid-cols-4 divide-x divide-line">
-          {[
-            { label: 'Sessions', value: String(month.length) },
-            { label: 'Sets', value: String(month.reduce((a, x) => a + workingSets(x), 0)) },
-            { label: 'Volume', value: tonnes(month.reduce((a, x) => a + volume(x), 0)).replace(' ', '') },
-            { label: 'PRs', value: String(monthPrs) },
-          ].map((s) => (
-            <div key={s.label} className="px-3 py-3.5">
-              <div className="label mb-1.5">{s.label}</div>
-              <div className="num text-[26px]">{s.value}</div>
-            </div>
-          ))}
-        </div>
-      </Section>
-    </>
+    <section>
+      <div className="label">Next up</div>
+      <Link to={`/lift/workout/${routine.id}`} className="press mt-3 block">
+        <h2 className="display text-balance text-[62px] font-extrabold leading-[0.9]">{routine.name}</h2>
+      </Link>
+      <div className="meta mt-3">{[focusOf(routine, w.exerciseById), daysAgo(since)].filter(Boolean).join(' · ')}</div>
+      <Targets w={w} routine={routine} className="mt-5" />
+      <button onClick={() => begin(routine)} className="btn-primary mt-6 w-full">
+        Start
+      </button>
+    </section>
   )
 }
 
-function ActiveCard() {
+/** A workout's exercises, each with the weight and reps to go for and what's changed since last time. */
+export function Targets({ w, routine, className = '' }: { w: World; routine: Routine; className?: string }) {
+  return (
+    <div className={`list ruled ${className}`}>
+      {routine.items.map((it, i) => {
+        const ex = w.exerciseById.get(it.exerciseId)
+        if (!ex) return null
+        const t = targetFor(ex, historyFor(ex.id, w.workouts))
+        return (
+          <Link key={`${it.exerciseId}-${i}`} to={`/lift/exercise/${ex.id}`} className="flex items-center gap-3 py-[10px] transition-colors duration-150 active:bg-ink-2">
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[16px] font-semibold leading-5">{ex.name}</span>
+              <span className="meta block">
+                {it.sets} {it.sets === 1 ? 'set' : 'sets'} · <MoveNote t={t} />
+              </span>
+            </span>
+            <span className="num shrink-0 text-right text-[27px]">{targetText(ex, t)}</span>
+          </Link>
+        )
+      })}
+    </div>
+  )
+}
+
+function InProgress() {
   const active = useStore((s) => s.active)!
   const setOpen = useUi((s) => s.setWorkoutOpen)
   const done = active.exercises.reduce((a, we) => a + we.sets.filter((s) => s.done).length, 0)
   const total = active.exercises.reduce((a, we) => a + we.sets.length, 0)
   return (
-    <button onClick={() => setOpen(true)} className="press relative mt-4 block w-full overflow-hidden card p-4 text-left">
-      <span className="flex items-center gap-2">
-        <span className="relative flex h-2 w-2">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-z5 opacity-60" />
-          <span className="relative inline-flex h-2 w-2 rounded-full bg-z5" />
-        </span>
-        <span className="label text-fg-2">In progress</span>
-      </span>
-      <span className="mt-2 block text-[26px] font-semibold tracking-[-0.02em] leading-[1.1]">{active.name}</span>
-      <span className="mt-2 block text-[13px] tabular-nums text-fg-3">
-        {done} of {total} sets done · started {format(parseISO(active.start), 'HH:mm')}
-      </span>
-      <span className="btn-primary mt-4 w-full">Resume</span>
-    </button>
-  )
-}
-
-function UpNext({ w, routine, reasons, onStart }: { w: World; routine: Routine; reasons: string[]; onStart: () => void }) {
-  const r = w.readiness
-  const tone = r ? toneFor(r.score).tone : null
-  const toneCls = tone === 'good' ? 'text-z2' : tone === 'ok' ? 'text-z3' : tone === 'warn' ? 'text-z4' : 'text-z5'
-  return (
-    <section className="relative mt-4 overflow-hidden card">
-      <div className="p-4">
-        <div className="flex items-center justify-between">
-          <span className="label">Up next</span>
-          {r && <span className={`text-[13px] tabular-nums font-semibold ${toneCls}`}>Readiness {r.score}</span>}
-        </div>
-        <h2 className="mt-2 text-[28px] font-semibold tracking-[-0.02em] leading-[1.1]">{routine.name}</h2>
-        <div className="mt-1.5 text-[13px] text-fg-3">{routine.focus}</div>
-        <ul className="mt-3 flex flex-col gap-1.5">
-          {reasons.map((x) => (
-            <li key={x} className="flex gap-2.5 text-[14px] leading-snug text-fg-2">
-              <span className="mt-[8px] h-1 w-1 shrink-0 rounded-full bg-fg-3" />
-              {x}
-            </li>
-          ))}
-        </ul>
+    <section>
+      <div className="label flex items-center gap-2">
+        <span className="h-2 w-2 animate-pulse rounded-full bg-bad" /> In progress
       </div>
-      <div className="border-t border-line">
-        {routine.items.map((it) => {
-          const ex = w.exerciseById.get(it.exerciseId)
-          if (!ex) return null
-          const s = suggest(ex, historyFor(ex.id, w.workouts), w.readiness?.score)
-          return (
-            <div key={it.exerciseId} className="flex items-center gap-3 border-b border-line px-4 py-2.5 last:border-b-0">
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-[14.5px] font-semibold">{ex.name}</span>
-                <span className="block text-[13px] tabular-nums text-fg-3">
-                  {it.sets} sets · {targetText(ex, s)}
-                </span>
-              </span>
-              <SuggestionTag s={s} compact timed={ex.kind === 'duration'} />
-            </div>
-          )
-        })}
+      <h2 className="display mt-3 text-balance text-[62px] font-extrabold leading-[0.9]">{active.name}</h2>
+      <div className="meta mt-3">
+        {done} of {total} sets · started {format(parseISO(active.start), 'HH:mm')}
       </div>
-      <div className="p-3">
-        <button onClick={onStart} className="btn-primary h-[52px] w-full text-[16px]">
-          <Play size={16} fill="currentColor" /> Start {routine.name}
-        </button>
-      </div>
+      <button onClick={() => setOpen(true)} className="btn-primary mt-6 w-full">
+        Carry on
+      </button>
     </section>
   )
 }
 
-const TRACKED: Muscle[] = ['chest', 'back', 'shoulders', 'biceps', 'triceps', 'quads', 'hamstrings', 'glutes', 'calves', 'core']
-
-/** Weekly hard sets per muscle against the 10–20 range most hypertrophy work lands in. */
-function MuscleSets({ w }: { w: World }) {
-  const sets = useMemo(() => setsByMuscle(w.workouts, w.exerciseById, w.now), [w])
-  const max = 24
+function Workouts({ w, skip, onNew }: { w: World; skip?: string; onNew: () => void }) {
+  const list = w.routines.filter((r) => r.id !== skip)
+  if (!w.routines.length) return null
   return (
-    <Section title="Sets this week" action={<span className="text-[13px] tabular-nums text-fg-3">target 10–20</span>}>
-      <div className="card px-4 py-3">
-        {TRACKED.map((m) => {
-          const v = sets.get(m) ?? 0
-          const color = v >= 20.5 ? 'bg-z4' : v >= 10 ? 'bg-z2' : v > 0 ? 'bg-fg-3' : 'bg-transparent'
-          return (
-            <div key={m} className="grid grid-cols-[84px_1fr_30px] items-center gap-3 py-[5px]">
-              <span className="text-[13px] tabular-nums text-fg-3">{MUSCLE_LABEL[m]}</span>
-              <span className="relative h-2.5 rounded-full bg-ink-3">
-                <span className="absolute inset-y-0 rounded-[2px] bg-fg/[0.07]" style={{ left: `${(10 / max) * 100}%`, width: `${(10 / max) * 100}%` }} />
-                <span className={`absolute inset-y-0 left-0 rounded-full ${color}`} style={{ width: `${Math.min(1, v / max) * 100}%` }} />
+    <Section
+      title="Workouts"
+      action={
+        <button onClick={onNew} className="link">
+          <Plus size={15} strokeWidth={2} /> New
+        </button>
+      }
+    >
+      <div className="list">
+        {list.map((r) => (
+          <Link key={r.id} to={`/lift/workout/${r.id}`} className="flex items-center gap-3 py-3 transition-colors duration-150 active:bg-ink-2">
+            <span className="min-w-0 flex-1">
+              <span className="t-name block truncate">{r.name}</span>
+              <span className="meta mt-0.5 block truncate">
+                {r.items.length} {r.items.length === 1 ? 'exercise' : 'exercises'} · {daysAgo(sinceDone(r, w)).toLowerCase()}
               </span>
-              <span className="num text-right text-[16px]">{v ? fmtKg(Math.round(v * 2) / 2) : '–'}</span>
-            </div>
-          )
-        })}
-        <p className="mt-2 text-[12px] leading-snug text-fg-3">Working sets in the last 7 days. Secondary muscles count as half a set.</p>
+            </span>
+            <ChevronRight size={16} strokeWidth={2} className="shrink-0 text-fg-4" />
+          </Link>
+        ))}
+        {!list.length && <p className="meta py-3">That’s your only one. Add another and they’ll take turns.</p>}
       </div>
     </Section>
   )
 }
 
-function History({ w }: { w: World }) {
+/** The lifts you do most, and where each has got to over the last eight weeks. */
+function ProgressList({ w }: { w: World }) {
+  const list = useMemo(() => progressOf(w.workouts, w.exerciseById, w.now).slice(0, 5), [w])
+  if (!list.length) return null
+  return (
+    <Section
+      title="Progress"
+      action={
+        <Link to="/lift/exercises" className="link">
+          All lifts <ChevronRight size={15} strokeWidth={2} />
+        </Link>
+      }
+    >
+      <div className="list">
+        {list.map((p) => (
+          <Link
+            key={p.ex.id}
+            to={`/lift/exercise/${p.ex.id}`}
+            className="grid grid-cols-[minmax(0,1fr)_72px_auto] items-center gap-3 py-3 transition-colors duration-150 active:bg-ink-2"
+          >
+            <span className="min-w-0">
+              <span className="block truncate text-[16px] font-semibold leading-5">{p.ex.name}</span>
+              <span className={`block text-[13px] font-semibold ${p.change > 0 ? 'text-good' : p.change < 0 ? 'text-warn' : 'text-fg-3'}`}>
+                {p.change ? `${amount(p.ex, p.change, true)} in 8 weeks` : 'Holding'}
+              </span>
+            </span>
+            <Sparkline values={p.points.map((x) => x.v)} height={30} color="rgb(var(--fg-2))" />
+            <span className="num min-w-[84px] text-right text-[24px]">{amount(p.ex, p.now)}</span>
+          </Link>
+        ))}
+      </div>
+    </Section>
+  )
+}
+
+/** Every session you've logged, newest first, by month. */
+export function LiftHistoryScreen() {
+  const w = useWorld()
   const groups = useMemo(() => {
     const out = new Map<string, typeof w.workouts>()
     for (const x of w.workouts) {
@@ -246,32 +235,34 @@ function History({ w }: { w: World }) {
     }
     return [...out.entries()]
   }, [w])
-  const prs = useMemo(() => new Map(w.workouts.map((x) => [x.id, prsFor(x, w.workouts, w.exerciseById).length])), [w])
-  if (!w.workouts.length) return <p className="mt-6 text-fg-3">Finish a workout and it shows up here.</p>
+  const records = useMemo(() => new Map(w.workouts.map((x) => [x.id, recordsIn(x, w.workouts, w.exerciseById).length])), [w])
   return (
-    <div className="mt-2">
-      {groups.map(([k, list]) => (
-        <Section key={k} title={k} action={<span className="text-[13px] tabular-nums text-fg-3">{list.length} sessions</span>} className="!mt-6">
-          <div className="flex flex-col gap-2">
+    <Screen title="History" back>
+      {!w.workouts.length && <Empty title="Nothing yet">Finish a workout and it shows up here.</Empty>}
+      {groups.map(([k, list], i) => (
+        <Section key={k} title={k} action={<span className="meta">{`${list.length} ${list.length === 1 ? 'session' : 'sessions'}`}</span>} className={i ? '' : '!mt-0'}>
+          <div className="list">
             {list.map((x) => (
-              <WorkoutRow key={x.id} w={x} prs={prs.get(x.id)} />
+              <WorkoutRow key={x.id} w={x} records={records.get(x.id)} />
             ))}
           </div>
         </Section>
       ))}
-    </div>
+    </Screen>
   )
 }
 
-function Library({ w }: { w: World }) {
+/** Every exercise, the ones you've done lately first. */
+export function ExercisesScreen() {
+  const w = useWorld()
   const open = useUi((s) => s.open)
   const [q, setQ] = useState('')
   const [muscle, setMuscle] = useState<Muscle | 'all'>('all')
   const stats = useMemo(() => {
-    const out = new Map<string, { last: string; best: number }>()
+    const out = new Map<string, { last: string; top: number }>()
     for (const ex of w.exercises) {
       const h = historyFor(ex.id, w.workouts)
-      if (h.length) out.set(ex.id, { last: h[0].date, best: Math.max(...h.map((s) => bestE1rm(ex, s.sets))) })
+      if (h.length) out.set(ex.id, { last: h[0].date, top: topOf(ex, h[0].sets) })
     }
     return out
   }, [w])
@@ -279,10 +270,18 @@ function Library({ w }: { w: World }) {
     .filter((e) => (muscle === 'all' || e.muscle === muscle) && e.name.toLowerCase().includes(q.trim().toLowerCase()))
     .sort((a, b) => (stats.get(b.id)?.last ?? '').localeCompare(stats.get(a.id)?.last ?? '') || a.name.localeCompare(b.name))
   return (
-    <div className="mt-4">
+    <Screen
+      title="Lifts"
+      back
+      actions={
+        <IconButton label="New exercise" onClick={() => open({ type: 'exercise' })}>
+          <Plus size={18} />
+        </IconButton>
+      }
+    >
       <div className="relative">
         <Search size={17} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-fg-3" />
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search exercises" className={`${inputCls} pl-10`} />
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search" className={`${inputCls} pl-10`} />
       </div>
       <div className="no-scrollbar -mx-4 mt-3 flex gap-2 overflow-x-auto px-4">
         {[{ key: 'all' as const, label: 'All' }, ...MUSCLES].map((m) => (
@@ -291,44 +290,25 @@ function Library({ w }: { w: World }) {
           </button>
         ))}
       </div>
-      <button
-        onClick={() => open({ type: 'exercise' })}
-        className="press mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-card border border-dashed border-line-2 text-[14px] font-semibold text-fg-2"
-      >
-        <Plus size={16} /> Custom exercise
-      </button>
-      <div className="mt-2">
+      <div className="list mt-3">
         {list.map((e) => {
           const st = stats.get(e.id)
           return (
-            <Link key={e.id} to={`/lift/exercise/${e.id}`} className="press flex items-center gap-3 border-b border-line py-3">
+            <Link key={e.id} to={`/lift/exercise/${e.id}`} className="flex items-center gap-3 py-3 transition-colors duration-150 active:bg-ink-2">
               <span className="min-w-0 flex-1">
-                <span className="flex items-center gap-2">
-                  <span className="truncate text-[15px] font-semibold">{e.name}</span>
-                  {e.custom && <span className="rounded-full border border-line-2 px-1.5 py-px text-[11px] tabular-nums text-fg-3">Custom</span>}
-                </span>
-                <span className="mt-0.5 block text-[13px] tabular-nums text-fg-3">
+                <span className="block truncate text-[16px] font-semibold leading-5">{e.name}</span>
+                <span className="meta block truncate">
                   {MUSCLE_LABEL[e.muscle]} · {EQUIPMENT_LABEL[e.equipment]}
+                  {st ? ` · ${format(parseISO(st.last), 'd MMM')}` : ''}
                 </span>
               </span>
-              {st ? (
-                <span className="text-right">
-                  {st.best > 0 && hasE1rm(e) ? (
-                    <span className="num block text-[19px]">
-                      {fmtKg(Math.round(st.best))}
-                      <span className="ml-0.5 font-sans text-[10px] font-medium text-fg-3">e1RM</span>
-                    </span>
-                  ) : null}
-                  <span className="block text-[12px] tabular-nums text-fg-4">{format(parseISO(st.last), 'd MMM')}</span>
-                </span>
-              ) : (
-                <span className="text-[12px] tabular-nums text-fg-4">New</span>
-              )}
+              {st && st.top > 0 && <span className="num text-[22px]">{amount(e, st.top)}</span>}
+              <ChevronRight size={16} strokeWidth={2} className="shrink-0 text-fg-4" />
             </Link>
           )
         })}
-        {!list.length && <p className="py-6 text-center text-fg-3">Nothing matches. Make it a custom exercise.</p>}
+        {!list.length && <p className="meta py-6 text-center">Nothing matches. Tap + to make it your own.</p>}
       </div>
-    </div>
+    </Screen>
   )
 }

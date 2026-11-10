@@ -378,23 +378,23 @@ test('games summarised before the season heatmap get a trace from the stored str
   assert.equal(downloads(), before)
 })
 
-test('runs summarised before ghosts get an outline from the stored stream in one step, without a download', async () => {
+test('runs summarised before ghosts and best times get both from the stored stream in one step, without a download', async () => {
   const fake = fakeGarmin({ years: 0.1 })
   const kv = memoryKV()
   await syncToEnd(kv, fake)
   const { data } = await loadAll(kv)
   const runs = Object.values(data.activities).filter((a) => a.run)
-  assert.ok(runs.length && runs.every((a) => a.run?.route?.length && a.run.v === RUN_SUMMARY), 'a fresh sync keeps an outline of every run')
-  // as they were before the outline
-  for (const a of runs) a.run = { ...a.run!, route: undefined, v: undefined }
+  assert.ok(runs.length && runs.every((a) => a.run?.route?.length && a.run.bestD?.[0] && a.run.v === RUN_SUMMARY), 'a fresh sync keeps an outline and the best times of every run')
+  // as they were before either
+  for (const a of runs) a.run = { ...a.run!, route: undefined, bestD: undefined, v: undefined }
   await kv.set('activities', data.activities)
   const downloads = () => fake.calls['/download-service/files/activity/:x'] ?? 0
   const before = downloads()
   const step = await runStep({ kv, api: garmin('test-key', kv, { fetch: fake.fetch }), budgetMs: 25_000, now: fake.now })
   const after = Object.values((await loadAll(kv)).data.activities).filter((a) => a.run)
   assert.ok(
-    after.every((a) => a.run?.route?.length && a.run.v === RUN_SUMMARY && typeof a.run.tempC === 'number'),
-    'every run has its outline back, and keeps its weather',
+    after.every((a) => a.run?.route?.length && a.run.bestD?.[0] && a.run.v === RUN_SUMMARY && typeof a.run.tempC === 'number'),
+    'every run has its outline and best times back, and keeps its weather',
   )
   assert.equal(downloads(), before)
   assert.ok(step.done)

@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { counts, describe, merge, readBackup, type Backup } from '../src/lib/backup'
-import type { BodyEntry, Match, Profile, Workout } from '../src/data/types'
+import { SAMPLE_ROUTINES } from '../src/data/exercises'
+import { counts, describe, hasContent, merge, readBackup, withoutStarters, type Backup } from '../src/lib/backup'
+import type { BodyEntry, Match, Profile, Routine, Workout } from '../src/data/types'
 
 const profile = { name: 'Alex', hrMax: 189, hrRest: 47, team: 'Sunday Lads', format: 11, position: 'MID' } as Profile
 const match = (id: string, note = '') => ({ id, date: '2026-10-19', note }) as unknown as Match
@@ -48,6 +49,26 @@ test('a phone with nothing of yours takes the saved settings too', () => {
   const out = merge(phone({ profile: { ...profile, name: 'You' } }), { matches: [match('m-1')], profile: { ...profile, name: 'Alex', hrMax: 192 } })
   assert.equal(out.profile.name, 'Alex')
   assert.equal(out.profile.hrMax, 192)
+})
+
+test('a workout of your own counts as data, and the starters phones used to begin with are left behind unless you used them', () => {
+  const mine: Routine = { id: 'r-upper', name: 'Upper A', focus: '', items: [{ exerciseId: 'bench-press', sets: 3 }] }
+  const [push, pull, legs] = SAMPLE_ROUTINES
+  // an old copy with only the starters in it has nothing of yours
+  assert.equal(hasContent(phone({ routines: SAMPLE_ROUTINES })), false)
+  assert.equal(hasContent(phone({ routines: [mine] })), true)
+  // a starter you changed, or logged a session with, became yours
+  const edited = { ...pull, name: 'Pull day' }
+  const session = { ...workout('w-1'), routineId: legs.id }
+  assert.deepEqual(
+    withoutStarters([push, edited, legs, mine], [session]).map((r) => r.name),
+    ['Pull day', 'Legs A', 'Upper A'],
+  )
+  // so an old copy folds in without bringing the unused ones back
+  assert.deepEqual(
+    merge(phone({ routines: [mine] }), { routines: [push, edited, legs], workouts: [session] }).routines.map((r) => r.name),
+    ['Upper A', 'Pull day', 'Legs A'],
+  )
 })
 
 test('reads a backup file or the server’s copy, and refuses anything else', () => {

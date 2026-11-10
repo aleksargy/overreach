@@ -19,7 +19,6 @@ export interface Factor {
   score: number
   /** which direction is good */
   better: 'up' | 'down'
-  note: string
 }
 
 /** The session you're still recovering from. */
@@ -38,7 +37,8 @@ export interface Readiness {
   score: number
   label: string
   tone: Tone
-  verdict: string
+  /** only when a recent session is holding the day back: it names the session */
+  verdict?: string
   factors: Factor[]
   strain?: Strain
 }
@@ -122,7 +122,8 @@ export function strainOf(activities: Activity[], now: Date): Strain | undefined 
  * baseline (30%), sleep against the sleep Garmin says you needed (25%), Body
  * Battery (20%), resting HR (15%) and the load ratio (10%). Then recent training
  * caps it: whatever last night looked like, a session still being absorbed
- * keeps the day easy.
+ * keeps the day easy. The label is the verdict; a sentence is added only to
+ * name that session.
  */
 export function readiness(dailies: Daily[], activities: Activity[], acwr: number, now = new Date()): Readiness | null {
   if (dailies.length < 8) return null
@@ -136,7 +137,6 @@ export function readiness(dailies: Daily[], activities: Activity[], acwr: number
     if (lo && hi && hi > lo) {
       // Garmin's balanced range: inside it is fine, under it is a warning, above it is no extra credit
       const z = Math.log(today.hrv / Math.sqrt(lo * hi)) / (Math.log(hi / lo) / 2)
-      const status = today.hrvStatus && today.hrvStatus !== 'BALANCED' ? ` (Garmin says ${today.hrvStatus.toLowerCase()})` : ''
       const pad = (hi - lo) * 0.6
       factors.push({
         key: 'hrv',
@@ -150,12 +150,6 @@ export function readiness(dailies: Daily[], activities: Activity[], acwr: number
         max: Math.max(hi + pad, today.hrv + 2),
         score: z >= -1 ? clamp(78 + 12 * Math.min(z, 1), 0, 100) : clamp(66 + 30 * (z + 1), 0, 100),
         better: 'up',
-        note:
-          today.hrv < lo
-            ? `HRV is down at ${Math.round(today.hrv)} ms, under your Garmin baseline${status}`
-            : today.hrv > hi
-              ? `HRV is ${Math.round(today.hrv)} ms, above your Garmin baseline${status}`
-              : `HRV is inside your Garmin baseline${status}`,
       })
     } else {
       const hrvBase = base.map((d) => d.hrv).filter((x): x is number => !!x)
@@ -172,12 +166,6 @@ export function readiness(dailies: Daily[], activities: Activity[], acwr: number
           ...b,
           score: clamp(55 + 22 * z, 0, 100),
           better: 'up',
-          note:
-            today.hrv > b.hi
-              ? `HRV is ${Math.round(today.hrv)} ms, above your normal range`
-              : today.hrv < b.lo
-                ? `HRV is down at ${Math.round(today.hrv)} ms, below your normal range`
-                : `HRV is in your normal range`,
         })
       }
     }
@@ -188,7 +176,6 @@ export function readiness(dailies: Daily[], activities: Activity[], acwr: number
     const m = mean(rhrBase)
     const z = -(today.rhr - m) / (std(rhrBase) || 1)
     const b = band(rhrBase, today.rhr)
-    const delta = Math.round(today.rhr - m)
     factors.push({
       key: 'rhr',
       label: 'Resting HR',
@@ -198,7 +185,6 @@ export function readiness(dailies: Daily[], activities: Activity[], acwr: number
       ...b,
       score: clamp(55 + 20 * z, 0, 100),
       better: 'down',
-      note: delta >= 3 ? `resting HR is up ${delta} bpm on your baseline` : delta <= -2 ? `resting HR is ${-delta} bpm under your baseline` : `resting HR is normal`,
     })
   }
 
@@ -207,7 +193,6 @@ export function readiness(dailies: Daily[], activities: Activity[], acwr: number
     const need = today.sleepNeedS ?? 8 * 3600
     const h = today.sleepS / 3600
     const durScore = mapRange(today.sleepS / need, 0.75, 1, 20, 95)
-    const short = Math.round((need - today.sleepS) / 60)
     const b = band(
       sleepBase.map((s) => s / 3600),
       h,
@@ -221,13 +206,6 @@ export function readiness(dailies: Daily[], activities: Activity[], acwr: number
       ...b,
       score: today.sleepScore ? 0.5 * durScore + 0.5 * today.sleepScore : durScore,
       better: 'up',
-      note: !today.sleepNeedS
-        ? h < 6.5
-          ? `only ${hours(today.sleepS)} of sleep`
-          : `${hours(today.sleepS)} of sleep`
-        : short > 20
-          ? `${hours(today.sleepS)} of sleep, ${short} min short of what Garmin says you needed`
-          : `${hours(today.sleepS)} of sleep, as much as Garmin says you needed`,
     })
   }
 
@@ -243,7 +221,6 @@ export function readiness(dailies: Daily[], activities: Activity[], acwr: number
       // it's Garmin's own 0–100 estimate, so it scores as it is
       score: today.bbHigh,
       better: 'up',
-      note: today.bbHigh < 50 ? `Body Battery only charged to ${today.bbHigh} overnight` : `Body Battery charged to ${today.bbHigh} overnight`,
     })
   }
 
@@ -263,7 +240,6 @@ export function readiness(dailies: Daily[], activities: Activity[], acwr: number
       max: 1.8,
       score,
       better: 'down',
-      note: r > 1.3 ? `load ratio is ${r.toFixed(2)}, you've ramped up fast` : r < 0.8 ? `load is light lately` : `load is in the sweet spot`,
     })
   }
 
@@ -279,29 +255,17 @@ export function readiness(dailies: Daily[], activities: Activity[], acwr: number
   score = Math.min(score, cap)
   const { label, tone } = toneFor(score)
 
-  const sorted = [...factors].sort((a, b) => b.score - a.score)
-  const best = sorted[0]
-  const worst = sorted[sorted.length - 1]
+  // a sentence only when there's a session to name: on other days the label says it, and
+  // anything unusual about the night is picked out by its rarity (lib/standout), not recited here
   const up = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
-
-  let verdict: string
-  if (strain && capped) {
-    const what = `${up(strain.name)} (${strain.why})`
-    verdict =
-      tone === 'bad'
-        ? `${what} needs another day or two. Rest today, or keep it very easy.`
+  const verdict =
+    strain && capped
+      ? tone === 'bad'
+        ? `${up(strain.name)} needs another day or two.`
         : tone === 'warn'
-          ? `${what} is still in your legs. Keep today easy and aerobic.`
-          : `${what} is nearly absorbed. Train if it's planned, but keep it controlled.`
-  } else if (tone === 'good') {
-    verdict = `${up(best.note)}. A good day for a hard session.`
-  } else if (tone === 'ok') {
-    verdict = `${up(best.note)}, but ${worst.note}. Fine to train, keep the easy stuff easy.`
-  } else if (tone === 'warn') {
-    verdict = `${up(worst.note)}. Keep today aerobic, or swap it for mobility.`
-  } else {
-    verdict = `${up(worst.note)}. Take the day off: one rest day now saves a bad week later.`
-  }
+          ? `${up(strain.name)} is still in your legs.`
+          : `${up(strain.name)} is nearly absorbed.`
+      : undefined
 
   return { date: today.date, score, label, tone, verdict, factors: factors.map((f) => ({ ...f, score: round(f.score) })), strain }
 }

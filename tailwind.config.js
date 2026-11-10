@@ -23,12 +23,16 @@ export default {
         good: v('good'),
         warn: v('warn'),
         bad: v('bad'),
+        mark: v('mark'),
       },
       fontFamily: {
-        sans: ['"Geist Variable"', 'system-ui', '-apple-system', '"Segoe UI"', 'sans-serif'],
-        mono: ['"Geist Mono Variable"', 'ui-monospace', 'Menlo', 'monospace'],
+        // reading: a semi-condensed sans; chart labels use the same face with tabular figures (font-mono)
+        sans: ['"Sofia Sans Semi Condensed Variable"', 'system-ui', '-apple-system', '"Segoe UI"', 'sans-serif'],
+        mono: ['"Sofia Sans Semi Condensed Variable"', 'system-ui', 'sans-serif'],
+        // anything chalked up big: numbers, titles, buttons
+        display: ['"Big Shoulders Variable"', '"Sofia Sans Semi Condensed Variable"', 'Impact', 'sans-serif'],
       },
-      borderRadius: { card: '18px', sheet: '28px' },
+      borderRadius: { card: '6px', sheet: '18px' },
       maxWidth: { app: '520px' },
       transitionTimingFunction: { snap: 'cubic-bezier(.2,.8,.2,1)' },
     },

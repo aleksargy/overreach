@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { fetchStream } from './api'
-import { BUILTIN_EXERCISES } from './exercises'
+import { BUILTIN_EXERCISES, SAMPLE_ROUTINES } from './exercises'
 import { buildSample, sampleStreamFor, type SampleData } from './sample'
 import { useStore } from './store'
 import type { Activity, BodyEntry, Daily, Exercise, GarminActivity, Match, Profile, Routine, Stream, Workout } from './types'
@@ -12,6 +12,8 @@ import { loadModel, srpeLoad, trimp, zoneBounds, zoneSecondsFromAvg, type LoadMo
 import { readiness, type Readiness } from '../lib/readiness'
 import { runModel, type RunModel } from '../lib/running'
 import { nextOccurrence, recurringSlots, type Slot } from '../lib/schedule'
+import { footballSeries, liftSeries, recoverySeries, runSeries, weightSeries } from '../lib/series'
+import { headline, standout, type Standout } from '../lib/standout'
 import { differenceInCalendarDays, format } from 'date-fns'
 
 export interface World {
@@ -32,6 +34,8 @@ export interface World {
   load: LoadModel
   acwr: number
   readiness: Readiness | null
+  /** the one thing worth a look in each part of the app, when there is one; `today` is the rarest of them all */
+  news: { today?: Standout; recovery?: Standout; run?: Standout; lift?: Standout; football?: Standout; body?: Standout }
   slots: Slot[]
   next: Upcoming | null
   nextFootball: Upcoming | null
@@ -167,6 +171,22 @@ export function useWorld(): World {
 
     const unrated = gamesToRate(activities, (id) => matchByActivity.has(id), s.skipped, now)
 
+    const t = now.getTime()
+    const news: World['news'] = {
+      recovery: standout(recoverySeries(dailies), t),
+      run: standout(runSeries(activities, now), t),
+      lift: standout(liftSeries(workouts, exerciseById), t),
+      football: standout(
+        footballSeries(
+          matches,
+          activities.filter((a) => a.sport === 'football'),
+        ),
+        t,
+      ),
+      body: standout(weightSeries(body), t),
+    }
+    news.today = headline(Object.values(news), t)
+
     const world: World = {
       now,
       mode: live ? 'live' : 'sample',
@@ -179,12 +199,14 @@ export function useWorld(): World {
       workouts,
       exercises,
       exerciseById,
-      routines: s.routines,
+      // your own list starts empty; on sample data the sample lifter's workouts fill in, yours over theirs
+      routines: live ? s.routines : [...SAMPLE_ROUTINES.filter((r) => !s.routines.some((x) => x.id === r.id)), ...s.routines],
       body,
       analyses: sample?.analyses ?? new Map(),
       load,
       acwr,
       readiness: readiness(dailies, activities, acwr, now),
+      news,
       slots,
       next,
       nextFootball,

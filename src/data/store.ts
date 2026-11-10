@@ -1,16 +1,15 @@
 import { get as idbGet, set as idbSet } from 'idb-keyval'
 import { create } from 'zustand'
-import { BUILTIN_ROUTINES } from './exercises'
 import { SAMPLE_PROFILE } from './sample'
-import { backupOf, merge, type Backup } from '../lib/backup'
+import { backupOf, merge, withoutStarters, type Backup } from '../lib/backup'
 import { withPoints } from '../lib/football'
 import { uid } from '../lib/rng'
 import type { BodyEntry, Daily, Exercise, GarminActivity, Match, Profile, Routine, SetEntry, SyncState, Workout } from './types'
 
 /** Everything you type into the app. Garmin data lives in `garmin`, sample data is generated. */
 export interface UserData {
-  /** 2: matches have points (what went well and badly) instead of moments */
-  version: 2
+  /** 2: matches have points (what went well and badly) instead of moments. 3: your workouts start empty, without the four starters. */
+  version: 3
   profile: Profile
   matches: Match[]
   hiddenMatchIds: string[]
@@ -32,7 +31,7 @@ export interface GarminCache {
 }
 
 const EMPTY: UserData = {
-  version: 2,
+  version: 3,
   profile: SAMPLE_PROFILE,
   matches: [],
   hiddenMatchIds: [],
@@ -40,7 +39,7 @@ const EMPTY: UserData = {
   workouts: [],
   customExercises: [],
   exerciseEdits: {},
-  routines: BUILTIN_ROUTINES,
+  routines: [],
   body: [],
   active: null,
   sync: { mode: 'sample' },
@@ -62,11 +61,12 @@ interface State extends UserData {
   deleteWorkout: (id: string) => void
   saveExercise: (e: Exercise) => void
   editExercise: (id: string, patch: Partial<Exercise>) => void
+  /** add a workout of your own, or change one in place */
   saveRoutine: (r: Routine) => void
+  deleteRoutine: (id: string) => void
   addBody: (e: BodyEntry) => void
   setSync: (s: Partial<SyncState>) => void
   setGarmin: (g: GarminCache | null) => void
-  importWorkouts: (ws: Workout[], exercises: Exercise[]) => void
   /** fold in a backup file or the server's copy; nothing on the phone is replaced */
   mergeBackup: (saved: Partial<Backup>) => void
   resetAll: () => void
@@ -111,12 +111,12 @@ async function save(key: string, value: unknown) {
 
 /** What an older version of the app saved, brought up to date. */
 function upgrade(u: UserData): UserData {
-  return { ...u, version: 2, matches: (u.matches ?? []).map(withPoints) }
+  return { ...u, version: 3, matches: (u.matches ?? []).map(withPoints), routines: withoutStarters(u.routines ?? [], u.workouts ?? []) }
 }
 
 function pickUser(s: State): UserData {
   return {
-    version: 2,
+    version: 3,
     profile: s.profile,
     matches: s.matches,
     hiddenMatchIds: s.hiddenMatchIds,
@@ -218,7 +218,9 @@ export const useStore = create<State>()((set, get) => ({
         : { exerciseEdits: { ...s.exerciseEdits, [id]: { ...s.exerciseEdits[id], ...patch } } },
     ),
 
-  saveRoutine: (r) => set((s) => ({ routines: [...s.routines.filter((x) => x.id !== r.id), r] })),
+  saveRoutine: (r) => set((s) => ({ routines: s.routines.some((x) => x.id === r.id) ? s.routines.map((x) => (x.id === r.id ? r : x)) : [...s.routines, r] })),
+
+  deleteRoutine: (id) => set((s) => ({ routines: s.routines.filter((x) => x.id !== id) })),
 
   addBody: (e) => set((s) => ({ body: [e, ...s.body] })),
 
@@ -228,12 +230,6 @@ export const useStore = create<State>()((set, get) => ({
     set({ garmin: g })
     void save(GARMIN_KEY, g)
   },
-
-  importWorkouts: (ws, exercises) =>
-    set((s) => ({
-      workouts: [...s.workouts.filter((w) => !ws.some((n) => n.id === w.id)), ...ws],
-      customExercises: [...s.customExercises, ...exercises.filter((e) => !s.customExercises.some((c) => c.id === e.id))],
-    })),
 
   mergeBackup: (saved) => set((s) => merge(backupOf(s), saved)),
 

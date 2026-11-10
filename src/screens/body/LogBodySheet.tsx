@@ -37,15 +37,15 @@ function Form() {
 
   return (
     <div className="flex flex-col gap-7 pb-2">
-      <div className="rounded-card bg-ink-2 px-3 py-6">
+      <div className="ruled py-7">
         <div className="label mb-4 text-center">This morning</div>
         <div className="flex items-center justify-center gap-3">
-          <button aria-label="Minus 0.1 kg" onClick={() => step(-0.1)} className="press grid h-11 w-11 place-items-center rounded-full bg-ink-3 text-fg-2">
+          <button aria-label="Minus 0.1 kg" onClick={() => step(-0.1)} className="press grid h-11 w-11 place-items-center rounded-full text-fg-2 ring-1 ring-inset ring-fg/25">
             <Minus size={18} />
           </button>
           <div className="flex items-baseline">
-            <NumInput label="Weight in kg" decimal value={kg} onChange={setKg} className="num-hero w-[4.1ch] bg-transparent text-center text-[68px] focus:outline-none" />
-            <span className="text-[15px] font-medium text-fg-3">kg</span>
+            <NumInput label="Weight in kg" decimal value={kg} onChange={setKg} className="num-hero w-[3.4ch] bg-transparent text-center text-[88px] focus:outline-none" />
+            <span className="unit">kg</span>
           </div>
           <button aria-label="Plus 0.1 kg" onClick={() => step(0.1)} className="press grid h-11 w-11 place-items-center rounded-full bg-fg text-ink-0">
             <Plus size={18} />
@@ -54,7 +54,7 @@ function Form() {
         <p className="meta mt-4 text-center">Last time {lastWeight.toFixed(1)} kg</p>
       </div>
 
-      <button onClick={save} disabled={!kg} className="btn-primary h-14 w-full text-[16px] disabled:opacity-40">
+      <button onClick={save} disabled={!kg} className="btn-primary w-full disabled:opacity-40">
         Save
       </button>
     </div>

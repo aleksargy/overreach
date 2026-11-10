@@ -36,13 +36,6 @@ export function PitchHeatmap({ points, format, flip, attacking = true }: { point
     const pw = w - inset * 2
     const ph = h - inset * 2
 
-    // mown stripes
-    const stripes = format <= 6 ? 8 : 12
-    for (let i = 0; i < stripes; i++) {
-      ctx.fillStyle = i % 2 ? 'rgba(255,255,255,0.018)' : 'rgba(255,255,255,0.04)'
-      ctx.fillRect(px + (pw / stripes) * i, py, pw / stripes, ph)
-    }
-
     // density grid
     const GX = 72
     const GY = Math.max(24, Math.round((GX * W) / L))
@@ -97,7 +90,8 @@ export function PitchHeatmap({ points, format, flip, attacking = true }: { point
 
     // markings
     const fg = cssRgb('--fg')
-    ctx.strokeStyle = `rgba(${fg.join(',')},0.42)`
+    // the pitch is chalked on, like everything else: the heat sits under the lines
+    ctx.strokeStyle = `rgba(${fg.join(',')},0.7)`
     ctx.lineWidth = 1.5
     const sx = pw / L
     const sy = ph / W
@@ -109,7 +103,7 @@ export function PitchHeatmap({ points, format, flip, attacking = true }: { point
     ctx.beginPath()
     ctx.arc(px + pw / 2, py + ph / 2, Math.min(W * 0.16, 9.15) * sy, 0, Math.PI * 2)
     ctx.stroke()
-    ctx.fillStyle = `rgba(${fg.join(',')},0.6)`
+    ctx.fillStyle = `rgba(${fg.join(',')},0.8)`
     ctx.beginPath()
     ctx.arc(px + pw / 2, py + ph / 2, 2, 0, Math.PI * 2)
     ctx.fill()
@@ -139,10 +133,10 @@ export function PitchHeatmap({ points, format, flip, attacking = true }: { point
   }, [points, format, flip, w, h, L, W])
 
   return (
-    <div ref={wrap} className="relative w-full overflow-hidden rounded-card bg-ink-1" style={{ height: h || undefined, aspectRatio: h ? undefined : `${L} / ${W}` }}>
+    <div ref={wrap} className="relative w-full overflow-hidden" style={{ height: h || undefined, aspectRatio: h ? undefined : `${L} / ${W}` }}>
       <canvas ref={canvas} style={{ width: w, height: h }} className="block" role="img" aria-label="Heatmap of where you played" />
       {attacking && (
-        <div className="pointer-events-none absolute bottom-2 right-3 flex items-center gap-1 text-[11px] font-medium text-fg-3">
+        <div className="pointer-events-none absolute bottom-3 right-4 flex items-center gap-1 text-[11.5px] font-semibold text-fg-2">
           Attacking <ArrowRight size={12} strokeWidth={2} />
         </div>
       )}

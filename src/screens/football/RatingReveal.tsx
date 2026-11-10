@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router'
+import { Circled } from '../../components/ui/chalk'
 import { Ticker } from '../../components/ui/Ticker'
 import { useUi } from '../../data/ui'
 import { useWorld } from '../../data/world'
@@ -49,43 +50,39 @@ export function RatingReveal() {
           transition={{ duration: 0.25 }}
           onClick={() => setDone(true)}
         >
-          <motion.div
-            className="pointer-events-none absolute left-1/2 top-[26%] h-[520px] w-[520px] rounded-full"
-            style={{ x: '-50%', y: '-50%', background: `radial-gradient(circle, ${color} 0%, transparent 62%)` }}
-            initial={{ opacity: 0, scale: 0.6 }}
-            animate={{ opacity: done ? 0.28 : 0.1, scale: done ? 1 : 0.8 }}
-            transition={{ duration: 0.9, ease: [0.2, 0.8, 0.2, 1] }}
-          />
           <div className="gutter relative mx-auto flex w-full max-w-app flex-1 flex-col pb-[max(24px,env(safe-area-inset-bottom,0px))] pt-[max(48px,env(safe-area-inset-top,0px))]">
             <div className="meta text-center">
               {m.team} {m.scoreFor}–{m.scoreAgainst} {m.opponent} · {RESULT_WORD[result(m)]}
             </div>
             <div className="mt-8 flex flex-col items-center">
               <div className="label">Match rating</div>
-              <span className="mt-4 transition-colors duration-500" style={{ color: done ? color : 'rgb(var(--fg))' }}>
-                <Ticker value={m.rating} dp={1} duration={1400} className="num-hero block text-[152px]" />
+              {/* it counts up, then gets circled in its colour */}
+              <span className="mt-7 transition-colors duration-500" style={{ color: done ? color : 'rgb(var(--fg))' }}>
+                <Circled on={done} color={color} delay={0.05} seed={Math.round(m.rating * 10)}>
+                  <Ticker value={m.rating} dp={1} duration={1400} className="num-hero block text-[150px] !font-normal" />
+                </Circled>
               </span>
-              <motion.div className="mt-5 text-[17px] font-semibold tracking-[-0.01em]" style={{ color }} initial={{ opacity: 0, y: 8 }} animate={done ? { opacity: 1, y: 0 } : {}}>
+              <motion.div className="display mt-9 text-[26px] font-bold leading-none" style={{ color }} initial={{ opacity: 0, y: 8 }} animate={done ? { opacity: 1, y: 0 } : {}}>
                 {tone.word}
               </motion.div>
             </div>
 
             <motion.div className="mt-8" initial={{ opacity: 0, y: 16 }} animate={done ? { opacity: 1, y: 0 } : {}} transition={{ delay: 0.25, duration: 0.45 }}>
               <span className="label">On the back page</span>
-              <h2 className="mt-2 text-balance text-[28px] font-semibold leading-[1.12] tracking-[-0.03em]">{tidyHeadline(m.headline, [w.profile.name, m.team, m.opponent])}</h2>
+              <h2 className="t-story mt-2">{tidyHeadline(m.headline, [w.profile.name, m.team, m.opponent])}</h2>
             </motion.div>
 
             <div className="mt-6 flex flex-col gap-1.5">
               {m.breakdown.map((f, i) => (
                 <motion.div
                   key={f.key}
-                  className="flex items-center justify-between gap-3 border-b border-line pb-2"
+                  className="flex items-baseline justify-between gap-3 border-b border-fg/[0.1] pb-2"
                   initial={{ opacity: 0, x: -10 }}
                   animate={done ? { opacity: 1, x: 0 } : {}}
                   transition={{ delay: 0.5 + i * 0.07 }}
                 >
-                  <span className="text-[14px] text-fg-2">{f.label}</span>
-                  <span className={`text-[14px] font-medium tabular-nums ${f.value > 0 ? 'text-good' : f.value < 0 ? 'text-bad' : 'text-fg-3'}`}>{signed(f.value, 2)}</span>
+                  <span className="text-[14.5px] text-fg-2">{f.label}</span>
+                  <span className={`num text-[19px] ${f.value > 0 ? 'text-good' : f.value < 0 ? 'text-bad' : 'text-fg-3'}`}>{signed(f.value, 2)}</span>
                 </motion.div>
               ))}
               <motion.div
@@ -95,7 +92,7 @@ export function RatingReveal() {
                 transition={{ delay: 0.5 + m.breakdown.length * 0.07 }}
               >
                 <span className="text-[13px] text-fg-3">Everyone starts on 6.0</span>
-                <span className="num text-[20px]" style={{ color }}>
+                <span className="num text-[26px]" style={{ color }}>
                   {m.rating.toFixed(1)}
                 </span>
               </motion.div>

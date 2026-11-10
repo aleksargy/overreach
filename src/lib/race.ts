@@ -47,31 +47,6 @@ export const goalPaceS = (r: Race) => (r.goalS ? Math.floor(r.goalS / (r.distanc
 
 export const daysTo = (r: Race, now: Date) => differenceInCalendarDays(parseISO(r.date), now)
 
-/** Running km in 7-day blocks back from now: index 0 is the last seven days. */
-export function weeklyKm(activities: Activity[], now: Date, weeks = 10): number[] {
-  const t = now.getTime()
-  const out = Array.from({ length: weeks }, () => 0)
-  for (const a of activities) {
-    if (a.sport !== 'run' || !a.distanceM) continue
-    const i = Math.floor((t - Date.parse(a.start)) / (7 * 86_400_000))
-    if (i >= 0 && i < weeks) out[i] += a.distanceM / 1000
-  }
-  return out
-}
-
-/**
- * Where weekly volume usually lands in a taper, as a share of your biggest
- * week: common coaching guidance (three weeks for a marathon, two for a half,
- * one below that), not a rule. Undefined outside the taper.
- */
-export function taperShare(daysOut: number, distanceM: number): [number, number] | undefined {
-  const week = Math.ceil(daysOut / 7) // 1 is race week
-  if (daysOut < 0 || week < 1) return undefined
-  if (distanceM >= 42_000) return week === 1 ? [0.4, 0.5] : week === 2 ? [0.6, 0.75] : week === 3 ? [0.75, 0.85] : undefined
-  if (distanceM >= 21_000) return week === 1 ? [0.5, 0.6] : week === 2 ? [0.75, 0.85] : undefined
-  return week === 1 ? [0.6, 0.8] : undefined
-}
-
 // ---------- after the race ----------
 
 /** Runs that were races: marked as a race on the watch, or the one on the day of the race you set in Settings. Newest first. */

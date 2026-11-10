@@ -75,10 +75,3 @@ export function loadModel(activities: Activity[], days = 84, today = new Date())
   const ratio = acute.map((a, i) => (chronic[i] > 1 ? a / chronic[i] : 1))
   return { days: ds, acute, chronic, ratio }
 }
-
-export function acwrLabel(r: number): { label: string; tone: 'good' | 'warn' | 'bad' | 'low' } {
-  if (r < 0.8) return { label: 'Detraining', tone: 'low' }
-  if (r <= 1.3) return { label: 'Sweet spot', tone: 'good' }
-  if (r <= 1.5) return { label: 'Pushing it', tone: 'warn' }
-  return { label: 'Danger zone', tone: 'bad' }
-}

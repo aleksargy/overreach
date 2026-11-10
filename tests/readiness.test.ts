@@ -49,16 +49,17 @@ test('a big session yesterday holds readiness down, however good the night was',
   assert.ok(r.score <= 40, `score ${r.score}`)
   assert.equal(r.strain?.name, 'yesterday’s 32 km run')
   assert.equal(r.strain?.needH, 72)
-  assert.match(r.verdict, /^Yesterday’s 32 km run \(training effect 4\.4\) needs another day or two\. Rest today/)
-  assert.doesNotMatch(r.verdict, /hard session|go hard/i)
+  // the sentence is there to name the session, and that's all it does
+  assert.equal(r.verdict, 'Yesterday’s 32 km run needs another day or two.')
 })
 
-test('with nothing left to absorb and a good night, it’s a green light, and no plan is guessed', () => {
+test('with nothing left to absorb and a good night, it’s a green light, and the label is all it says', () => {
   const r = readiness(nights(), usual, 1.0, NOW)!
   assert.equal(r.strain, undefined)
   assert.equal(r.tone, 'good')
-  assert.match(r.verdict, /A good day for a hard session\.$/)
-  assert.doesNotMatch(r.verdict, /tonight|your run/)
+  assert.equal(r.label, 'Green light')
+  // no stock sentence about the best number of the night
+  assert.equal(r.verdict, undefined)
 })
 
 test('a solid session yesterday only keeps it off a green light', () => {
@@ -68,17 +69,20 @@ test('a solid session yesterday only keeps it off a green light', () => {
   assert.equal(r.tone, 'ok')
 })
 
-test('HRV under Garmin’s baseline pulls readiness down and says so', () => {
+test('HRV under Garmin’s baseline pulls readiness down', () => {
   const r = readiness(nights({ hrv: 46, hrvStatus: 'UNBALANCED' }), usual, 1.0, NOW)!
   const hrv = r.factors.find((f) => f.key === 'hrv')!
   assert.deepEqual([hrv.lo, hrv.hi], [55, 70])
   assert.ok(hrv.score < 50, `HRV scored ${hrv.score}`)
-  assert.equal(hrv.note, 'HRV is down at 46 ms, under your Garmin baseline (Garmin says unbalanced)')
 })
 
 test('sleep is judged against the sleep Garmin says you needed', () => {
-  const r = readiness(nights({ sleepS: 7 * 3600, sleepNeedS: 8 * 3600 + 600 }), usual, 1.0, NOW)!
-  assert.equal(r.factors.find((f) => f.key === 'sleep')!.note, '7h00 of sleep, 70 min short of what Garmin says you needed')
+  const short = readiness(nights({ sleepS: 7 * 3600, sleepNeedS: 8 * 3600 + 600 }), usual, 1.0, NOW)!
+  const enough = readiness(nights({ sleepS: 7 * 3600, sleepNeedS: 7 * 3600 }), usual, 1.0, NOW)!
+  const sleep = (r: typeof short) => r.factors.find((f) => f.key === 'sleep')!
+  // the same seven hours scores lower when Garmin says you needed 70 minutes more
+  assert.ok(sleep(short).score < sleep(enough).score - 10, `${sleep(short).score} against ${sleep(enough).score}`)
+  assert.equal(sleep(short).display, '7h00')
 })
 
 test('recovery follows Garmin’s training-effect bands, or the load against your usual session', () => {

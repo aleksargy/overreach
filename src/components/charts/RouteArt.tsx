@@ -1,12 +1,11 @@
-import { useMemo, useRef } from 'react'
+import { useMemo } from 'react'
 import type { Stream } from '../../data/types'
 import { zoneOf } from '../../lib/load'
 import { useMeasure, zoneColor } from './primitives'
 
-/** The route drawn on a dot grid (no map tiles), coloured by HR zone. */
+/** The route as a line of chalk (no map tiles), coloured by HR zone: a dot where it started, a ring where it finished. */
 export function RouteArt({ stream, bounds, height = 220, thin }: { stream: Stream; bounds: number[]; height?: number; thin?: boolean }) {
   const [ref, w] = useMeasure<HTMLDivElement>()
-  const pid = useRef(`p${Math.random().toString(36).slice(2, 8)}`).current
   const paths = useMemo(() => {
     const lat = stream.lat ?? []
     const lon = stream.lon ?? []
@@ -48,17 +47,10 @@ export function RouteArt({ stream, bounds, height = 220, thin }: { stream: Strea
     <div ref={ref} className="relative w-full" style={{ height }}>
       {paths && (
         <svg width={w} height={height} className="block" role="img" aria-label="Route, coloured by heart rate zone">
-          <defs>
-            <pattern id={pid} width="14" height="14" patternUnits="userSpaceOnUse">
-              <circle cx="1" cy="1" r="0.9" fill="rgb(var(--fg) / 0.09)" />
-            </pattern>
-          </defs>
-          <rect width={w} height={height} fill={`url(#${pid})`} />
-          <path d={paths.all} fill="none" stroke="rgb(var(--fg) / 0.08)" strokeWidth={thin ? 6 : 10} strokeLinecap="round" strokeLinejoin="round" />
           {paths.segs.map((sg, i) => (
-            <path key={i} d={sg.d} fill="none" stroke={zoneColor(sg.z)} strokeWidth={thin ? 2 : 3} strokeLinecap="round" strokeLinejoin="round" />
+            <path key={i} d={sg.d} fill="none" stroke={zoneColor(sg.z)} strokeWidth={thin ? 1.75 : 2.25} strokeLinecap="round" strokeLinejoin="round" />
           ))}
-          <circle cx={paths.end[0]} cy={paths.end[1]} r={6} fill="none" stroke="rgb(var(--fg))" strokeWidth={2} />
+          <circle cx={paths.end[0]} cy={paths.end[1]} r={6} fill="rgb(var(--ink-0))" stroke="rgb(var(--fg))" strokeWidth={1.75} />
           <circle cx={paths.start[0]} cy={paths.start[1]} r={3.5} fill="rgb(var(--fg))" />
         </svg>
       )}
