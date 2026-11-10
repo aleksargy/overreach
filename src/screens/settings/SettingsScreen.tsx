@@ -1,4 +1,4 @@
-import { ArchiveRestore, Check, CloudCheck, CloudUpload, Download, ExternalLink, RefreshCw, Upload } from 'lucide-react'
+import { ArchiveRestore, Check, CloudCheck, CloudUpload, Download, ExternalLink, RefreshCw } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Screen } from '../../components/ui/Screen'
 import { Field, NumInput, Section, Segmented, Toggle, inputCls } from '../../components/ui/bits'
@@ -11,7 +11,6 @@ import { useWorld } from '../../data/world'
 import { backupOf, counts, describe, readBackup } from '../../lib/backup'
 import { FORMATS, POSITIONS } from '../../lib/football'
 import { ago, fmt } from '../../lib/format'
-import { importHevy } from '../../lib/hevy'
 import { zoneBounds } from '../../lib/load'
 import { DISTANCES, formatGoal, parseGoal, typeGoal } from '../../lib/race'
 
@@ -24,8 +23,8 @@ export function SettingsScreen() {
       <Football />
       <YourData />
       <footer className="mt-14 text-center">
-        <div className="text-[17px] font-semibold tracking-[-0.02em]">{APP_NAME}</div>
-        <div className="mt-1 text-[13px] text-fg-4">{APP_TAGLINE}</div>
+        <div className="display text-[26px] font-extrabold leading-none">{APP_NAME}</div>
+        <div className="meta mt-1.5 text-fg-4">{APP_TAGLINE}</div>
       </footer>
     </Screen>
   )
@@ -50,12 +49,12 @@ function Profile() {
           </Field>
         </div>
         <div>
-          <div className="flex h-1.5 gap-[3px]">
+          <div className="flex h-2.5 gap-[2px]">
             {[1, 2, 3, 4, 5].map((i) => (
-              <span key={i} className="flex-1 rounded-full" style={{ background: `rgb(var(--z${i}))` }} />
+              <span key={i} className="flex-1" style={{ background: `rgb(var(--z${i}))` }} />
             ))}
           </div>
-          <div className="mt-2 grid grid-cols-5 text-[12px] tabular-nums text-fg-3">
+          <div className="mt-2 grid grid-cols-5 text-[12.5px] tabular-nums text-fg-3">
             {z.slice(0, 5).map((b, i) => (
               <span key={i}>
                 Z{i + 1} <span className="text-fg-2">{Math.round(b)}+</span>
@@ -73,7 +72,7 @@ function Profile() {
   )
 }
 
-/** Off unless you're training for something: then Run gets a countdown, your goal pace and a taper check. */
+/** Off unless you're training for something: then Run opens with a countdown and your goal pace, and afterwards the result. */
 function RaceSettings() {
   const race = useStore((s) => s.profile.race)
   const set = useStore((s) => s.setProfile)
@@ -83,16 +82,16 @@ function RaceSettings() {
   const goalOk = typing || !goal || (race && parseGoal(goal, race.distanceM) !== undefined)
   return (
     <Section title="Race">
-      <div className="card">
-        <div className="flex items-center gap-3 p-4">
+      <div>
+        <div className="flex items-center gap-3 pb-4">
           <span className="min-w-0 flex-1">
-            <span className="block text-[15px] font-medium leading-5">Training for a race</span>
-            <span className="meta block">Adds a countdown, your goal pace and a taper check to Run.</span>
+            <span className="block text-[16px] font-semibold leading-5">Training for a race</span>
+            <span className="meta block">Run opens with a countdown and your goal pace, then the result.</span>
           </span>
           <Toggle label="Training for a race" on={!!race} onChange={(on) => set({ race: on ? { date: '', distanceM: 42_195 } : undefined })} />
         </div>
         {race && (
-          <div className="mx-4 flex flex-col gap-4 border-t border-line py-4">
+          <div className="flex flex-col gap-4 border-t border-fg/[0.13] py-4">
             <Segmented
               size="sm"
               value={race.distanceM}
@@ -204,11 +203,11 @@ function Garmin() {
 
   return (
     <Section title="Garmin">
-      <div className="card overflow-hidden">
-        <div className="flex items-center gap-3 p-4">
+      <div>
+        <div className="flex items-center gap-3 pb-4">
           <span className={`h-2 w-2 shrink-0 rounded-full ${live ? 'bg-z2' : 'bg-warn'}`} />
           <span className="min-w-0 flex-1">
-            <span className="block text-[15px] font-medium leading-5">{live ? 'Connected' : 'Showing sample data'}</span>
+            <span className="block text-[16px] font-semibold leading-5">{live ? 'Connected' : 'Showing sample data'}</span>
             <span className="meta block">
               {sync.lastSync ? `Last sync ${ago(sync.lastSync)}` : 'Never synced'}
               {garmin ? ` · ${garmin.activities.length} activities` : ''}
@@ -216,7 +215,7 @@ function Garmin() {
           </span>
           {garmin && <Toggle label="Use Garmin data" on={sync.mode === 'live'} onChange={(on) => setSync({ mode: on ? 'live' : 'sample' })} />}
         </div>
-        <ol className="mx-4 border-t border-line py-3 text-[14px] leading-snug text-fg-2">
+        <ol className="border-t border-fg/[0.13] py-3 text-[14.5px] leading-snug text-fg-2">
           {[
             <>
               Make a Personal API key in{' '}
@@ -242,7 +241,7 @@ function Garmin() {
             </li>
           ))}
         </ol>
-        <div className="mx-4 flex flex-col gap-3 border-t border-line py-4">
+        <div className="flex flex-col gap-3 border-t border-fg/[0.13] pt-4">
           <Field label="Passphrase">
             <input
               type="password"
@@ -303,50 +302,33 @@ const when = (iso: string) => {
 function Row({ icon, title, sub, onClick }: { icon: ReactNode; title: string; sub: string; onClick?: () => void }) {
   const inner = (
     <>
-      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-ink-2 text-fg-2">{icon}</span>
+      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-fg-2 ring-1 ring-inset ring-fg/25">{icon}</span>
       <span className="min-w-0 flex-1">
-        <span className="block text-[15px] font-medium leading-5">{title}</span>
+        <span className="block text-[16px] font-semibold leading-5">{title}</span>
         <span className="meta block">{sub}</span>
       </span>
     </>
   )
   return onClick ? (
-    <button onClick={onClick} className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors duration-150 active:bg-ink-2">
+    <button onClick={onClick} className="flex w-full items-center gap-3 py-3.5 text-left transition-colors duration-150 active:bg-ink-2">
       {inner}
     </button>
   ) : (
-    <div className="flex items-center gap-3 px-4 py-3.5">{inner}</div>
+    <div className="flex items-center gap-3 py-3.5">{inner}</div>
   )
 }
 
 const icon = { size: 18, strokeWidth: 1.75 }
 
 function YourData() {
-  const w = useWorld()
   const sync = useStore((s) => s.sync)
-  const importWorkouts = useStore((s) => s.importWorkouts)
   const mergeBackup = useStore((s) => s.mergeBackup)
   const reset = useStore((s) => s.resetAll)
   const say = useUi((s) => s.say)
-  const hevyFile = useRef<HTMLInputElement>(null)
   const backupFile = useRef<HTMLInputElement>(null)
   const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null)
   const [sure, setSure] = useState(false)
   const connected = !!sync.passphrase && !!sync.lastSync
-
-  const onHevy = async (f: File) => {
-    try {
-      const r = importHevy(await f.text(), w.exercises)
-      importWorkouts(r.workouts, r.exercises)
-      setResult({
-        ok: true,
-        text: `Imported ${r.workouts.length} workouts from ${r.rows} sets.${r.exercises.length ? ` ${r.exercises.length} exercises were new, so they’re now custom exercises: set their muscle group under Exercises in Lift.` : ''}`,
-      })
-      say(`Imported ${r.workouts.length} workouts`)
-    } catch (e) {
-      setResult({ ok: false, text: e instanceof Error ? e.message : String(e) })
-    }
-  }
 
   const onBackup = async (f: File) => {
     let saved = null
@@ -386,7 +368,7 @@ function YourData() {
   return (
     <Section title="Your data">
       <div className="flex flex-col gap-2">
-        <div className="card list overflow-hidden [--inset:64px]">
+        <div className="list">
           {connected && (
             <Row
               icon={sync.copyPending ? <CloudUpload {...icon} /> : <CloudCheck {...icon} />}
@@ -401,10 +383,8 @@ function YourData() {
             sub="Adds what’s in the file. Nothing here is replaced."
             onClick={() => backupFile.current?.click()}
           />
-          <Row icon={<Upload {...icon} />} title="Import from Hevy" sub="In Hevy: Settings, Export data, Export workouts" onClick={() => hevyFile.current?.click()} />
         </div>
         <input ref={backupFile} type="file" accept=".json,application/json" className="hidden" onChange={(e) => e.target.files?.[0] && void onBackup(e.target.files[0])} />
-        <input ref={hevyFile} type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => e.target.files?.[0] && void onHevy(e.target.files[0])} />
         {result && (
           <p className={`card flex gap-2 p-3.5 text-[13px] leading-snug ${result.ok ? 'text-fg-2' : 'text-warn'}`}>
             {result.ok && <Check size={16} className="mt-0.5 shrink-0 text-z2" />}
@@ -418,7 +398,7 @@ function YourData() {
             setSure(false)
             say('Everything reset')
           }}
-          className={`press mt-2 h-12 rounded-full text-[14px] font-medium ${sure ? 'bg-bad text-ink-0' : 'text-bad/80 ring-1 ring-inset ring-bad/25'}`}
+          className={`press mt-2 h-12 rounded-[5px] text-[14.5px] font-semibold ${sure ? 'bg-bad text-ink-0' : 'text-bad/80 ring-1 ring-inset ring-bad/30'}`}
         >
           {sure ? 'Tap again to wipe everything on this phone' : 'Reset all data'}
         </button>

@@ -1,7 +1,8 @@
-import { ArrowLeftRight, Check } from 'lucide-react'
+import { ArrowLeftRight } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Sheet } from '../../components/ui/Sheet'
 import { Segmented, Stepper, inputCls } from '../../components/ui/bits'
+import { Tick } from '../../components/ui/chalk'
 import { useStore } from '../../data/store'
 import type { Activity, Format, Match, MatchPoint, Position } from '../../data/types'
 import { useUi } from '../../data/ui'
@@ -119,13 +120,13 @@ function Form({ activityId, matchId }: { activityId?: string; matchId?: string }
             <button
               key={a.id}
               onClick={() => setLinked(a.id)}
-              className={`press min-w-[150px] shrink-0 rounded-[16px] p-3.5 text-left ring-inset transition-shadow ${linked === a.id ? 'bg-ink-3 ring-[1.5px] ring-fg' : 'bg-ink-2 ring-1 ring-fg/[0.05]'}`}
+              className={`press min-w-[150px] shrink-0 rounded-card p-3.5 text-left ring-inset transition-shadow ${linked === a.id ? 'ring-[1.5px] ring-fg' : 'ring-1 ring-fg/[0.16]'}`}
             >
               <span className="flex items-center justify-between">
-                <span className="text-[12px] font-medium text-fg-3">{fmt(a.start, 'EEE d MMM')}</span>
-                {linked === a.id && <Check size={14} strokeWidth={2.25} />}
+                <span className="text-[12.5px] font-medium text-fg-3">{fmt(a.start, 'EEE d MMM')}</span>
+                {linked === a.id && <Tick size={15} strokeWidth={2.25} />}
               </span>
-              <span className="mt-1.5 block truncate text-[15px] font-semibold leading-tight">{a.name}</span>
+              <span className="mt-1.5 block truncate text-[16px] font-semibold leading-tight">{a.name}</span>
               <span className="meta mt-0.5 block">
                 {dur(a.durationS)} · {km(a.distanceM, 1)} km
               </span>
@@ -133,10 +134,10 @@ function Form({ activityId, matchId }: { activityId?: string; matchId?: string }
           ))}
           <button
             onClick={() => setLinked(undefined)}
-            className={`press min-w-[130px] shrink-0 rounded-[16px] p-3.5 text-left ring-inset ${!linked ? 'bg-ink-3 ring-[1.5px] ring-fg' : 'ring-1 ring-fg/[0.12]'}`}
+            className={`press min-w-[130px] shrink-0 rounded-card p-3.5 text-left ring-inset ${!linked ? 'ring-[1.5px] ring-fg' : 'ring-1 ring-fg/[0.16]'}`}
           >
-            <span className="text-[12px] font-medium text-fg-3">No watch</span>
-            <span className="mt-1.5 block text-[13px] leading-snug text-fg-2">Rate it from what you log</span>
+            <span className="text-[12.5px] font-medium text-fg-3">No watch</span>
+            <span className="mt-1.5 block text-[13.5px] leading-snug text-fg-2">Rate it from what you log</span>
           </button>
         </div>
       </div>
@@ -146,7 +147,7 @@ function Form({ activityId, matchId }: { activityId?: string; matchId?: string }
         <Segmented size="sm" value={format} onChange={pickFormat} options={FORMATS.map((f) => ({ value: f, label: `${f}s` }))} />
       </div>
 
-      <div className="rounded-card bg-ink-2 p-4">
+      <div className="ruled py-5">
         <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-2">
           <div className="flex flex-col items-center gap-3">
             <input
@@ -157,7 +158,7 @@ function Form({ activityId, matchId }: { activityId?: string; matchId?: string }
                 setTeamTyped(true)
               }}
               placeholder="Your team"
-              className="w-full bg-transparent text-center text-[15px] font-semibold text-fg placeholder:text-fg-4 focus:outline-none"
+              className="display w-full bg-transparent text-center text-[22px] font-bold text-fg placeholder:text-fg-4 focus:outline-none"
             />
             <Stepper value={scoreFor} onChange={setFor} big stack />
           </div>
@@ -174,22 +175,18 @@ function Form({ activityId, matchId }: { activityId?: string; matchId?: string }
               value={opponent}
               onChange={(e) => setOpponent(e.target.value)}
               placeholder="Opponent"
-              className="w-full bg-transparent text-center text-[15px] font-semibold text-fg-2 placeholder:text-fg-4 focus:outline-none"
+              className="display w-full bg-transparent text-center text-[22px] font-bold text-fg-2 placeholder:text-fg-4 focus:outline-none"
             />
             <Stepper value={scoreAgainst} onChange={setAgainst} big stack />
           </div>
         </div>
       </div>
 
-      <div className="-mt-5 grid grid-cols-2 gap-2">
-        <div className="rounded-card bg-ink-2 py-4">
-          <Stepper label="Your goals" value={goals} onChange={setGoals} />
-        </div>
-        <div className="rounded-card bg-ink-2 py-4">
-          <Stepper label="Assists" value={assists} onChange={setAssists} />
-        </div>
+      <div className="-mt-2 grid grid-cols-2 gap-2">
+        <Stepper label="Your goals" value={goals} onChange={setGoals} />
+        <Stepper label="Assists" value={assists} onChange={setAssists} />
       </div>
-      {tooMany && <p className="-mt-5 text-[13px] text-warn">That’s more goals and assists than your team scored. Check the score.</p>}
+      {tooMany && <p className="-mt-4 text-[13.5px] text-warn">That’s more goals and assists than your team scored. Check the score.</p>}
 
       <div>
         <div className="label mb-2.5">Where you played</div>
@@ -212,7 +209,7 @@ function Form({ activityId, matchId }: { activityId?: string; matchId?: string }
       <div>
         <div className="flex items-baseline justify-between gap-3">
           <span className="label">How did you play?</span>
-          <span className="text-[17px] font-semibold tracking-[-0.01em]">{FEEL[feel]}</span>
+          <span className="display text-[24px] font-bold leading-none">{FEEL[feel]}</span>
         </div>
         <input
           type="range"
@@ -237,7 +234,7 @@ function Form({ activityId, matchId }: { activityId?: string; matchId?: string }
         <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Calf was tight, pitch was a swamp…" className={`${inputCls} h-auto py-3`} />
       </div>
 
-      <button onClick={submit} disabled={busy} className="btn-primary h-14 w-full text-[16px] disabled:opacity-60">
+      <button onClick={submit} disabled={busy} className="btn-primary w-full disabled:opacity-60">
         {busy ? 'Crunching…' : editing ? 'Save and re-rate' : 'Rate my game'}
       </button>
     </div>

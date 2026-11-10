@@ -5,6 +5,7 @@ import { useMeasure } from '../../components/charts/primitives'
 import { GapChart } from '../../components/charts/running'
 import { Screen } from '../../components/ui/Screen'
 import { Empty, Section, Segmented } from '../../components/ui/bits'
+import { Digits } from '../../components/ui/chalk'
 import type { Activity, Stream } from '../../data/types'
 import { loadStream, useWorld } from '../../data/world'
 import { clock, fmt, km } from '../../lib/format'
@@ -171,9 +172,7 @@ function Race({ a, course, you, ghosts }: { a: Activity; course: Course; you: Pa
             : `${km(course.from, 1)}–${km(course.to, 1)} km of ${km(you.d[you.d.length - 1], 1)} km`}{' '}
           · {fmt(a.start, 'EEE d MMM')}
         </div>
-        <h1 className="mt-2 text-balance text-[28px] font-semibold leading-[1.12] tracking-[-0.03em]">
-          {ghosts.length === 1 ? 'You against your last run here' : `You against ${ghosts.length} earlier runs here`}
-        </h1>
+        <h1 className="t-story mt-2">{ghosts.length === 1 ? 'You against your last run here' : `You against ${ghosts.length} earlier runs here`}</h1>
         <p className="mt-3 text-[16px] leading-relaxed text-fg-2">
           {Math.abs(finish) < 1
             ? `Dead level with your best here, ${fmt(best.a.start, 'd MMM')}.`
@@ -186,7 +185,7 @@ function Race({ a, course, you, ghosts }: { a: Activity; course: Course; you: Pa
 
       <div className="card mt-6 overflow-hidden">
         <GhostMap you={you} course={course} dots={dots} />
-        <div className="flex items-center gap-3 border-t border-line px-4 py-3">
+        <div className="flex items-center gap-3 border-t border-fg/[0.13] px-4 py-3">
           <button
             aria-label={playing ? 'Pause' : 'Play'}
             onClick={() => (t >= longest ? (setT(0), setPlaying(true)) : setPlaying((x) => !x))}
@@ -208,19 +207,19 @@ function Race({ a, course, you, ghosts }: { a: Activity; course: Course; you: Pa
             className="feel w-full"
             style={{ ['--p' as string]: `${(t / longest) * 100}%` }}
           />
-          <span className="w-14 shrink-0 text-right text-[14px] font-medium tabular-nums">{clock(t)}</span>
+          <Digits className="num w-[68px] shrink-0 text-right text-[22px]">{clock(t)}</Digits>
         </div>
       </div>
 
-      <div className="card list mt-2 overflow-hidden">
+      <div className="list mt-2">
         {field.map((x, i) => {
           const ahead = x.m - youAt.m
           return (
-            <div key={x.key} className="flex items-center gap-3 px-4 py-2.5">
-              <span className="w-4 text-[13px] tabular-nums text-fg-4">{i + 1}</span>
-              <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${x.you ? 'bg-run' : x.key === best.a.id ? 'bg-fg' : 'bg-fg-4'}`} />
-              <span className={`min-w-0 flex-1 truncate text-[15px] ${x.you ? 'font-semibold' : 'text-fg-2'}`}>{x.label}</span>
-              <span className="text-[14px] tabular-nums text-fg-3">
+            <div key={x.key} className="flex items-center gap-3 py-2.5">
+              <span className="num w-4 text-[19px] text-fg-4">{i + 1}</span>
+              <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${x.you ? 'bg-run' : x.key === best.a.id ? 'bg-fg' : 'ring-1 ring-inset ring-fg/50'}`} />
+              <span className={`min-w-0 flex-1 truncate text-[16px] ${x.you ? 'font-semibold' : 'text-fg-2'}`}>{x.label}</span>
+              <span className={`num text-[21px] ${x.you ? '' : 'text-fg-2'}`}>
                 {x.done ? clock(x.time) : x.you ? `${km(x.m, 2)} km` : `${ahead >= 0 ? '+' : '−'}${Math.round(Math.abs(ahead))} m`}
               </span>
             </div>
@@ -229,7 +228,7 @@ function Race({ a, course, you, ghosts }: { a: Activity; course: Course; you: Pa
       </div>
 
       <Section title="Where the time went" action={<span className="meta">Against each ghost</span>}>
-        <div className="card p-4">
+        <div>
           <GapChart
             lines={[...gaps.filter((x) => x.g !== best).map((x) => ({ pts: x.gap, color: 'rgb(var(--fg) / 0.22)' })), { pts: vsBest, color: 'rgb(var(--run))', width: 2 }]}
             height={160}
@@ -244,7 +243,7 @@ function Race({ a, course, you, ghosts }: { a: Activity; course: Course; you: Pa
 
       {hr[0].length > 3 && hr[1].length > 3 && (
         <Section title="Heart rate" action={<span className="meta">Along the stretch</span>}>
-          <div className="card p-4">
+          <div>
             <GapChart
               zero={false}
               format={(v) => `${Math.round(v)}`}
@@ -312,9 +311,9 @@ function GhostMap({ you, course, dots }: { you: Path; course: Course; dots: { ke
     <div ref={ref} className="relative w-full" style={{ height }}>
       {geo && (
         <svg width={w} height={height} className="block" role="img" aria-label="The stretch you raced on, with each run where it was at this point in time">
-          <path d={geo.run} fill="none" stroke="rgb(var(--fg) / 0.12)" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
-          <path d={geo.stretch} fill="none" stroke="rgb(var(--fg) / 0.08)" strokeWidth={10} strokeLinecap="round" strokeLinejoin="round" />
-          <path d={geo.stretch} fill="none" stroke="rgb(var(--fg) / 0.35)" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+          {/* the rest of your run dotted in, the stretch you raced on drawn solid */}
+          <path d={geo.run} fill="none" stroke="rgb(var(--fg) / 0.3)" strokeWidth={1.25} strokeDasharray="1 5" strokeLinecap="round" strokeLinejoin="round" />
+          <path d={geo.stretch} fill="none" stroke="rgb(var(--fg) / 0.6)" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" />
           {dots.map((d) => {
             const [x, y] = geo.P(d.lat, d.lon)
             return d.you ? (

@@ -3,12 +3,10 @@ import { test } from 'node:test'
 import { weatherFor } from '../netlify/lib/weather'
 import { buildSample, SAMPLE_PROFILE } from '../src/data/sample'
 import type { Activity } from '../src/data/types'
-import { BEST_S, criticalSpeed, runModel, summariseRun } from '../src/lib/running'
+import { BEST_M, BEST_S, bestsOf, distanceBests, runModel, summariseRun } from '../src/lib/running'
 import { fakeGarmin } from './fake-garmin'
 
-const DAY = 86_400_000
-
-test('boils a run down to minutes of pace, heart rate and grade, plus best efforts', () => {
+test('boils a run down to minutes of pace, heart rate and grade, plus best efforts and an outline', () => {
   // 30 minutes at 3 m/s sampled every 2 s, climbing 2% from minute 10 to 20 and surging to 4 m/s from 22 to 27, then a 3 minute stop
   const dt = 2
   const v: number[] = []
@@ -32,23 +30,48 @@ test('boils a run down to minutes of pace, heart rate and grade, plus best effor
   assert.equal(s.best[BEST_S.indexOf(3600)], 0)
   // only a rough location is kept
   assert.deepEqual(s.at, [51.5, -0.1])
+  // 30 minutes at 3 to 4 m/s is 5.7 km: a best 1 km and 5 km, nothing longer
+  assert.deepEqual(
+    s.bestD!.map((x) => x > 0),
+    [true, true, false, false, false],
+  )
+  assert.equal(s.bestD![0], 250)
 })
 
-test('finds critical speed and D′ from the best efforts of the last 90 days, and predicts races from them', () => {
-  const now = Date.parse('2026-10-24T09:00:00Z')
-  const run = (id: string, daysAgo: number, f: number) =>
-    ({
-      id,
-      sport: 'run',
-      start: new Date(now - daysAgo * DAY).toISOString(),
-      run: { spd: [], hr: [], grade: [], best: BEST_S.map((s) => (s <= 1200 ? (4 + 200 / s) * f : 0)) },
-    }) as unknown as Activity
-  const r = criticalSpeed([run('a', 10, 1), run('b', 20, 0.97), run('old', 200, 1.1)], new Date(now))!
-  assert.ok(Math.abs(r.cs - 4) < 0.005, `cs ${r.cs}`)
-  assert.ok(Math.abs(r.dPrime - 200) < 1, `D′ ${r.dPrime}`)
-  // 5K: D′ spent on top of critical speed, (5000 − 200) / 4
-  assert.equal(Math.round(r.predictions[0].s), 1200)
-  assert.ok(r.envelope.every((e) => e.id === 'a'))
+test('keeps a run’s fastest time over each distance, by the clock, and a race at its finish time', () => {
+  // 6.8 km on a watch that logs every 4 s: 2.4 km at 3 m/s, a 90 s stop, 3.2 km at 4 m/s, then 1.2 km at 3 m/s
+  const dt = 4
+  const d: number[] = [0]
+  const leg = (m: number, v: number) => {
+    for (const end = d[d.length - 1] + m; d[d.length - 1] < end;) d.push(d[d.length - 1] + v * dt)
+  }
+  leg(2400, 3)
+  for (let i = 0; i < 90 / dt; i++) d.push(d[d.length - 1])
+  leg(3200, 4)
+  leg(1200, 3)
+  const best = distanceBests({ activityId: 'x', dt, d })
+  // the quickest kilometre is inside the fast stretch
+  assert.ok(Math.abs(best[BEST_M.indexOf(1000)] - 250) <= 1, `1 km ${best[0]}`)
+  // the quickest 5 km takes the fast 3.2 km (800 s) and the 1.2 km after it (400 s), so it has to reach back
+  // 600 m (200 s) across the stop, and the stop counts (88 s of standing still between samples)
+  assert.ok(Math.abs(best[BEST_M.indexOf(5000)] - (800 + 400 + 200 + 88)) <= 4, `5 km ${best[1]}`)
+  assert.equal(best[BEST_M.indexOf(10_000)], 0)
+
+  const run = (id: string, start: string, distanceM: number, durationS: number, bestD: number[]) =>
+    ({ id, sport: 'run', start, distanceM, durationS, run: { spd: [], hr: [], grade: [], best: [], bestD } }) as unknown as Activity
+  const tempo = run('tempo', '2026-09-01T07:00:00', 8000, 2400, [230, 1210, 0, 0, 0])
+  // the watch made the parkrun 5.06 km and would hand it 19:28 for 5 km; it counts at the finish time
+  const parkrun = run('parkrun', '2026-10-24T09:00:00', 5060, 1180, [225, 1168, 0, 0, 0])
+  const bests = bestsOf([tempo, parkrun], [parkrun])
+  assert.deepEqual(
+    bests.map((b) => [b.k, b.s, b.id]),
+    [
+      [0, 225, 'parkrun'],
+      [1, 1180, 'parkrun'],
+    ],
+  )
+  // not marked as a race, the same run is taken at the watch's word
+  assert.equal(bestsOf([tempo, parkrun])[1].s, 1168)
 })
 
 test('reads heat, hills, football and fitness back out of runs made with them', () => {
@@ -63,11 +86,6 @@ test('reads heat, hills, football and fitness back out of runs made with them', 
   assert.ok(m.hills!.downS > 2 && m.hills!.downS < m.hills!.upS, `downhill ${m.hills?.downS}`)
   // fitness builds through the autumn: faster at the same heart rate
   assert.ok(m.engineNow!.change! < -4, `engine ${m.engineNow?.change}`)
-  // the parkruns pin critical speed near their pace
-  assert.ok(m.cs!.solid && m.cs!.cs > 3.9 && m.cs!.cs < 4.3, `cs ${m.cs?.cs}`)
-  // and heart rate holds for longer on long runs
-  const d = m.durability!
-  assert.ok(d.first && d.latest.onset! > d.first.onset!, JSON.stringify(d.curves.map((c) => [c.date, c.onset])))
 })
 
 test('asks the weather service once per place and service, and reads the hour each run was in', async () => {

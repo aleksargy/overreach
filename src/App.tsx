@@ -19,7 +19,8 @@ import { GhostScreen } from './screens/run/GhostScreen'
 import { RaceReportScreen } from './screens/run/RaceReportScreen'
 import { ExerciseScreen } from './screens/lift/ExerciseScreen'
 import { ExerciseSheet, PickExerciseSheet } from './screens/lift/ExerciseSheets'
-import { LiftScreen } from './screens/lift/LiftScreen'
+import { ExercisesScreen, LiftHistoryScreen, LiftScreen } from './screens/lift/LiftScreen'
+import { RoutineScreen } from './screens/lift/RoutineScreen'
 import { MiniWorkoutBar, WorkoutOverlay } from './screens/lift/WorkoutOverlay'
 import { WorkoutScreen } from './screens/lift/WorkoutScreen'
 import { SettingsScreen } from './screens/settings/SettingsScreen'
@@ -39,7 +40,10 @@ const routes: RouteObject[] = [
       { path: '/football', element: <FootballScreen /> },
       { path: '/match/:id', element: <MatchReportScreen /> },
       { path: '/lift', element: <LiftScreen /> },
+      { path: '/lift/workout/:id', element: <RoutineScreen /> },
+      { path: '/lift/exercises', element: <ExercisesScreen /> },
       { path: '/lift/exercise/:id', element: <ExerciseScreen /> },
+      { path: '/lift/history', element: <LiftHistoryScreen /> },
       { path: '/lift/history/:id', element: <WorkoutScreen /> },
       { path: '/body', element: <BodyScreen /> },
       { path: '/settings', element: <SettingsScreen /> },
@@ -114,9 +118,9 @@ function Splash() {
   return (
     <div className="fixed inset-0 grid place-items-center bg-ink-0">
       <div className="flex flex-col items-center gap-5">
-        <span className="text-[26px] font-semibold leading-none tracking-[-0.035em]">{APP_NAME}</span>
-        <span className="relative h-[2px] w-20 overflow-hidden rounded-full bg-ink-3">
-          <span className="absolute inset-y-0 left-0 w-1/2 animate-[load_1s_ease-in-out_infinite] rounded-full bg-fg-2" />
+        <span className="display text-[40px] font-extrabold leading-none">{APP_NAME}</span>
+        <span className="relative h-[2px] w-20 overflow-hidden rounded-full bg-fg/15">
+          <span className="absolute inset-y-0 left-0 w-1/2 animate-[load_1s_ease-in-out_infinite] rounded-full bg-fg" />
         </span>
       </div>
     </div>
@@ -132,7 +136,7 @@ function Toast() {
           <motion.div
             key={toast.id}
             role="status"
-            className="rounded-full bg-ink-2/95 px-4 py-2.5 text-[14px] font-medium shadow-[0_12px_40px_rgb(0_0_0/0.5),inset_0_0_0_1px_rgb(var(--fg)/0.06)] backdrop-blur-xl"
+            className="rounded-[5px] bg-fg px-4 py-2.5 text-[14.5px] font-semibold text-ink-0 shadow-[0_12px_40px_rgb(0_0_0/0.5)]"
             initial={{ opacity: 0, y: -12, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8 }}

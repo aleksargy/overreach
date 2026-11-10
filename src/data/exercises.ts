@@ -98,9 +98,12 @@ export const KINDS: { key: ExerciseKind; label: string }[] = [
   { key: 'duration', label: 'Time hold' },
 ]
 
-export const LEG_MUSCLES: Muscle[] = ['quads', 'hamstrings', 'glutes', 'calves']
-
-export const BUILTIN_ROUTINES: Routine[] = [
+/**
+ * The sample lifter's workouts: what the Lift tab shows on sample data. Your own
+ * list starts empty. Until 10 Nov 2026 every phone began with these four, so a
+ * saved copy from before then may still carry them (`withoutStarters`).
+ */
+export const SAMPLE_ROUTINES: Routine[] = [
   {
     id: 'push-a',
     name: 'Push A',

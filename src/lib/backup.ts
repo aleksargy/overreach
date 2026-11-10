@@ -1,6 +1,7 @@
 // Everything you type into the app as one portable copy. The server keeps one
 // (src/data/backup.ts), Settings downloads one, and either folds back in.
 
+import { SAMPLE_ROUTINES } from '../data/exercises'
 import type { BodyEntry, Exercise, Match, Profile, Routine, Workout } from '../data/types'
 import { withPoints } from './football'
 
@@ -35,13 +36,28 @@ export function backupOf(s: Backup): Backup {
   return { profile, matches, hiddenMatchIds, skippedRatings, workouts, customExercises, exerciseEdits, routines, body }
 }
 
-/** Anything you'd miss: a match, a workout, a weigh-in or an exercise of your own. */
-export const hasContent = (b: Partial<Backup>) => !!(b.matches?.length || b.workouts?.length || b.body?.length || b.customExercises?.length)
+/** the four workouts every phone used to start with, as they were handed out */
+const STARTERS = new Map(SAMPLE_ROUTINES.map((r) => [r.id, JSON.stringify(r)]))
+
+/**
+ * Your workouts without the starters you never touched. Every phone used to
+ * begin with four of them; now the list starts empty and is yours to fill. One
+ * you changed, or logged a session with, is yours and stays.
+ */
+export function withoutStarters(routines: Routine[], workouts: Workout[]): Routine[] {
+  return routines.filter((r) => STARTERS.get(r.id) !== JSON.stringify(r) || workouts.some((w) => w.routineId === r.id))
+}
+
+/** Anything you'd miss: a match, a session, a weigh-in, or an exercise or a workout of your own. */
+export const hasContent = (b: Partial<Backup>) =>
+  !!(b.matches?.length || b.workouts?.length || b.body?.length || b.customExercises?.length || withoutStarters(b.routines ?? [], b.workouts ?? []).length)
 
 /**
  * Fold a saved copy into what's on the phone. Lists join by id and the phone's
  * version of an item wins; a match deleted on the phone stays deleted. The saved
- * settings only come in when the phone has nothing of yours yet.
+ * settings only come in when the phone has nothing of yours yet. A copy from
+ * before workouts started empty may carry the old starters: the ones never
+ * used are left behind.
  */
 export function merge(mine: Backup, saved: Partial<Backup>): Backup {
   const join = <T extends { id: string }>(a: T[], b: T[] = [], keep: (x: T) => boolean = () => true) => [...a, ...b.filter((x) => keep(x) && !a.some((y) => y.id === x.id))]
@@ -53,7 +69,7 @@ export function merge(mine: Backup, saved: Partial<Backup>): Backup {
     workouts: join(mine.workouts, saved.workouts),
     customExercises: join(mine.customExercises, saved.customExercises),
     exerciseEdits: { ...saved.exerciseEdits, ...mine.exerciseEdits },
-    routines: join(mine.routines, saved.routines),
+    routines: withoutStarters(join(mine.routines, saved.routines), join(mine.workouts, saved.workouts)),
     body: join(mine.body, saved.body),
   }
 }

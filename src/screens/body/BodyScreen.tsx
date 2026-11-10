@@ -4,6 +4,7 @@ import { useMemo } from 'react'
 import { TrendChart } from '../../components/charts/charts'
 import { Sparkline } from '../../components/charts/primitives'
 import { IconButton, Screen } from '../../components/ui/Screen'
+import { StandoutLine } from '../../components/ui/Standout'
 import { Delta, Empty, SampleBadge, Section } from '../../components/ui/bits'
 import { Ticker } from '../../components/ui/Ticker'
 import type { BodyEntry, Daily } from '../../data/types'
@@ -20,6 +21,8 @@ const hm = (s: number) => {
 export function BodyScreen() {
   const w = useWorld()
   const open = useUi((s) => s.open)
+  // the rarer of this morning's readings and the latest weigh-in
+  const news = [w.news.recovery, w.news.body].reduce((a, b) => (b && (!a || b.rarity > a.rarity) ? b : a), undefined)
   return (
     <Screen
       title="Body"
@@ -31,6 +34,7 @@ export function BodyScreen() {
       }
     >
       <Weight body={w.body} now={w.now} />
+      {news && <StandoutLine s={news} className="mt-9" />}
       <Recovery dailies={w.dailies} />
     </Screen>
   )
@@ -50,7 +54,7 @@ function Weight({ body, now }: { body: BodyEntry[]; now: Date }) {
       <Empty
         title="No weigh-ins yet"
         action={
-          <button className="btn-primary mt-3 h-10 px-4 text-[14px]" onClick={() => open({ type: 'logBody' })}>
+          <button className="btn-primary mt-3 w-full" onClick={() => open({ type: 'logBody' })}>
             Weigh in
           </button>
         }
@@ -76,9 +80,9 @@ function Weight({ body, now }: { body: BodyEntry[]; now: Date }) {
           </span>
         )}
       </div>
-      <div className="mt-4 flex items-baseline gap-2">
-        <Ticker value={last.v} dp={1} className="num-hero -ml-1 text-[96px]" duration={1000} />
-        <span className="text-[17px] font-medium text-fg-3">kg</span>
+      <div className="mt-4 flex items-baseline">
+        <Ticker value={last.v} dp={1} className="num-hero -ml-0.5 text-[104px]" duration={1000} />
+        <span className="unit ml-2 text-[16px]">kg</span>
       </div>
       <div className="meta mt-4">{Math.abs(perWeek) < 0.05 ? 'Holding steady' : `${perWeek < 0 ? 'Losing' : 'Gaining'} ${Math.abs(perWeek).toFixed(2)} kg a week`}</div>
       <div className="mt-6">
@@ -126,19 +130,19 @@ function Recovery({ dailies }: { dailies: Daily[] }) {
     <>
       {tiles.length > 0 && (
         <Section title="Recovery" action={<span className="meta">Last 7 days vs the 3 before</span>}>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-x-6 gap-y-8">
             {tiles.map(({ m, vals, week, d, band }) => (
-              <div key={m.key} className="card flex flex-col p-4">
+              <div key={m.key} className="flex flex-col">
                 <div className="label">{m.label}</div>
-                <div className="mt-3 flex items-baseline gap-1">
-                  <span className="num text-[28px]">{m.show(week)}</span>
-                  {m.unit && <span className="text-[13px] text-fg-3">{m.unit}</span>}
+                <div className="mt-3 flex items-baseline">
+                  <span className="num text-[36px]">{m.show(week)}</span>
+                  {m.unit && <span className="unit">{m.unit}</span>}
                 </div>
                 <div className="mt-1.5">
                   <Delta value={d.value} unit={d.unit} better={m.better} dp={0} />
                 </div>
                 <div className="mt-3">
-                  <Sparkline values={vals} band={band} height={36} area={false} color="rgb(var(--fg-2))" />
+                  <Sparkline values={vals} band={band} height={36} color="rgb(var(--fg-2))" />
                 </div>
               </div>
             ))}
@@ -160,19 +164,17 @@ function SleepStages({ d }: { d: Daily }) {
   const total = parts.reduce((a, p) => a + p.s, 0) || 1
   return (
     <Section title="Last night" action={d.sleepScore ? <span className="meta">Sleep score {d.sleepScore}</span> : undefined}>
-      <div className="card p-4">
-        <div className="num text-[28px]">{hm(d.sleepS ?? 0)}</div>
-        <div className="mt-4 flex h-2 gap-[3px]">
-          {parts.map((p) => (p.s > 0 ? <span key={p.key} className="rounded-full" style={{ width: `${(p.s / total) * 100}%`, background: p.color }} /> : null))}
-        </div>
+      <div>
+        <div className="num text-[44px] !font-normal">{hm(d.sleepS ?? 0)}</div>
+        <div className="mt-5 flex h-3 gap-[2px]">{parts.map((p) => (p.s > 0 ? <span key={p.key} style={{ width: `${(p.s / total) * 100}%`, background: p.color }} /> : null))}</div>
         <div className="mt-4 grid grid-cols-4 gap-2">
           {parts.map((p) => (
             <div key={p.key}>
-              <div className="flex items-center gap-1.5 text-[12px] text-fg-3">
-                <span className="h-1.5 w-1.5 rounded-full" style={{ background: p.color }} />
+              <div className="flex items-center gap-1.5 text-[12.5px] text-fg-3">
+                <span className="h-2 w-2" style={{ background: p.color }} />
                 {p.key}
               </div>
-              <div className="mt-1.5 text-[15px] font-medium tabular-nums">{hm(p.s)}</div>
+              <div className="num mt-1.5 text-[21px]">{hm(p.s)}</div>
             </div>
           ))}
         </div>

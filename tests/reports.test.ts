@@ -2,11 +2,8 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import type { Activity, Stream } from '../src/data/types'
 import { biggestGain, coursesOf, gapTo, pathOf, sharedStretch } from '../src/lib/ghost'
-import { blockOf, weeklyMix } from '../src/lib/mix'
 import { raceReport, racesIn } from '../src/lib/race'
 import { summariseRun } from '../src/lib/running'
-
-const DAY = 86_400_000
 
 /**
  * A 1 s stream along a circle, at the given speed for each stretch [metres, m/s]: the circle is the whole
@@ -225,22 +222,4 @@ test('ghosts race you over the stretches you both ran, when they are long enough
   const joined = courses[1]
   const gap = gapTo(pathOf(streams.you)!, pathOf(streams.joined)!, joined.ghosts[0], joined)
   assert.ok(Math.abs(gap[0].s) < 1 && Math.abs(gap[gap.length - 1].s - 81.7) < 2, `gap ${gap[0].s} to ${gap[gap.length - 1].s}`)
-})
-
-test('easy is zones 1 to 3, and a block is measured against the weeks it covers', () => {
-  const now = new Date('2026-10-26T12:00:00')
-  const at = (daysAgo: number) => new Date(now.getTime() - daysAgo * DAY).toISOString()
-  const r = (daysAgo: number, zoneS: Activity['zoneS'], durationS = 3600, distanceM = 10_000) =>
-    ({ id: `${daysAgo}`, sport: 'run', start: at(daysAgo), zoneS, durationS, distanceM }) as Activity
-  const runs = [r(1, [600, 1200, 1200, 600, 0]), r(3, [0, 0, 3000, 0, 600], 6000, 20_000), r(20, [0, 3600, 0, 0, 0]), r(80, [0, 3600, 0, 0, 0])]
-  const weeks = weeklyMix(runs, now, 4)
-  // Monday 26 Oct starts this week, so the runs from the last few days fall in the week before
-  assert.deepEqual([weeks[3].easyS, weeks[3].tempoS, weeks[3].hardS], [0, 0, 0])
-  assert.deepEqual([weeks[2].easyS, weeks[2].tempoS, weeks[2].hardS], [6000, 600, 600])
-  assert.deepEqual([weeks[0].easyS, weeks[0].tempoS, weeks[0].hardS], [3600, 0, 0])
-  const b = blockOf(runs, new Date(now.getTime() - 56 * DAY), now)
-  assert.equal(b.runs, 3)
-  assert.equal(b.longRuns, 1)
-  assert.equal(Math.round(b.easy * 100), 89)
-  assert.equal(Math.round(b.kmPerWeek * 10) / 10, 5)
 })

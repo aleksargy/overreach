@@ -70,8 +70,8 @@ export function FeedScreen() {
           const time = acts.reduce((s, a) => s + a.durationS, 0)
           return (
             <section key={k}>
-              <div className="mb-2.5 flex items-baseline justify-between gap-3 px-1">
-                <h2 className="text-[15px] font-semibold tracking-[-0.01em]">
+              <div className="flex items-baseline justify-between gap-3 border-b border-fg/[0.13] pb-2">
+                <h2 className="display text-[21px] font-bold leading-none">
                   {format(start, 'd MMM')} – {format(endOfISOWeek(start), 'd MMM')}
                 </h2>
                 <span className="meta">

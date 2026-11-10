@@ -9,13 +9,12 @@ import { Screen } from '../../components/ui/Screen'
 import { Empty, Section, Stat } from '../../components/ui/bits'
 import type { Activity, GarminView, Stream } from '../../data/types'
 import { useUi } from '../../data/ui'
-import { useRunModel, useStream, useWorld } from '../../data/world'
-import { clock, dur, fmt, kmh, km, pace, signed, swimPace } from '../../lib/format'
+import { useStream, useWorld } from '../../data/world'
+import { clock, dur, fmt, kmh, km, pace, swimPace } from '../../lib/format'
 import { zoneBounds } from '../../lib/load'
 import { mean } from '../../lib/math'
 import { coursesOf } from '../../lib/ghost'
 import { racesIn } from '../../lib/race'
-import { runInsight } from '../../lib/running'
 
 const KIND: Record<string, string> = { easy: 'Easy', tempo: 'Tempo', intervals: 'Intervals', long: 'Long', race: 'Race', commute: 'Commute', endurance: 'Endurance', pool: 'Pool' }
 
@@ -47,11 +46,11 @@ export function ActivityScreen() {
           {a.kind && KIND[a.kind] ? `, ${KIND[a.kind].toLowerCase()}` : ''} · {fmt(a.start, 'EEE d MMM yyyy, HH:mm')}
         </span>
       </div>
-      <h1 className="mt-2 text-[28px] font-semibold leading-[1.12] tracking-[-0.03em]">{a.name}</h1>
+      <h1 className="t-page mt-2">{a.name}</h1>
 
       {stream?.lat && (a.sport === 'run' || a.sport === 'ride') && (
         <div className="card mt-5 overflow-hidden">
-          <RouteArt stream={stream} bounds={bounds} height={240} />
+          <RouteArt stream={stream} bounds={bounds} height={230} />
         </div>
       )}
 
@@ -59,18 +58,15 @@ export function ActivityScreen() {
 
       {a.sport === 'football' && <FootballCta a={a} />}
       {a.sport === 'run' && racesIn(w.activities, w.profile.race).includes(a) && (
-        <Link to={`/race/${a.id}`} className="btn-ghost mt-3 w-full">
+        <Link to={`/race/${a.id}`} className="btn-ghost mt-6 w-full">
           Open the race report
         </Link>
       )}
-      {a.sport === 'run' && a.run && <RunAnalysis a={a} />}
       {a.sport === 'run' && <Ghosts a={a} />}
       {a.garmin && <GarminSays g={a.garmin} />}
 
       <Section title="Zones" action={<span className="meta">Load {Math.round(a.load)}</span>}>
-        <div className="card p-4">
-          <ZoneBar zones={a.zoneS} height={10} labels />
-        </div>
+        <ZoneBar zones={a.zoneS} height={12} labels />
       </Section>
 
       {stream && <Charts a={act} s={stream} bounds={bounds} />}
@@ -126,48 +122,11 @@ function HeadStats({ a }: { a: Activity }) {
       )
   }
   return (
-    <div className="card mt-3 grid grid-cols-3 gap-y-5 p-4">
+    <div className="mt-6 grid grid-cols-3 gap-x-3 gap-y-6">
       {items.map((it) => (
-        <Stat key={it.label} label={it.label} value={it.value} unit={it.unit} size="sm" />
+        <Stat key={it.label} label={it.label} value={it.value} unit={it.unit} />
       ))}
     </div>
-  )
-}
-
-/** This run against your running model: engine on the day, the conditions, football legs and drift. */
-function RunAnalysis({ a }: { a: Activity }) {
-  const w = useWorld()
-  const m = useRunModel(w)
-  if (!m) return null
-  const x = runInsight(m, a)
-  const rows: { k: string; v: string; sub?: string }[] = []
-  if (x.engine) {
-    const diff = x.vsTrend === undefined ? undefined : Math.round(x.vsTrend)
-    rows.push({
-      k: 'Engine',
-      v: `${pace(x.engine)} /km at ${m.refHr} bpm`,
-      sub: diff === undefined ? undefined : diff === 0 ? 'Right on your trend' : `${Math.abs(diff)} s/km ${diff < 0 ? 'better' : 'worse'} than your trend`,
-    })
-  }
-  if (x.tempC !== undefined) rows.push({ k: 'Weather', v: `${Math.round(x.tempC)}°C${x.dewC !== undefined ? `, dew point ${Math.round(x.dewC)}°C` : ''}` })
-  if (x.afterFootballH !== undefined && x.afterFootballH < 72)
-    rows.push({ k: 'Legs', v: `${x.afterFootballH < 36 ? `${x.afterFootballH} hours` : `${Math.round(x.afterFootballH / 24)} days`} after football` })
-  if (x.drift) rows.push({ k: 'Drift', v: x.drift.onset === undefined ? `None in ${x.drift.minutes} min` : `After ${x.drift.onset} min` })
-  if (!rows.length) return null
-  return (
-    <Section title="Analysis">
-      <div className="card list overflow-hidden">
-        {rows.map((r) => (
-          <div key={r.k} className="flex items-baseline justify-between gap-4 px-4 py-3">
-            <span className="text-[15px] text-fg-2">{r.k}</span>
-            <span className="text-right">
-              <span className="block text-[15px] font-medium tabular-nums">{r.v}</span>
-              {r.sub && <span className="meta block">{r.sub}</span>}
-            </span>
-          </div>
-        ))}
-      </div>
-    </Section>
   )
 }
 
@@ -182,7 +141,7 @@ function Ghosts({ a }: { a: Activity }) {
   return (
     <Link to={`/ghost/${a.id}`} className="press card mt-3 flex items-center gap-3 px-4 py-3.5">
       <span className="min-w-0 flex-1">
-        <span className="block text-[15px] font-medium leading-5">Race your ghosts</span>
+        <span className="t-name block">Race your ghosts</span>
         <span className="meta block">
           {n === 1 ? 'One earlier run' : `${n} earlier runs`} {where}
         </span>
@@ -198,7 +157,7 @@ function FootballCta({ a }: { a: Activity }) {
   const nav = useNavigate()
   const m = w.matchByActivity.get(a.id)
   return (
-    <div className="mt-3">
+    <div className="mt-6">
       {m ? (
         <button className="btn-ghost w-full" onClick={() => nav(`/match/${m.id}`)}>
           Open the match report
@@ -224,30 +183,22 @@ function Charts({ a, s, bounds }: { a: Activity; s: Stream; bounds: number[] }) 
             </span>
           }
         >
-          <div className="card p-4">
-            <StreamChart values={s.hr} dt={s.dt} kind="hr" bounds={bounds} />
-          </div>
+          <StreamChart values={s.hr} dt={s.dt} kind="hr" bounds={bounds} />
         </Section>
       )}
       {a.sport === 'run' && s.v && (
         <Section title="Pace" action={<span className="meta">Avg {pace(a.avgSpeed)} /km</span>}>
-          <div className="card p-4">
-            <StreamChart values={smooth(s.v, 8).map((v) => (v > 1.2 ? 1000 / v : NaN))} dt={s.dt} kind="pace" format={(x) => pace(1000 / x)} />
-          </div>
+          <StreamChart values={smooth(s.v, 8).map((v) => (v > 1.2 ? 1000 / v : NaN))} dt={s.dt} kind="pace" format={(x) => pace(1000 / x)} />
         </Section>
       )}
       {a.sport === 'ride' && s.pwr && (
         <Section title="Power" action={<span className="meta">Avg {a.avgPower} W</span>}>
-          <div className="card p-4">
-            <StreamChart values={smooth(s.pwr, 6)} dt={s.dt} kind="power" format={(x) => `${Math.round(x)}`} />
-          </div>
+          <StreamChart values={smooth(s.pwr, 6)} dt={s.dt} kind="power" format={(x) => `${Math.round(x)}`} />
         </Section>
       )}
       {s.alt && (a.sport === 'run' || a.sport === 'ride') && (
         <Section title="Elevation" action={<span className="meta">+{a.elevGainM} m</span>}>
-          <div className="card p-4">
-            <StreamChart values={s.alt} dt={s.dt} kind="alt" height={100} format={(x) => `${Math.round(x)} m`} />
-          </div>
+          <StreamChart values={s.alt} dt={s.dt} kind="alt" height={100} format={(x) => `${Math.round(x)} m`} />
         </Section>
       )}
     </>
@@ -279,8 +230,8 @@ function Splits({ a }: { a: Activity }) {
   const slowest = Math.max(...paces)
   return (
     <Section title="Splits">
-      <div className="card overflow-hidden">
-        <div className="grid grid-cols-[32px_1fr_60px_44px] gap-3 border-b border-line px-4 py-2.5 text-[12px] font-medium text-fg-4">
+      <div>
+        <div className="grid grid-cols-[28px_1fr_64px_44px] gap-3 border-b border-fg/[0.13] pb-2 text-[12.5px] font-medium text-fg-4">
           <span>Km</span>
           <span />
           <span className="text-right">Pace</span>
@@ -291,12 +242,12 @@ function Splits({ a }: { a: Activity }) {
           const t = slowest === fastest ? 1 : 1 - (p - fastest) / (slowest - fastest)
           const best = p === fastest
           return (
-            <div key={i} className="grid grid-cols-[32px_1fr_60px_44px] items-center gap-3 border-b border-line px-4 py-2.5 last:border-0">
+            <div key={i} className="grid grid-cols-[28px_1fr_64px_44px] items-center gap-3 border-b border-fg/[0.08] py-2 last:border-0">
               <span className="text-[14px] tabular-nums text-fg-3">{i + 1}</span>
-              <span className="h-1.5 rounded-full bg-ink-3">
-                <span className={`block h-full rounded-full ${best ? 'bg-fg' : 'bg-fg-4'}`} style={{ width: `${30 + t * 70}%` }} />
+              <span className="h-[9px]">
+                <span className={`block h-full ${best ? 'solid' : 'hatch'}`} style={{ width: `${30 + t * 70}%` }} />
               </span>
-              <span className={`text-right text-[15px] font-medium tabular-nums ${best ? '' : 'text-fg-2'}`}>{l.distanceM < 950 ? pace(l.avgSpeed) + '*' : pace(l.avgSpeed)}</span>
+              <span className={`num text-right text-[21px] ${best ? '' : 'text-fg-2'}`}>{l.distanceM < 950 ? pace(l.avgSpeed) + '*' : pace(l.avgSpeed)}</span>
               <span className="text-right text-[14px] tabular-nums text-fg-3">{l.avgHr}</span>
             </div>
           )
@@ -317,10 +268,8 @@ function Lengths({ a }: { a: Activity }) {
         </span>
       }
     >
-      <div className="card p-4">
-        <Bars values={laps.map((l) => l.durationS)} height={110} highlight={laps.reduce((b, l, i) => (l.durationS < laps[b].durationS ? i : b), 0)} />
-        <p className="mt-3 text-[12px] text-fg-4">Seconds per {a.swim?.poolM} m length. Shorter is faster. Fastest length highlighted.</p>
-      </div>
+      <Bars values={laps.map((l) => l.durationS)} height={110} highlight={laps.reduce((b, l, i) => (l.durationS < laps[b].durationS ? i : b), 0)} />
+      <p className="meta mt-3">Seconds per {a.swim?.poolM} m length. The fastest is filled in.</p>
     </Section>
   )
 }
@@ -331,21 +280,17 @@ const FEEL = ['Very weak', 'Weak', 'Normal', 'Strong', 'Very strong']
 
 /** What the watch made of the session, and what you told it afterwards. */
 function GarminSays({ g }: { g: GarminView }) {
-  const items = [
-    g.aerobicTE !== undefined && { label: 'Aerobic effect', value: g.aerobicTE.toFixed(1) },
-    g.anaerobicTE !== undefined && { label: 'Anaerobic effect', value: g.anaerobicTE.toFixed(1) },
-    g.load !== undefined && { label: 'Training load', value: String(g.load) },
-    g.rpe !== undefined && { label: 'Your effort', value: String(g.rpe), unit: '/10' },
-    g.feel !== undefined && { label: 'You felt', value: FEEL[Math.round(g.feel / 25)] ?? '' },
-    g.bodyBattery !== undefined && { label: 'Body Battery', value: signed(g.bodyBattery, 0) },
-  ].filter((x): x is { label: string; value: string; unit?: string } => !!x && x.value !== '')
-  if (!items.length) return null
   const te = Math.max(g.aerobicTE ?? 0, g.anaerobicTE ?? 0)
+  const items: { label: string; value: string; unit?: string; sub?: string }[] = []
+  if (te > 0) items.push({ label: 'Training effect', value: te.toFixed(1), sub: TE_BAND[Math.min(5, Math.floor(te))] })
+  if (g.rpe !== undefined) items.push({ label: 'Your effort', value: String(g.rpe), unit: '/10' })
+  if (g.feel !== undefined && FEEL[Math.round(g.feel / 25)]) items.push({ label: 'You felt', value: FEEL[Math.round(g.feel / 25)] })
+  if (!items.length) return null
   return (
-    <Section title="Garmin’s view" action={g.aerobicTE !== undefined ? <span className="meta">{TE_BAND[Math.min(5, Math.floor(te))]}</span> : undefined}>
-      <div className="card grid grid-cols-3 gap-y-5 p-4">
+    <Section title="From the watch">
+      <div className="grid grid-cols-3 gap-x-3">
         {items.map((it) => (
-          <Stat key={it.label} label={it.label} value={it.value} unit={it.unit} size="sm" />
+          <Stat key={it.label} label={it.label} value={it.value} unit={it.unit} sub={it.sub} />
         ))}
       </div>
     </Section>

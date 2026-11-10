@@ -1,17 +1,18 @@
-import { Repeat2, Trash2, Trophy } from 'lucide-react'
-import { motion } from 'motion/react'
 import { useMemo, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import { Screen } from '../../components/ui/Screen'
-import { Empty, Section } from '../../components/ui/bits'
+import { Empty, Section, Stat } from '../../components/ui/bits'
+import { Circled } from '../../components/ui/chalk'
 import { useStore } from '../../data/store'
 import { useUi } from '../../data/ui'
 import { useWorld } from '../../data/world'
 import { dur, fmt } from '../../lib/format'
-import { bestE1rm, fmtKg, fmtRpe, hasE1rm, prsFor, rpeTone, volume, workingSets } from '../../lib/lift'
-import { srpeLoad } from '../../lib/load'
-import { MUSCLE_LABEL, setText, tonnes } from './parts'
+import { recordsIn, setsLine, workingSets } from '../../lib/lift'
+import { hashString } from '../../lib/rng'
 
+const EFFORT = ['', 'Easy', 'Easy', 'Easy', 'Easy', 'Solid', 'Solid', 'Hard', 'Hard', 'All out', 'All out']
+
+/** A session you've finished: what you did, and anything it set a new best in. */
 export function WorkoutScreen() {
   const { id } = useParams()
   const [params] = useSearchParams()
@@ -25,12 +26,12 @@ export function WorkoutScreen() {
   const say = useUi((s) => s.say)
   const [sure, setSure] = useState(false)
   const wk = w.workouts.find((x) => x.id === id)
-  const prs = useMemo(() => (wk ? prsFor(wk, w.workouts, w.exerciseById) : []), [wk, w])
+  const records = useMemo(() => (wk ? recordsIn(wk, w.workouts, w.exerciseById) : []), [wk, w])
 
   if (!wk) {
     return (
       <Screen title="Workout" back>
-        <Empty title="Not found">This workout may have been deleted.</Empty>
+        <Empty title="Not found">This session may have been deleted.</Empty>
       </Screen>
     )
   }
@@ -48,108 +49,79 @@ export function WorkoutScreen() {
 
   return (
     <Screen title={wk.name} back bare>
-      {fresh && (
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-1">
-          <span className="rounded-full bg-z2/15 px-2.5 py-1 text-[12px] font-medium text-z2">Saved</span>
-        </motion.div>
-      )}
-      <div className="pt-2 text-[13px] tabular-nums text-fg-3">{fmt(wk.start, 'EEEE d MMMM · HH:mm')}</div>
-      <h1 className="mt-2 text-[28px] font-semibold tracking-[-0.02em] leading-[1.1]">{wk.name}</h1>
-
-      <div className="card mt-5 grid grid-cols-4 divide-x divide-line">
-        {[
-          { label: 'Time', value: dur(secs) },
-          { label: 'Sets', value: String(workingSets(wk)) },
-          { label: 'Volume', value: tonnes(volume(wk)).replace(' ', '') },
-          { label: 'RPE', value: wk.srpe ? String(wk.srpe) : '–' },
-        ].map((s) => (
-          <div key={s.label} className="px-3 py-3.5">
-            <div className="label mb-1.5">{s.label}</div>
-            <div className="num whitespace-nowrap text-[20px]">{s.value}</div>
-          </div>
-        ))}
+      <div className="meta pt-2">
+        {fresh && <span className="mr-2 font-semibold text-good">Saved</span>}
+        {fmt(wk.start, 'EEEE d MMMM · HH:mm')}
       </div>
-      {wk.srpe && secs >= 300 && (
-        <p className="mt-2 text-[13px] tabular-nums text-fg-4">Training load {Math.round(srpeLoad(secs / 60, wk.srpe))}, counted with your runs and games</p>
-      )}
+      <h1 className="t-page mt-2 text-balance">{wk.name}</h1>
 
-      {prs.length > 0 && (
-        <Section title={fresh ? 'New records' : 'Records set'}>
-          <div className="flex flex-col gap-2">
-            {prs.map((p, i) => {
-              const ex = w.exerciseById.get(p.exerciseId)
+      <div className="mt-7 grid grid-cols-3 gap-x-3">
+        <Stat label="Time" value={dur(secs)} />
+        <Stat label="Sets" value={String(workingSets(wk))} />
+        {wk.srpe ? <Stat label="It felt" value={EFFORT[Math.round(wk.srpe)] ?? ''} /> : null}
+      </div>
+
+      {records.length > 0 && (
+        <Section title={records.length === 1 ? 'A new best' : 'New bests'}>
+          <div className="list">
+            {records.map((r, i) => {
+              const value = <span className="num whitespace-nowrap text-[30px] !font-normal">{r.value}</span>
               return (
-                <motion.div
-                  key={p.exerciseId}
-                  initial={fresh ? { opacity: 0, x: -14 } : false}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.15 + i * 0.08 }}
-                  className="relative flex items-center gap-3 overflow-hidden rounded-card border border-z3/30 bg-z3/[0.08] p-3"
-                >
-                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-z3 text-ink-0">
-                    <Trophy size={18} strokeWidth={2.4} />
+                <Link key={r.exerciseId} to={`/lift/exercise/${r.exerciseId}`} className="flex items-center gap-5 py-4 transition-colors duration-150 active:bg-ink-2">
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[16px] font-semibold leading-5">{w.exerciseById.get(r.exerciseId)?.name}</span>
+                    <span className="meta block">{r.text}</span>
                   </span>
-                  <span className="min-w-0">
-                    <span className="block truncate text-[15px] font-semibold">{ex?.name}</span>
-                    <span className="block text-[13px] tabular-nums text-z3">{p.label}</span>
+                  {/* the first is the one that gets circled; the rest are in the same chalk */}
+                  <span className="shrink-0 pr-3 text-mark">
+                    {i === 0 ? (
+                      <Circled seed={hashString(r.value)} delay={fresh ? 0.6 : 0.35}>
+                        <span className="text-fg">{value}</span>
+                      </Circled>
+                    ) : (
+                      value
+                    )}
                   </span>
-                </motion.div>
+                </Link>
               )
             })}
           </div>
         </Section>
       )}
 
-      <Section title="Exercises">
-        <div className="flex flex-col gap-2">
+      <Section title="What you did">
+        <div className="list">
           {wk.exercises.map((we) => {
             const ex = w.exerciseById.get(we.exerciseId)
             if (!ex) return null
-            const best = bestE1rm(ex, we.sets)
-            let n = 0
             return (
-              <Link key={we.id} to={`/lift/exercise/${ex.id}`} className="press card block overflow-hidden">
-                <div className="flex items-baseline justify-between gap-3 px-3.5 pb-2 pt-3">
-                  <span className="min-w-0">
-                    <span className="block truncate text-[16px] font-semibold tracking-[-0.02em] leading-none">{ex.name}</span>
-                    <span className="mt-1 block text-[12px] tabular-nums text-fg-3">{MUSCLE_LABEL[ex.muscle]}</span>
-                  </span>
-                  {best > 0 && hasE1rm(ex) && <span className="shrink-0 text-[13px] tabular-nums text-fg-3">e1RM {fmtKg(Math.round(best))}</span>}
-                </div>
-                {we.sets.map((s) => {
-                  const label = s.kind === 'warmup' ? 'W' : s.kind === 'drop' ? 'D' : s.kind === 'failure' ? 'F' : String(++n)
-                  return (
-                    <div key={s.id} className="grid grid-cols-[28px_1fr_auto] items-center gap-2 border-t border-line px-3.5 py-2">
-                      <span className={`text-[15px] font-semibold tracking-[-0.02em] ${s.kind === 'warmup' ? 'text-z1' : 'text-fg-3'}`}>{label}</span>
-                      <span className={`num text-[19px] ${s.kind === 'warmup' ? 'text-fg-3' : ''}`}>{setText(ex, s)}</span>
-                      {s.rpe ? <span className={`rounded-[5px] px-1.5 py-0.5 text-[13px] tabular-nums font-semibold ${rpeTone(s.rpe)}`}>RPE {fmtRpe(s.rpe)}</span> : <span />}
-                    </div>
-                  )
-                })}
+              <Link key={we.id} to={`/lift/exercise/${ex.id}`} className="flex items-baseline gap-3 py-3 transition-colors duration-150 active:bg-ink-2">
+                <span className="min-w-0 flex-1 truncate text-[16px] font-semibold">{ex.name}</span>
+                <span className="num max-w-[58%] truncate text-right text-[22px]">{setsLine(ex, we.sets)}</span>
               </Link>
             )
           })}
         </div>
       </Section>
 
-      <div className="mt-8 grid grid-cols-2 gap-2">
+      <div className="mt-9 grid grid-cols-2 gap-2">
         <button onClick={repeat} className="btn-ghost">
-          <Repeat2 size={17} /> Do it again
+          Do it again
         </button>
         {wk.source !== 'sample' ? (
           <button
             onClick={() => {
               if (!sure) return setSure(true)
               remove(wk.id)
-              say('Workout deleted')
-              nav('/lift?tab=history', { replace: true })
+              say('Session deleted')
+              nav('/lift/history', { replace: true })
             }}
-            className={`btn ${sure ? 'bg-z5 text-ink-0' : 'border border-line-2 text-fg-3'}`}
+            className={`btn ${sure ? 'bg-bad text-ink-0' : 'text-fg-3'}`}
           >
-            <Trash2 size={16} /> {sure ? 'Tap to confirm' : 'Delete'}
+            {sure ? 'Tap to confirm' : 'Delete'}
           </button>
         ) : (
-          <Link to="/lift" className="btn border border-line-2 text-fg-3">
+          <Link to="/lift" className="btn text-fg-3">
             Back to Lift
           </Link>
         )}

@@ -10,7 +10,7 @@ import { liftSummary } from '../../lib/lift'
 import { clamp, mean, round } from '../../lib/math'
 import { summariseRun } from '../../lib/running'
 import { rng, type Rng } from '../../lib/rng'
-import { BUILTIN_EXERCISES, BUILTIN_ROUTINES } from '../exercises'
+import { BUILTIN_EXERCISES, SAMPLE_ROUTINES } from '../exercises'
 import type { Activity, BodyEntry, Daily, Format, Match, MatchPoint, MomentKey, Profile, SetEntry, Stream, Workout } from '../types'
 import { footballStream, rideStream, runStream, swimStream, type RunDay } from './streams'
 
@@ -174,7 +174,7 @@ const START_KG: Record<string, number> = {
 type LiftState = { kg: number; reps: number }
 
 function simulateWorkout(id: string, routineId: string, start: Date, state: Map<string, LiftState>, r: Rng): Workout {
-  const routine = BUILTIN_ROUTINES.find((x) => x.id === routineId)!
+  const routine = SAMPLE_ROUTINES.find((x) => x.id === routineId)!
   const exercises = routine.items.map((item, idx) => {
     const ex = BUILTIN_EXERCISES.find((e) => e.id === item.exerciseId)!
     const [lo, hi] = ex.repRange

@@ -7,6 +7,7 @@ import { PitchHeatmap } from '../../components/charts/PitchHeatmap'
 import { zoneColor } from '../../components/charts/primitives'
 import { IconButton, Screen } from '../../components/ui/Screen'
 import { Delta, Empty, Section, Segmented } from '../../components/ui/bits'
+import { Mark } from '../../components/ui/chalk'
 import { useStore } from '../../data/store'
 import type { MatchPoint } from '../../data/types'
 import { useUi } from '../../data/ui'
@@ -94,7 +95,7 @@ export function MatchReportScreen() {
         <div className="meta">
           {fmt(m.date, 'EEEE d MMMM, HH:mm')} · {m.format}-a-side
         </div>
-        <h1 className="mt-2 text-balance text-[28px] font-semibold leading-[1.12] tracking-[-0.03em]">{tidyHeadline(m.headline, [w.profile.name, m.team, m.opponent])}</h1>
+        <h1 className="t-story mt-2">{tidyHeadline(m.headline, [w.profile.name, m.team, m.opponent])}</h1>
         <p className="mt-3 text-[16px] leading-relaxed text-fg-2">{standfirst(m, an ?? act?.football)}</p>
         {before && (
           <p className="meta mt-2">
@@ -104,37 +105,35 @@ export function MatchReportScreen() {
       </div>
 
       {/* scoreboard */}
-      <div className="card mt-7 overflow-hidden">
-        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 pb-5 pt-6">
+      <div className="ruled mt-7">
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 pb-5 pt-6">
           <div className="min-w-0">
-            <div className="line-clamp-2 break-words text-[15px] font-semibold leading-tight">{m.team}</div>
+            <div className="display line-clamp-2 break-words text-[21px] font-bold leading-[1.05]">{m.team}</div>
             <div className="meta mt-1">You</div>
           </div>
           <div className="flex flex-col items-center">
             <div className="flex items-center gap-3">
-              <span className="num-hero text-[64px]">{m.scoreFor}</span>
-              <span className="text-[24px] font-light text-fg-4">–</span>
-              <span className="num-hero text-[64px] text-fg-2">{m.scoreAgainst}</span>
+              <span className="num-hero text-[84px] !font-normal">{m.scoreFor}</span>
+              <span className="num-hero text-[40px] text-fg-4">–</span>
+              <span className="num-hero text-[84px] text-fg-2">{m.scoreAgainst}</span>
             </div>
             <div className={`mt-3 text-[13px] font-medium ${r === 'W' ? 'text-z2' : r === 'L' ? 'text-z5' : 'text-fg-3'}`}>{r === 'W' ? 'Win' : r === 'L' ? 'Defeat' : 'Draw'}</div>
           </div>
           <div className="min-w-0 text-right">
-            <div className="line-clamp-2 break-words text-[15px] font-semibold leading-tight text-fg-2">{m.opponent}</div>
+            <div className="display line-clamp-2 break-words text-[21px] font-bold leading-[1.05] text-fg-2">{m.opponent}</div>
             <div className="meta mt-1">Them</div>
           </div>
         </div>
-        <div className="mx-4 h-px bg-line" />
-        <div className="grid grid-cols-3">
+        <div className="rule" />
+        <div className="grid grid-cols-3 gap-x-3">
           {[
             { k: 'Goals', v: m.goals },
             { k: 'Assists', v: m.assists },
             { k: 'Felt', v: FEEL[m.feel] },
           ].map((x) => (
-            <div key={x.k} className="px-4 py-4">
+            <div key={x.k} className="py-4">
               <div className="label">{x.k}</div>
-              <div className="mt-2.5 flex h-7 items-end">
-                <span className={typeof x.v === 'number' ? 'num text-[24px] leading-none' : 'truncate text-[15px] font-semibold leading-none'}>{x.v}</span>
-              </div>
+              <div className="num mt-2.5 truncate text-[30px]">{x.v}</div>
             </div>
           ))}
         </div>
@@ -142,11 +141,11 @@ export function MatchReportScreen() {
 
       {/* rating */}
       <Section title="Rating">
-        <div className="card p-4">
+        <div>
           <div className="flex items-center gap-4">
             <RatingBadge rating={m.rating} size="lg" />
             <div>
-              <div className={`text-[22px] font-semibold leading-none tracking-[-0.02em] ${tone.text}`}>{tone.word}</div>
+              <div className={`display text-[30px] font-bold leading-none ${tone.text}`}>{tone.word}</div>
               {ratingMedian !== undefined && (
                 <div className="meta mt-2 flex items-center gap-2">
                   Your {m.format}s median {ratingMedian.toFixed(1)} <Delta value={m.rating - ratingMedian} />
@@ -155,23 +154,23 @@ export function MatchReportScreen() {
             </div>
           </div>
           <div className="list mt-4 [--inset:0px]">
-            <div className="flex justify-between py-2.5 text-[14px] text-fg-3">
+            <div className="flex items-baseline justify-between py-2.5 text-[14.5px] text-fg-3">
               <span>Everyone starts on</span>
-              <span className="tabular-nums">6.00</span>
+              <span className="num text-[20px]">6.00</span>
             </div>
             {m.breakdown.map((f) => (
               <div key={f.key} className="flex items-center justify-between gap-3 py-2.5">
-                <span className="text-[14px] text-fg-2">{f.label}</span>
+                <span className="text-[14.5px] text-fg-2">{f.label}</span>
                 <span className="flex items-center gap-3">
-                  <span className="relative h-1 w-16 overflow-hidden rounded-full bg-ink-3">
+                  {/* how far it moved the rating, either side of a centre line */}
+                  <span className="relative h-[9px] w-16">
+                    <span className="absolute inset-y-0 left-1/2 w-px bg-fg/25" />
                     <span
-                      className={`absolute top-0 h-full rounded-full ${f.value >= 0 ? 'left-1/2 bg-good' : 'right-1/2 bg-bad'}`}
+                      className={`solid absolute inset-y-[1.5px] ${f.value >= 0 ? 'left-1/2 [--h:var(--good)]' : 'right-1/2 [--h:var(--bad)]'}`}
                       style={{ width: `${Math.min(50, Math.abs(f.value) * 30)}%` }}
                     />
                   </span>
-                  <span className={`w-12 text-right text-[14px] font-medium tabular-nums ${f.value > 0 ? 'text-good' : f.value < 0 ? 'text-bad' : 'text-fg-3'}`}>
-                    {signed(f.value, 2)}
-                  </span>
+                  <span className={`num w-12 text-right text-[20px] ${f.value > 0 ? 'text-good' : f.value < 0 ? 'text-bad' : 'text-fg-3'}`}>{signed(f.value, 2)}</span>
                 </span>
               </div>
             ))}
@@ -202,11 +201,11 @@ export function MatchReportScreen() {
                 ]}
               />
             </div>
-            <p className="mt-2.5 px-1 text-[12px] text-fg-4">Pitch framed from your GPS. Tap flip if you were attacking the other way.</p>
+            <p className="meta mt-3 text-fg-4">Pitch framed from your GPS. Tap flip if you were attacking the other way.</p>
           </Section>
 
           <Section title="Engine" action={seasonMedian ? <span className="meta">Against your other {m.format}s</span> : undefined}>
-            <div className="card grid grid-cols-3 gap-y-5 px-4 py-4">
+            <div className="grid grid-cols-3 gap-x-3 gap-y-6">
               <PhysStat label="Distance" value={(an.distanceM / 1000).toFixed(2)} unit="km" delta={seasonMedian ? (an.distanceM - seasonMedian.dist) / 1000 : undefined} dp={2} />
               <PhysStat label="Sprints" value={String(an.sprints)} delta={seasonMedian ? an.sprints - seasonMedian.sprints : undefined} dp={0} />
               <PhysStat label="Top speed" value={an.topSpeedKmh.toFixed(1)} unit="km/h" delta={seasonMedian ? an.topSpeedKmh - seasonMedian.top : undefined} />
@@ -214,16 +213,16 @@ export function MatchReportScreen() {
               <PhysStat label="High speed" value={String(Math.round(an.hiDistM))} unit="m" />
               {an.avgHr !== undefined && <PhysStat label="Avg HR" value={String(an.avgHr)} unit="bpm" />}
             </div>
-            <div className="mt-2 grid grid-cols-2 gap-2">
-              <div className="card p-4">
+            <div className="mt-6 grid grid-cols-3 gap-x-3">
+              <div>
                 <div className="label">Sprints by half</div>
-                <div className="num mt-3 text-[24px]">
+                <div className="num mt-2 text-[32px]">
                   {an.sprintsByHalf[0]} <span className="font-light text-fg-4">/</span> {an.sprintsByHalf[1]}
                 </div>
               </div>
-              <div className="card p-4">
+              <div>
                 <div className="label">Legs went</div>
-                <div className={`num mt-3 text-[24px] ${an.fadeMinute !== undefined ? 'text-bad' : 'text-good'}`}>
+                <div className={`num mt-2 text-[32px] ${an.fadeMinute !== undefined ? 'text-bad' : 'text-good'}`}>
                   {an.fadeMinute !== undefined ? `${ordinal(an.fadeMinute)} min` : 'Never'}
                 </div>
               </div>
@@ -231,24 +230,20 @@ export function MatchReportScreen() {
           </Section>
 
           <Section title="Intensity" action={<span className="meta">Metres per 5 minutes</span>}>
-            <div className="card p-4">
-              <Bars
-                values={an.buckets.map((b) => Math.round(b.distM))}
-                labels={an.buckets.map((b, i) => (i % 2 === 0 ? `${b.startMin}′` : null))}
-                colors={an.buckets.map((b) => (b.avgHr ? zoneColor(zoneOf(b.avgHr, bounds)) : 'rgb(var(--fg-4))'))}
-                marker={fadeBucket !== undefined ? { index: fadeBucket, label: `Fade ${an.fadeMinute}′` } : undefined}
-                height={140}
-                valueLabels
-              />
-              <p className="mt-3 text-[12px] text-fg-4">Bar colour is your average heart rate zone in that block.</p>
-            </div>
+            <Bars
+              values={an.buckets.map((b) => Math.round(b.distM))}
+              labels={an.buckets.map((b, i) => (i % 2 === 0 ? `${b.startMin}′` : null))}
+              colors={an.buckets.map((b) => (b.avgHr ? zoneColor(zoneOf(b.avgHr, bounds)) : 'rgb(var(--fg-4))'))}
+              marker={fadeBucket !== undefined ? { index: fadeBucket, label: `Fade ${an.fadeMinute}′` } : undefined}
+              height={140}
+              valueLabels
+            />
+            <p className="meta mt-3 text-fg-4">Bar colour is your average heart rate zone in that block.</p>
           </Section>
 
           {stream?.hr && (
             <Section title="Heart rate">
-              <div className="card p-4">
-                <StreamChart values={stream.hr} dt={stream.dt} kind="hr" bounds={bounds} height={150} />
-              </div>
+              <StreamChart values={stream.hr} dt={stream.dt} kind="hr" bounds={bounds} height={150} />
             </Section>
           )}
         </>
@@ -262,7 +257,7 @@ export function MatchReportScreen() {
 
       {m.notes && (
         <Section title="Your notes">
-          <blockquote className="border-l-2 border-line-2 pl-4 text-[18px] leading-snug tracking-[-0.01em] text-fg-2">“{m.notes}”</blockquote>
+          <blockquote className="border-l-2 border-fg/30 pl-4 text-[18px] leading-snug text-fg-2">“{m.notes}”</blockquote>
         </Section>
       )}
 
@@ -297,19 +292,18 @@ function HowItWent({ points }: { points: MatchPoint[] }) {
   const sides = [true, false].map((good) => ({ good, ps: points.filter((p) => p.good === good) })).filter((x) => x.ps.length)
   return (
     <Section title="How it went">
-      <div className={`grid items-start gap-2 ${sides.length > 1 ? 'grid-cols-2' : ''}`}>
+      <div className={`grid items-start gap-5 ${sides.length > 1 ? 'grid-cols-2' : ''}`}>
         {sides.map(({ good, ps }) => (
-          <div key={String(good)} className="card px-4 py-3.5">
-            <div className={`text-[13px] font-semibold ${good ? 'text-z2' : 'text-z5'}`}>{good ? 'Went well' : 'Went badly'}</div>
-            <ul className="mt-2 flex flex-col gap-1.5">
+          <div key={String(good)}>
+            <div className={`text-[13.5px] font-semibold ${good ? 'text-z2' : 'text-z5'}`}>{good ? 'Went well' : 'Went badly'}</div>
+            <ul className="mt-2.5 flex flex-col gap-2">
               {ps.map((p) => (
-                <li key={p.text} className={`text-[15px] leading-snug ${p.big ? 'font-semibold text-fg' : 'text-fg-2'}`}>
-                  {p.text}
-                  {p.big && (
-                    <span className={`ml-1.5 inline-block rounded-full px-1.5 text-[11px] font-semibold leading-[18px] ${good ? 'bg-z2/15 text-z2' : 'bg-z5/15 text-z5'}`}>
-                      Big
-                    </span>
-                  )}
+                <li key={p.text} className={`flex gap-2 text-[15.5px] leading-snug ${p.big ? 'font-semibold text-fg' : 'text-fg-2'}`}>
+                  <Mark good={good} className="mt-[4px] shrink-0" />
+                  <span>
+                    {p.text}
+                    {p.big && <span className={`ml-1.5 text-[12px] font-semibold ${good ? 'text-z2' : 'text-z5'}`}>Big</span>}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -324,9 +318,9 @@ function PhysStat({ label, value, unit, delta, dp = 1 }: { label: string; value:
   return (
     <div className="min-w-0">
       <div className="label truncate">{label}</div>
-      <div className="num mt-2.5 text-[22px]">
+      <div className="num mt-2.5 text-[30px]">
         {value}
-        {unit && <span className="ml-0.5 text-[11px] font-normal tracking-normal text-fg-3">{unit}</span>}
+        {unit && <span className="unit ml-0.5 text-[12px]">{unit}</span>}
       </div>
       {delta !== undefined && (
         <div className="mt-1">

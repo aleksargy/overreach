@@ -1,6 +1,6 @@
-// Running analysis: your aerobic engine, durability, critical speed and what
-// slows you down. Each run is boiled down once (at sync time) to a minute-by-
-// minute table plus its best efforts, and everything here works from those, so
+// Running analysis: your aerobic engine, and your best times. Each run is
+// boiled down once (at sync time) to a minute-by-minute table, its best times
+// and an outline of where it went, and everything here works from those, so
 // the phone never needs every stream.
 //
 // Inside a run, heart rate follows speed, grade and time on your feet:
@@ -9,14 +9,18 @@
 // each run, so fitness, weather and tiredness cancel out of them. What's left,
 // the run's own `a`, is how hard that day was for your heart: it drifts slowly
 // with fitness and jumps from run to run with heat and football. Pulling those
-// apart gives the engine trend, the heat cost and the football hangover.
+// apart gives the engine trend: the pace you hold at an easy heart rate.
 
 import type { Activity, Profile, RunSummary, Stream } from '../data/types'
 import { pathOf, routeOf } from './ghost'
 import { clamp, mean, median } from './math'
 
-/** bump when the run summary gains something, and sync adds it to the older ones from the stored stream: 2 is the outline ghosts are matched by */
-export const RUN_SUMMARY = 2
+/** bump when the run summary gains something, and sync adds it to the older ones from the stored stream: 2 is the outline ghosts are matched by, 3 the best times over set distances */
+export const RUN_SUMMARY = 3
+
+/** Distances a run's best times are kept for (m), and what they're called. */
+export const BEST_M = [1000, 5000, 10_000, 21_097.5, 42_195]
+export const BEST_NAME = ['1 km', '5 km', '10 km', 'Half marathon', 'Marathon']
 
 /** Durations (s) of the best efforts kept for each run. */
 export const BEST_S = [60, 120, 180, 300, 420, 600, 900, 1200, 1800, 2700, 3600]
@@ -33,8 +37,6 @@ const REF_MIN = 20
 const HEAT_FROM = 12
 /** a run this soon after football (hours from the final whistle) counts as the morning after */
 const HANGOVER_H = 36
-/** heart rate this far above where it settled (bpm) is drift */
-const DRIFT_BPM = 5
 const DAY = 86_400_000
 
 const r1 = (x: number) => Math.round(x * 10) / 10
@@ -105,8 +107,66 @@ export function summariseRun(s: Stream): RunSummary | undefined {
 
   const first = s.lat?.findIndex((x) => Number.isFinite(x)) ?? -1
   const at: [number, number] | undefined = first >= 0 && s.lon && Number.isFinite(s.lon[first]) ? [r1(s.lat![first]), r1(s.lon[first])] : undefined
+  return { v: RUN_SUMMARY, spd, hr, grade, best, ...(at ? { at } : {}), ...summaryExtras(s, at) }
+}
+
+/** What a summary has gained since it was first made: the outline and the best times. Sync adds these to older summaries from the stored stream. */
+export function summaryExtras(s: Stream, at?: [number, number]): Pick<RunSummary, 'route' | 'bestD'> {
   const path = at && pathOf(s)
-  return { v: RUN_SUMMARY, spd, hr, grade, best, ...(at ? { at } : {}), ...(path ? { route: routeOf(path, at!) } : {}) }
+  return { ...(path ? { route: routeOf(path, at!) } : {}), bestD: distanceBests(s) }
+}
+
+/**
+ * Your fastest time (s) over each distance in BEST_M inside one run, by the
+ * clock: a stop counts against you, as it would in a race. 0 where the run was
+ * shorter. Distance is the watch's, with speed capped so a GPS jump can't set a
+ * record.
+ */
+export function distanceBests(s: Stream): number[] {
+  const n = s.d?.length ?? s.v?.length ?? 0
+  const cum = [0]
+  for (let i = 1; i < n; i++) cum.push(cum[i - 1] + Math.min(s.d ? Math.max(0, s.d[i] - s.d[i - 1]) : (s.v![i] ?? 0) * s.dt, 9 * s.dt))
+  return BEST_M.map((m) => {
+    if (!n || cum[n - 1] < m) return 0
+    let best = Infinity
+    for (let i = 0, j = 1; i < n; i++) {
+      while (j < n && cum[j] - cum[i] < m) j++
+      if (j >= n) break
+      // the moment inside the last step the distance was reached
+      const step = cum[j] - cum[j - 1]
+      const part = step > 0 ? (m - (cum[j - 1] - cum[i])) / step : 1
+      best = Math.min(best, (j - 1 - i + part) * s.dt)
+    }
+    return Number.isFinite(best) ? Math.round(best) : 0
+  })
+}
+
+export interface Best {
+  /** index into BEST_M */
+  k: number
+  s: number
+  id: string
+  date: string
+}
+
+/**
+ * Your best time over each distance in the summaries on hand (a year of runs),
+ * shortest first; distances you haven't covered are left out. A race counts at
+ * its finish time over the distance it was, since a watch measures a course
+ * long and would hand you a faster one.
+ */
+export function bestsOf(runs: Activity[], races: Activity[] = []): Best[] {
+  const out: Best[] = []
+  BEST_M.forEach((m, k) => {
+    let best: Best | undefined
+    const take = (a: Activity, sec: number) => {
+      if (sec > 0 && (!best || sec < best.s)) best = { k, s: Math.round(sec), id: a.id, date: a.start }
+    }
+    const raced = (a: Activity) => (a.distanceM ?? 0) >= m * 0.985 && (a.distanceM ?? 0) <= m * 1.06 && races.some((r) => r.id === a.id)
+    for (const a of runs) take(a, raced(a) ? a.durationS : (a.run?.bestD?.[k] ?? 0))
+    if (best) out.push(best)
+  })
+  return out
 }
 
 // ---------- the model ----------
@@ -256,30 +316,6 @@ export interface RunPoint {
   afterFootballH?: number
 }
 
-export interface DriftCurve {
-  id: string
-  date: string
-  /** minute into the run, and bpm above where heart rate settled for that pace and grade */
-  pts: { m: number; bpm: number }[]
-  /** the minute heart rate started to drift; undefined if it held to the end */
-  onset?: number
-  minutes: number
-}
-
-export interface CriticalSpeed {
-  /** m/s */
-  cs: number
-  /** metres you can run above critical speed before you have to slow */
-  dPrime: number
-  /** best speeds (m/s) by duration in the window, and which run set them */
-  envelope: { s: number; v: number; id: string }[]
-  /** race predictions in seconds */
-  predictions: { label: string; m: number; s: number }[]
-  /** a fit you can lean on: real hard efforts at both ends */
-  solid: boolean
-  days: number
-}
-
 export interface RunModel {
   refHr: number
   slopes: Slopes
@@ -291,9 +327,6 @@ export interface RunModel {
   hills?: { upS: number; downS: number; netPer10m: number }
   heat?: { bpmPerC: number; sPer5C: number; runs: number; range: [number, number]; clear: boolean }
   football?: { bpm: number; sPerKm: number; after: number; without: number; clear: boolean }
-  /** every long steady run's drift; `latest` is the newest that drifted (or the newest at all), `first` the earliest drift a month or more before it */
-  durability?: { curves: DriftCurve[]; latest: DriftCurve; last: DriftCurve; first?: DriftCurve }
-  cs?: CriticalSpeed
 }
 
 /** s/km lost when speed v drops by dv */
@@ -308,8 +341,7 @@ export function runModel(activities: Activity[], p: Profile, now = new Date()): 
   const rows = runs.map((a) => steadyRows(a.run!, p))
   const usable = runs.map((a, i) => ({ a, rows: rows[i] })).filter((x) => x.rows.length >= 6)
   const fit = fitSlopes(usable.map((x) => x.rows))
-  const cs = criticalSpeed(runs, now, 90, p.hrMax)
-  if (!fit || fit.slopes.v < 8 || fit.evidence.v < 0.5) return cs ? { refHr: refHrFor(p), slopes: PRIOR, runs: [], trend: [], cs } : null
+  if (!fit || fit.slopes.v < 8 || fit.evidence.v < 0.5) return null
   const b = fit.slopes
   const refHr = refHrFor(p)
 
@@ -369,7 +401,7 @@ export function runModel(activities: Activity[], p: Profile, now = new Date()): 
     }
   }
 
-  const model: RunModel = { refHr, slopes: b, runs: out, trend, cs }
+  const model: RunModel = { refHr, slopes: b, runs: out, trend }
   const last = trend[trend.length - 1]
   if (last) {
     const thenT = last.t - 56 * DAY
@@ -403,144 +435,5 @@ export function runModel(activities: Activity[], p: Profile, now = new Date()): 
   if (fbFit && after >= 4 && pts.length - after >= 6) {
     model.football = { bpm: bf, sPerKm: secPerKm(v0, bf / b.v), after, without: pts.length - after, clear: Math.abs(bf) > 2 * fbFit.se && Math.abs(bf) >= 1 }
   }
-  model.durability = durability(runs, b)
   return model
-}
-
-// ---------- durability ----------
-
-function driftCurve(a: Activity, b: Slopes): DriftCurve | undefined {
-  const s = a.run!
-  const n = s.spd.length
-  if (n < 55) return undefined
-  const mid = median(s.spd.slice(WARMUP))
-  // a long steady run, not a session of reps
-  const even = s.spd.slice(WARMUP).filter((v) => Math.abs(v - mid) < 0.15 * mid).length / (n - WARMUP)
-  if (even < 0.75) return undefined
-  const fresh = (i: number) => s.hr[i] - b.v * s.spd[i] - b.up * Math.max(s.grade[i], 0) - b.dn * Math.max(-s.grade[i], 0)
-  const valid = (i: number) => s.hr[i] > 0 && s.spd[i] >= RUNNING
-  const base: number[] = []
-  for (let i = 10; i < 25; i++) if (valid(i)) base.push(fresh(i))
-  if (base.length < 8) return undefined
-  const b0 = mean(base)
-  const raw: { m: number; bpm: number }[] = []
-  for (let i = 10; i < n; i++) if (valid(i)) raw.push({ m: i, bpm: fresh(i) - b0 })
-  const sm = smooth(
-    raw.map((x) => x.bpm),
-    2,
-  )
-  const pts = raw.map((x, i) => ({ m: x.m, bpm: r1(sm[i]) }))
-  const at = pts.findIndex((x, i) => x.m >= 25 && pts.slice(i, i + 4).every((y) => y.bpm >= DRIFT_BPM - (y === x ? 0 : 1)))
-  return { id: a.id, date: a.start, pts, onset: at >= 0 ? pts[at].m : undefined, minutes: n }
-}
-
-function durability(runs: Activity[], b: Slopes): RunModel['durability'] {
-  const curves = runs.map((a) => driftCurve(a, b)).filter((c): c is DriftCurve => !!c)
-  if (!curves.length) return undefined
-  const drifted = curves.filter((c) => c.onset !== undefined)
-  const last = curves[curves.length - 1]
-  const latest = drifted[drifted.length - 1] ?? last
-  const first = drifted.find((c) => Date.parse(latest.date) - Date.parse(c.date) >= 28 * DAY)
-  return { curves, latest, last, first }
-}
-
-// ---------- critical speed ----------
-
-/**
- * Critical speed and D′ from the best efforts of the last `days`. Distance
- * against time is a straight line for efforts of about 3 to 20 minutes: slope
- * CS, intercept D′. Most training isn't flat out, so rather than average over
- * every point the line is laid over your best ones, so that nothing you've done
- * sits above it: the edge of their upper hull that spans ten minutes. It reads
- * low until there's a race or a hard time trial in the window: `solid` says
- * whether the longer effort holding the line up was hard enough to trust
- * (ten minutes at 88% of max heart rate or more, when that's known).
- */
-export function criticalSpeed(runs: Activity[], now = new Date(), days = 90, hrMax?: number): CriticalSpeed | undefined {
-  const from = now.getTime() - days * DAY
-  const recent = runs.filter((a) => a.run && Date.parse(a.start) >= from)
-  if (!recent.length) return undefined
-  const envelope = BEST_S.map((s, k) => {
-    let v = 0
-    let id = ''
-    for (const a of recent) {
-      const x = a.run!.best[k] ?? 0
-      if (x > v) {
-        v = x
-        id = a.id
-      }
-    }
-    return { s, v, id }
-  }).filter((x) => x.v > 0)
-  const pts = envelope.filter((x) => x.s >= 180 && x.s <= 1200).map((x) => ({ t: x.s, d: x.v * x.s, id: x.id }))
-  if (pts.length < 3) return undefined
-  const hull: typeof pts = []
-  for (const p of pts) {
-    // drop the last vertex while it sits on or under the line from the one before it to p
-    while (hull.length >= 2) {
-      const [a, b] = hull.slice(-2)
-      if ((b.d - a.d) * (p.t - a.t) <= (p.d - a.d) * (b.t - a.t)) hull.pop()
-      else break
-    }
-    hull.push(p)
-  }
-  const k = Math.max(0, hull.findIndex((p, i) => i > 0 && p.t >= 600) - 1)
-  const [a, b] = [hull[k], hull[Math.min(k + 1, hull.length - 1)]]
-  if (a === b) return undefined
-  const cs = (b.d - a.d) / (b.t - a.t)
-  const dPrime = a.d - cs * a.t
-  if (cs < 2 || cs > 7 || dPrime <= 0) return undefined
-  const t5 = (5000 - dPrime) / cs
-  const hard = (id: string) => {
-    if (!hrMax) return true
-    const hr = recent.find((x) => x.id === id)?.run?.hr ?? []
-    let top = 0
-    for (let i = 0; i + 10 <= hr.length; i++) {
-      const w = hr.slice(i, i + 10)
-      if (w.every((h) => h > 0)) top = Math.max(top, mean(w))
-    }
-    return top >= 0.88 * hrMax
-  }
-  const riegel = (m: number) => t5 * (m / 5000) ** 1.06
-  return {
-    cs,
-    dPrime,
-    envelope,
-    predictions: [
-      { label: '5K', m: 5000, s: t5 },
-      { label: '10K', m: 10000, s: riegel(10000) },
-      { label: 'Half', m: 21097.5, s: riegel(21097.5) },
-    ],
-    solid: dPrime >= 50 && dPrime <= 500 && a.id !== b.id && hard(b.id),
-    days,
-  }
-}
-
-/** One run against your model: its engine against the trend, the conditions and its drift. */
-export function runInsight(m: RunModel, a: Activity) {
-  const pt = m.runs.find((x) => x.id === a.id)
-  const trendAt = pt
-    ? m.trend.reduce<{ t: number; v: number } | undefined>((best, x) => (!best || Math.abs(x.t - pt.t) < Math.abs(best.t - pt.t) ? x : best), undefined)
-    : undefined
-  const curve = m.durability?.curves.find((c) => c.id === a.id)
-  return {
-    engine: pt?.engine,
-    vsTrend: pt && trendAt ? 1000 / pt.engine - 1000 / trendAt.v : undefined,
-    tempC: a.run?.tempC,
-    dewC: a.run?.dewC,
-    afterFootballH: pt?.afterFootballH,
-    drift: curve,
-  }
-}
-
-/**
- * Heart rate at a steady speed v (m/s), from your own slopes: where it settles
- * 20 minutes in, and where drift takes it after `minutes`. Flat, cool, at
- * today's engine; drift is extrapolated in a straight line, so long races are
- * the roughest guess.
- */
-export function hrAtPace(m: RunModel, v: number, minutes: number): { settled: number; end: number } | undefined {
-  if (!m.engineNow) return undefined
-  const settled = m.refHr + m.slopes.v * (v - m.engineNow.v)
-  return { settled: Math.round(settled), end: Math.round(settled + m.slopes.t * Math.max(0, minutes - REF_MIN)) }
 }

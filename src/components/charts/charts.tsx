@@ -1,6 +1,10 @@
-import { useId, useMemo, useRef, type ReactNode } from 'react'
+import { useId, useMemo, type ReactNode } from 'react'
 import { zoneOf } from '../../lib/load'
+import { Hatch } from '../ui/chalk'
 import { useMeasure, zoneColor } from './primitives'
+
+/** axis labels: small chalk notes in the reading face, figures lined up */
+const TICK = 'font-mono text-[10.5px]'
 
 function downsample(xs: number[], n: number): number[] {
   if (xs.length <= n) return xs
@@ -41,7 +45,7 @@ interface StreamProps {
 
 export function StreamChart({ values, dt, height = 150, kind, bounds, format = (v) => v.toFixed(0), markers }: StreamProps) {
   const [ref, w] = useMeasure<HTMLDivElement>()
-  const id = useRef(`s${Math.random().toString(36).slice(2, 8)}`).current
+  const id = useId()
   const geo = useMemo(() => {
     if (!w || values.length < 2) return null
     // a heart rate of 0 is the strap or watch dropping out, not a reading
@@ -107,23 +111,24 @@ export function StreamChart({ values, dt, height = 150, kind, bounds, format = (
     <div ref={ref} className="w-full" style={{ height }}>
       {geo && (
         <svg width={w} height={height} className="block overflow-visible">
-          <defs>
-            <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" stopColor="rgb(var(--fg))" stopOpacity={kind === 'alt' ? 0.14 : 0.08} />
-              <stop offset="1" stopColor="rgb(var(--fg))" stopOpacity="0" />
-            </linearGradient>
-          </defs>
+          {kind === 'alt' && (
+            <>
+              <defs>
+                <Hatch id={id} opacity={0.3} />
+              </defs>
+              <path d={geo.area} fill={`url(#${id})`} />
+            </>
+          )}
           {geo.guides.map((g) => (
             <g key={g.z}>
-              <line x1={0} x2={geo.right} y1={g.y} y2={g.y} stroke={zoneColor(g.z, 0.3)} strokeDasharray="2 4" />
+              <line x1={0} x2={geo.right} y1={g.y} y2={g.y} stroke={zoneColor(g.z, 0.35)} strokeDasharray="2 5" strokeLinecap="round" />
               {g.y > geo.top + 16 && g.y < geo.bottom - 16 && (
-                <text x={geo.right + 4} y={g.y + 3} className="fill-fg-4 font-mono text-[10px]">
+                <text x={geo.right + 5} y={g.y + 3.5} className={`fill-fg-4 ${TICK}`}>
                   Z{g.z + 1}
                 </text>
               )}
             </g>
           ))}
-          <path d={geo.area} fill={`url(#${id})`} />
           {geo.segs.length ? (
             geo.segs.map((s, i) => <path key={i} d={s.d} fill="none" stroke={zoneColor(s.z)} strokeWidth={1.6} strokeLinejoin="round" strokeLinecap="round" />)
           ) : (
@@ -132,21 +137,21 @@ export function StreamChart({ values, dt, height = 150, kind, bounds, format = (
           {geo.mk.map((m, i) => (
             <g key={i}>
               <line x1={m.x} x2={m.x} y1={geo.top - 4} y2={geo.bottom} stroke="rgb(var(--bad))" strokeDasharray="3 3" />
-              <text x={m.x + 4} y={geo.top + 4} className="fill-bad font-mono text-[10px] font-medium">
+              <text x={m.x + 4} y={geo.top + 4} className={`fill-bad ${TICK} font-medium`}>
                 {m.label}
               </text>
             </g>
           ))}
-          <line x1={0} x2={geo.right} y1={geo.bottom} y2={geo.bottom} stroke="rgb(var(--line))" />
+          <line x1={0} x2={geo.right} y1={geo.bottom} y2={geo.bottom} stroke="rgb(var(--fg) / 0.16)" />
           {geo.ticks.map((t) => (
-            <text key={t.m} x={t.x} y={height - 6} textAnchor="middle" className="fill-fg-4 font-mono text-[10px]">
+            <text key={t.m} x={t.x} y={height - 5} textAnchor="middle" className={`fill-fg-4 ${TICK}`}>
               {t.m}′
             </text>
           ))}
-          <text x={geo.right + 4} y={kind === 'pace' ? geo.top + 6 : geo.top + 6} className="fill-fg-3 font-mono text-[10px]">
+          <text x={geo.right + 5} y={geo.top + 6} className={`fill-fg-3 ${TICK}`}>
             {format(kind === 'pace' ? geo.lo : geo.hi)}
           </text>
-          <text x={geo.right + 4} y={geo.bottom} className="fill-fg-3 font-mono text-[10px]">
+          <text x={geo.right + 5} y={geo.bottom} className={`fill-fg-3 ${TICK}`}>
             {format(kind === 'pace' ? geo.hi : geo.lo)}
           </text>
         </svg>
@@ -160,46 +165,63 @@ interface BarsProps {
   labels?: (string | null)[]
   colors?: string[]
   height?: number
+  /** the bar that's filled in: this week, today */
   highlight?: number
+  /** a dashed line across at your usual value */
+  usual?: number
+  /** a line down before one of the bars, with a word on it */
   marker?: { index: number; label: string }
   valueLabels?: boolean
   format?: (v: number) => string
 }
 
-export function Bars({ values, labels, colors, height = 120, highlight, marker, valueLabels, format = (v) => v.toFixed(0) }: BarsProps) {
+/** Bars shaded in chalk, with the one that matters filled in solid. */
+export function Bars({ values, labels, colors, height = 120, highlight, usual, marker, valueLabels, format = (v) => v.toFixed(0) }: BarsProps) {
   const [ref, w] = useMeasure<HTMLDivElement>()
-  const max = Math.max(...values, 1)
-  const labelH = labels ? 18 : 0
+  const id = useId()
+  const max = Math.max(...values, usual ?? 0, 1)
+  const labelH = labels ? 19 : 0
   const topH = valueLabels ? 16 : 4
   const plot = height - labelH - topH
   const n = values.length
-  // each value gets a slot; the bar is a slim capsule in the middle of it
   const slot = w ? w / n : 0
-  const bw = Math.max(2, Math.min(slot * (n > 30 ? 0.7 : 0.56), 18))
+  const bw = Math.max(3, Math.min(slot * 0.66, 22))
   const cx = (i: number) => i * slot + slot / 2
+  const base = topH + plot
   return (
     <div ref={ref} style={{ height }} className="w-full">
       {w > 0 && (
         <svg width={w} height={height} className="block overflow-visible">
+          <defs>
+            <Hatch id={id} />
+          </defs>
           {values.map((v, i) => {
-            const bh = Math.max(v > 0 ? Math.min(bw, 4) : 0, (v / max) * plot)
+            const bh = v > 0 ? Math.max(3, (v / max) * plot) : 0
+            const on = i === highlight
+            const color = colors?.[i]
             return (
               <g key={i}>
-                <rect
-                  x={cx(i) - bw / 2}
-                  y={topH + plot - bh}
-                  width={bw}
-                  height={bh}
-                  rx={Math.min(bw / 2, 4)}
-                  fill={colors?.[i] ?? (i === highlight ? 'rgb(var(--fg))' : 'rgb(var(--fg) / 0.22)')}
-                />
+                {bh > 0 ? (
+                  <rect
+                    x={cx(i) - bw / 2 + 0.5}
+                    y={base - bh + 0.5}
+                    width={bw - 1}
+                    height={bh - 0.5}
+                    fill={color ?? (on ? 'rgb(var(--fg))' : `url(#${id})`)}
+                    fillOpacity={color ? 0.85 : 1}
+                    stroke={color ?? (on ? 'rgb(var(--fg))' : 'rgb(var(--fg) / 0.5)')}
+                    strokeWidth={1}
+                  />
+                ) : (
+                  <line x1={cx(i) - bw / 2} x2={cx(i) + bw / 2} y1={base} y2={base} stroke="rgb(var(--fg) / 0.25)" />
+                )}
                 {valueLabels && v > 0 && (
-                  <text x={cx(i)} y={topH + plot - bh - 5} textAnchor="middle" className="fill-fg-3 font-mono text-[10px]">
+                  <text x={cx(i)} y={base - bh - 5} textAnchor="middle" className={`fill-fg-3 ${TICK}`}>
                     {format(v)}
                   </text>
                 )}
                 {labels?.[i] && (
-                  <text x={cx(i)} y={height - 3} textAnchor="middle" className={`font-mono text-[10px] ${i === highlight ? 'fill-fg-2' : 'fill-fg-4'}`}>
+                  <text x={cx(i)} y={height - 3} textAnchor="middle" className={`${TICK} ${on ? 'fill-fg-2' : 'fill-fg-4'}`}>
                     {labels[i]}
                   </text>
                 )}
@@ -208,70 +230,24 @@ export function Bars({ values, labels, colors, height = 120, highlight, marker, 
           })}
           {marker && (
             <g>
-              <line x1={marker.index * slot} x2={marker.index * slot} y1={0} y2={topH + plot} stroke="rgb(var(--bad))" strokeDasharray="3 3" />
-              <text x={marker.index * slot + 4} y={8} className="fill-bad font-mono text-[10px] font-medium">
+              <line x1={marker.index * slot} x2={marker.index * slot} y1={0} y2={base} stroke="rgb(var(--bad))" strokeDasharray="3 3" />
+              <text x={marker.index * slot + 4} y={8} className={`fill-bad ${TICK} font-medium`}>
                 {marker.label}
               </text>
             </g>
           )}
-        </svg>
-      )}
-    </div>
-  )
-}
-
-/** Capsule bars split into parts, stacked from the bottom: `parts[i]` is one bar, `colors` one per part. */
-export function StackedBars({
-  parts,
-  colors,
-  labels,
-  height = 120,
-  highlight,
-}: {
-  parts: number[][]
-  colors: string[]
-  labels?: (string | null)[]
-  height?: number
-  highlight?: number
-}) {
-  const [ref, w] = useMeasure<HTMLDivElement>()
-  const id = useId()
-  const totals = parts.map((p) => p.reduce((a, b) => a + b, 0))
-  const max = Math.max(...totals, 1)
-  const labelH = labels ? 18 : 0
-  const plot = height - labelH - 4
-  const n = parts.length
-  const slot = w ? w / n : 0
-  const bw = Math.max(2, Math.min(slot * 0.56, 18))
-  const cx = (i: number) => i * slot + slot / 2
-  return (
-    <div ref={ref} style={{ height }} className="w-full">
-      {w > 0 && (
-        <svg width={w} height={height} className="block overflow-visible">
-          {parts.map((p, i) => {
-            const bh = (totals[i] / max) * plot
-            const top = 4 + plot - bh
-            let y = 4 + plot
-            return (
-              <g key={i} opacity={highlight === undefined || highlight === i ? 1 : 0.55}>
-                <clipPath id={`${id}-${i}`}>
-                  <rect x={cx(i) - bw / 2} y={top} width={bw} height={bh} rx={Math.min(bw / 2, 4)} />
-                </clipPath>
-                <g clipPath={`url(#${id}-${i})`}>
-                  {p.map((v, k) => {
-                    const h = (v / max) * plot
-                    y -= h
-                    return v > 0 ? <rect key={k} x={cx(i) - bw / 2} y={y} width={bw} height={h} fill={colors[k]} /> : null
-                  })}
-                </g>
-                {labels?.[i] && (
-                  <text x={cx(i)} y={height - 3} textAnchor="middle" className={`font-mono text-[10px] ${i === highlight ? 'fill-fg-2' : 'fill-fg-4'}`}>
-                    {labels[i]}
-                  </text>
-                )}
-              </g>
-            )
-          })}
+          {usual !== undefined && usual > 0 && (
+            <line
+              x1={0}
+              x2={w}
+              y1={base - (usual / max) * plot}
+              y2={base - (usual / max) * plot}
+              stroke="rgb(var(--fg) / 0.55)"
+              strokeDasharray="1 5"
+              strokeLinecap="round"
+              strokeWidth={1.5}
+            />
+          )}
         </svg>
       )}
     </div>
@@ -311,7 +287,7 @@ export function TrendChart({ points, avg, band, height = 170, format = (v) => v.
     lo -= pad
     hi += pad
     const left = 0
-    const right = w - 40
+    const right = w - 46
     const top = 8
     const bottom = height - 20
     const X = (t: number) => left + ((t - t0) / (t1 - t0 || 1)) * (right - left)
@@ -328,25 +304,29 @@ export function TrendChart({ points, avg, band, height = 170, format = (v) => v.
         <svg width={w} height={height} className="block overflow-visible">
           {geo.grid.map((g, i) => (
             <g key={i}>
-              <line x1={0} x2={geo.right} y1={geo.Y(g)} y2={geo.Y(g)} stroke="rgb(var(--line))" />
-              <text x={geo.right + 10} y={geo.Y(g) + 3} className="fill-fg-4 font-mono text-[10px]">
+              <line x1={0} x2={geo.right} y1={geo.Y(g)} y2={geo.Y(g)} stroke="rgb(var(--fg) / 0.14)" strokeDasharray="1 6" strokeLinecap="round" />
+              <text x={geo.right + 14} y={geo.Y(g) + 3.5} className={`fill-fg-4 ${TICK}`}>
                 {format(g)}
               </text>
             </g>
           ))}
           {band && <rect x={0} width={geo.right} y={geo.Y(band[1])} height={geo.Y(band[0]) - geo.Y(band[1])} fill="rgb(var(--fg) / 0.06)" />}
-          {points.map((p, i) => (
-            <circle key={i} cx={geo.X(p.t)} cy={geo.Y(p.v)} r={1.75} fill="rgb(var(--fg-4))" />
-          ))}
+          {/* each reading is a small cross, the way you'd mark a point on a board */}
+          <path
+            d={points.map((p) => `M${(geo.X(p.t) - 2.2).toFixed(1)},${(geo.Y(p.v) - 2.2).toFixed(1)}l4.4,4.4m0,-4.4l-4.4,4.4`).join('')}
+            fill="none"
+            stroke="rgb(var(--fg) / 0.36)"
+            strokeWidth={1}
+            strokeLinecap="round"
+          />
           {geo.line && <path d={geo.line} fill="none" stroke={color} strokeWidth={1.75} strokeLinejoin="round" strokeLinecap="round" />}
-          <circle cx={geo.X(geo.last.t)} cy={geo.Y(geo.last.v)} r={6} fill={color} opacity={0.16} />
-          <circle cx={geo.X(geo.last.t)} cy={geo.Y(geo.last.v)} r={3} fill={color} />
+          <circle cx={geo.X(geo.last.t)} cy={geo.Y(geo.last.v)} r={4} fill="rgb(var(--ink-0))" stroke={color} strokeWidth={1.75} />
           {xLabel && (
             <>
-              <text x={0} y={height - 4} className="fill-fg-4 font-mono text-[10px]">
+              <text x={0} y={height - 4} className={`fill-fg-4 ${TICK}`}>
                 {xLabel(geo.t0)}
               </text>
-              <text x={geo.right} y={height - 4} textAnchor="end" className="fill-fg-4 font-mono text-[10px]">
+              <text x={geo.right} y={height - 4} textAnchor="end" className={`fill-fg-4 ${TICK}`}>
                 {xLabel(geo.t1)}
               </text>
             </>

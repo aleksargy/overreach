@@ -1,17 +1,17 @@
 import { Plus, Search } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Sheet } from '../../components/ui/Sheet'
+import { Tick } from '../../components/ui/chalk'
 import { Field, Stepper, inputCls } from '../../components/ui/bits'
 import { EQUIPMENT, KINDS, MUSCLES } from '../../data/exercises'
 import { useStore } from '../../data/store'
 import type { Equipment, Exercise, ExerciseKind, Muscle } from '../../data/types'
 import { useUi } from '../../data/ui'
 import { useWorld } from '../../data/world'
-import { fmtKg, fmtRpe, historyFor } from '../../lib/lift'
+import { fmtKg, historyFor } from '../../lib/lift'
 import { uid } from '../../lib/rng'
 import { EQUIPMENT_LABEL, MUSCLE_LABEL } from './parts'
 
-const RPES = [7, 7.5, 8, 8.5, 9]
 const INCREMENTS = [1, 1.25, 2, 2.5, 5, 10]
 const RESTS = [60, 90, 120, 150, 180, 240]
 const restLabel = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
@@ -23,7 +23,7 @@ export function ExerciseSheet() {
   const open = sheet?.type === 'exercise'
   const editing = open && !!sheet.exerciseId
   return (
-    <Sheet open={open} onClose={close} title={editing ? 'Edit exercise' : 'New exercise'} kicker={editing ? 'Targets and progression' : 'Custom'}>
+    <Sheet open={open} onClose={close} title={editing ? 'Edit exercise' : 'New exercise'}>
       {open && <ExerciseForm key={sheet.exerciseId ?? 'new'} exerciseId={sheet.exerciseId} initialName={sheet.name} onSaved={sheet.onSaved} />}
     </Sheet>
   )
@@ -65,7 +65,6 @@ function ExerciseForm({ exerciseId, initialName, onSaved }: { exerciseId?: strin
   const [kind, setKind] = useState<ExerciseKind>(base?.kind ?? 'weight')
   const [lo, setLo] = useState(base?.repRange[0] ?? 8)
   const [hi, setHi] = useState(base?.repRange[1] ?? 12)
-  const [targetRpe, setRpe] = useState(base?.targetRpe ?? 8)
   const [increment, setInc] = useState(base?.increment ?? 2.5)
   const [restS, setRest] = useState(base?.restS ?? 90)
   const [notes, setNotes] = useState(base?.notes ?? '')
@@ -80,7 +79,7 @@ function ExerciseForm({ exerciseId, initialName, onSaved }: { exerciseId?: strin
       equipment,
       kind,
       repRange: [Math.min(lo, hi), Math.max(lo, hi)],
-      targetRpe,
+      targetRpe: base?.targetRpe ?? 8,
       increment: weighted ? increment : 0,
       restS,
       notes: notes.trim() || undefined,
@@ -113,12 +112,7 @@ function ExerciseForm({ exerciseId, initialName, onSaved }: { exerciseId?: strin
         <div className="label mb-2">Tracked as</div>
         <div className="grid grid-cols-2 gap-2">
           {KINDS.map((k) => (
-            <button
-              key={k.key}
-              type="button"
-              onClick={() => setKind(k.key)}
-              className={`press rounded-[10px] border p-3 text-left text-[13.5px] font-semibold leading-snug ${kind === k.key ? 'border-fg bg-ink-3' : 'border-line-2 bg-ink-1 text-fg-2'}`}
-            >
+            <button key={k.key} type="button" onClick={() => setKind(k.key)} className={`chip h-11 justify-start ${kind === k.key ? 'chip-on font-semibold' : ''}`}>
               {k.label}
             </button>
           ))}
@@ -136,9 +130,9 @@ function ExerciseForm({ exerciseId, initialName, onSaved }: { exerciseId?: strin
       </div>
 
       <div>
-        <div className="label mb-1">{timed ? 'Target hold, seconds' : 'Rep range'}</div>
-        <p className="mb-3 text-[12.5px] text-fg-3">
-          {timed ? 'Hold the top of the range on every set and the target goes up 5 seconds.' : 'Hit the top of the range on every set at your target RPE and the weight goes up.'}
+        <div className="label mb-1">{timed ? 'Hold for, seconds' : 'Rep range'}</div>
+        <p className="meta mb-3">
+          {timed ? 'The target grows 5 seconds a time.' : weighted ? 'Get the top of the range on every set and the weight goes up.' : 'The target grows a rep at a time.'}
         </p>
         <div className="grid grid-cols-2 gap-2">
           <div className="card py-3">
@@ -148,11 +142,6 @@ function ExerciseForm({ exerciseId, initialName, onSaved }: { exerciseId?: strin
             <Stepper label="To" value={hi} onChange={setHi} min={1} max={timed ? 600 : 50} />
           </div>
         </div>
-      </div>
-
-      <div>
-        <div className="label mb-2">Target RPE</div>
-        <Chips value={targetRpe} options={RPES} onChange={setRpe} format={fmtRpe} />
       </div>
 
       {weighted && (
@@ -171,7 +160,7 @@ function ExerciseForm({ exerciseId, initialName, onSaved }: { exerciseId?: strin
         <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Seat on 4, neutral grip…" className={`${inputCls} h-auto py-3`} />
       </Field>
 
-      <button onClick={save} disabled={!name.trim() || clash} className="btn-primary h-14 w-full text-[16px] disabled:opacity-40">
+      <button onClick={save} disabled={!name.trim() || clash} className="btn-primary w-full disabled:opacity-40">
         {base ? 'Save changes' : 'Add exercise'}
       </button>
     </div>
@@ -183,19 +172,33 @@ export function PickExerciseSheet() {
   const sheet = useUi((s) => s.sheet)
   const close = useUi((s) => s.close)
   const open = sheet?.type === 'pickExercise'
+  const many = open && !!sheet.many
   return (
-    <Sheet open={open} onClose={close} title="Add exercise">
-      {open && <Picker onPick={sheet.onPick} />}
+    <Sheet
+      open={open}
+      onClose={close}
+      title={many ? 'Add exercises' : 'Add exercise'}
+      footer={
+        many ? (
+          <button onClick={close} className="btn-primary w-full">
+            Done
+          </button>
+        ) : undefined
+      }
+    >
+      {open && <Picker onPick={sheet.onPick} many={many} />}
     </Sheet>
   )
 }
 
-function Picker({ onPick }: { onPick: (id: string) => void }) {
+function Picker({ onPick, many }: { onPick: (id: string) => void; many: boolean }) {
   const w = useWorld()
   const close = useUi((s) => s.close)
   const openSheet = useUi((s) => s.open)
   const [q, setQ] = useState('')
   const [muscle, setMuscle] = useState<Muscle | 'all'>('all')
+  // what's gone in while the sheet has been open, so each is ticked and can't go in twice
+  const [added, setAdded] = useState<string[]>([])
   const last = useMemo(() => new Map(w.exercises.map((e) => [e.id, historyFor(e.id, w.workouts)[0]?.date ?? ''])), [w])
   const list = w.exercises
     .filter((e) => (muscle === 'all' || e.muscle === muscle) && e.name.toLowerCase().includes(q.trim().toLowerCase()))
@@ -213,31 +216,33 @@ function Picker({ onPick }: { onPick: (id: string) => void }) {
           </button>
         ))}
       </div>
-      <button
-        onClick={() => openSheet({ type: 'exercise', name: q.trim() || undefined, onSaved: onPick })}
-        className="press mt-3 flex h-12 w-full items-center justify-center gap-2 rounded-card border border-dashed border-line-2 text-[14px] font-semibold text-fg-2"
-      >
+      <button onClick={() => openSheet({ type: 'exercise', name: q.trim() || undefined, onSaved: onPick })} className="chip mt-3 h-11 w-full justify-center">
         <Plus size={16} /> New custom exercise{q.trim() ? `: ${q.trim()}` : ''}
       </button>
       <div className="mt-1">
-        {list.map((e) => (
-          <button
-            key={e.id}
-            onClick={() => {
-              onPick(e.id)
-              close()
-            }}
-            className="press flex w-full items-center gap-3 border-b border-line py-3 text-left"
-          >
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-[15px] font-semibold">{e.name}</span>
-              <span className="block text-[13px] tabular-nums text-fg-3">
-                {MUSCLE_LABEL[e.muscle]} · {EQUIPMENT_LABEL[e.equipment]}
+        {list.map((e) => {
+          const done = added.includes(e.id)
+          return (
+            <button
+              key={e.id}
+              disabled={done}
+              onClick={() => {
+                onPick(e.id)
+                if (many) setAdded((x) => [...x, e.id])
+                else close()
+              }}
+              className="press flex w-full items-center gap-3 border-b border-fg/[0.1] py-3 text-left"
+            >
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[16px] font-semibold">{e.name}</span>
+                <span className="meta block">
+                  {MUSCLE_LABEL[e.muscle]} · {EQUIPMENT_LABEL[e.equipment]}
+                </span>
               </span>
-            </span>
-            <Plus size={18} className="text-fg-3" />
-          </button>
-        ))}
+              {done ? <Tick size={19} className="text-good" /> : <Plus size={18} className="text-fg-3" />}
+            </button>
+          )
+        })}
       </div>
     </div>
   )

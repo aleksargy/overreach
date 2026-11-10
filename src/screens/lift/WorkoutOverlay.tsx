@@ -1,19 +1,19 @@
-import { ArrowDown, ArrowUp, Check, ChevronDown, ChevronUp, Minus, MoreHorizontal, Plus, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, ChevronDown, ChevronUp, Minus, MoreHorizontal, Plus, Trash2 } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router'
 import { Sheet } from '../../components/ui/Sheet'
-import { Bump, NumInput } from '../../components/ui/bits'
+import { NumInput } from '../../components/ui/bits'
+import { Digits, Tick } from '../../components/ui/chalk'
 import { useStore } from '../../data/store'
-import type { Exercise, SetEntry, SetKind, WorkoutExercise } from '../../data/types'
+import type { SetEntry, WorkoutExercise } from '../../data/types'
 import { useUi } from '../../data/ui'
 import { useWorld, type World } from '../../data/world'
 import { clock, dur } from '../../lib/format'
-import { RPE_SCALE, fmtKg, fmtRpe, historyFor, plates, rpeTone, srpeTone, suggest, volume, type Suggestion } from '../../lib/lift'
-import { srpeLoad } from '../../lib/load'
+import { fmtKg, historyFor, loaded, plates, setText, targetFor, targetText } from '../../lib/lift'
 import { uid } from '../../lib/rng'
-import { MUSCLE_LABEL, SuggestionTag, setText, tonnes } from './parts'
+import { MoveNote } from './parts'
 
 function useNow(ms = 1000) {
   const [n, setN] = useState(() => Date.now())
@@ -24,7 +24,8 @@ function useNow(ms = 1000) {
   return n
 }
 
-const blankSet = (kind: SetKind = 'working'): SetEntry => ({ id: uid(), kind, done: false })
+const blankSet = (): SetEntry => ({ id: uid(), kind: 'working', done: false })
+const working = (we: WorkoutExercise) => we.sets.filter((s) => s.kind !== 'warmup')
 
 /** Full-screen logger. Minimise it and it lives on as a bar above the tabs. */
 export function WorkoutOverlay() {
@@ -76,8 +77,8 @@ function Live() {
   const now = useNow()
   if (!active) return null
   const elapsed = (now - Date.parse(active.start)) / 1000
-  const doneSets = active.exercises.reduce((a, we) => a + we.sets.filter((s) => s.done && s.kind !== 'warmup').length, 0)
-  const total = active.exercises.reduce((a, we) => a + we.sets.filter((s) => s.kind !== 'warmup').length, 0)
+  const done = active.exercises.reduce((a, we) => a + working(we).filter((s) => s.done).length, 0)
+  const total = active.exercises.reduce((a, we) => a + working(we).length, 0)
 
   const addExercise = () =>
     open({
@@ -87,40 +88,34 @@ function Live() {
 
   return (
     <div className="flex h-full flex-col">
-      <header className="relative border-b border-line bg-ink-0 pt-[env(safe-area-inset-top,0px)]">
-        <div className="gutter mx-auto flex h-[60px] max-w-app items-center gap-2">
+      <header className="relative bg-ink-0 pt-[env(safe-area-inset-top,0px)]">
+        <div className="gutter mx-auto flex h-[64px] max-w-app items-center gap-2">
           <button aria-label="Minimise workout" onClick={() => setOpen(false)} className="press -ml-2 grid h-10 w-10 place-items-center rounded-full text-fg-2">
-            <ChevronDown size={26} />
+            <ChevronDown size={26} strokeWidth={1.75} />
           </button>
           <div className="min-w-0 flex-1">
-            <div className="truncate text-[17px] font-semibold tracking-[-0.02em] leading-none">{active.name}</div>
-            <div className="mt-1 text-[13px] tabular-nums text-fg-3">
-              <span className="text-fg">{clock(elapsed)}</span> · {doneSets}/{total} sets · {tonnes(volume(active))}
+            <div className="display truncate text-[23px] font-bold leading-none">{active.name}</div>
+            <div className="meta mt-1">
+              {done} of {total} sets
             </div>
           </div>
-          <button onClick={() => setFinishing(true)} className="btn-primary h-10 px-5 text-[14px]">
+          <Digits className="num mr-2 text-[26px] !font-normal text-fg-2">{clock(elapsed)}</Digits>
+          <button onClick={() => setFinishing(true)} className="btn-primary h-10 px-4 text-[17px]">
             Finish
           </button>
         </div>
-        <div className="absolute inset-x-0 bottom-[-1px] h-[2px] bg-ink-3">
-          <div className="h-full rounded-full bg-fg transition-[width] duration-500" style={{ width: `${total ? (doneSets / total) * 100 : 0}%` }} />
+        <div className="h-px bg-fg/[0.13]">
+          <div className="h-full bg-fg transition-[width] duration-500" style={{ width: `${total ? (done / total) * 100 : 0}%` }} />
         </div>
       </header>
 
       <div className="flex-1 overflow-y-auto overscroll-contain">
-        <div className="gutter mx-auto max-w-app pb-44 pt-4">
-          {w.readiness && w.readiness.score < 45 && (
-            <div className="mb-4 rounded-card border border-z1/30 bg-z1/10 px-3.5 py-3 text-[13.5px] leading-snug text-fg-2">
-              Readiness is {w.readiness.score} today. Suggestions repeat last time's loads and stop at RPE 7.
-            </div>
-          )}
-          <div className="flex flex-col gap-3">
-            {active.exercises.map((we, i) => (
-              <ExerciseBlock key={we.id} w={w} we={we} index={i} count={active.exercises.length} />
-            ))}
-          </div>
-          {!active.exercises.length && <p className="py-8 text-center text-fg-3">Empty workout. Add your first exercise.</p>}
-          <button onClick={addExercise} className="btn-ghost mt-4 h-14 w-full text-[15px]">
+        <div className="gutter mx-auto max-w-app pb-44">
+          {active.exercises.map((we, i) => (
+            <ExerciseBlock key={we.id} w={w} we={we} index={i} count={active.exercises.length} />
+          ))}
+          {!active.exercises.length && <p className="meta py-10 text-center">Nothing in it yet. Add your first exercise.</p>}
+          <button onClick={addExercise} className="btn-ghost mt-5 w-full">
             <Plus size={18} /> Add exercise
           </button>
         </div>
@@ -132,28 +127,17 @@ function Live() {
   )
 }
 
-/** The rep (or seconds) target as a number for placeholders. */
-function targetCount(ex: Exercise, s: Suggestion): number | undefined {
-  if (s.tag === 'first') return ex.repRange[1]
-  const n = parseInt(s.reps, 10)
-  return Number.isFinite(n) ? n : undefined
-}
-
-const KIND_ORDER: SetKind[] = ['working', 'warmup', 'drop', 'failure']
-const KIND_STYLE: Record<SetKind, string> = { working: 'text-fg-2', warmup: 'text-z1', drop: 'text-z4', failure: 'text-z5' }
-
 function ExerciseBlock({ w, we, index, count }: { w: World; we: WorkoutExercise; index: number; count: number }) {
   const update = useStore((s) => s.updateActive)
   const startRest = useUi((s) => s.startRest)
   const say = useUi((s) => s.say)
   const ex = w.exerciseById.get(we.exerciseId)
   const history = useMemo(() => (ex ? historyFor(ex.id, w.workouts) : []), [ex, w.workouts])
-  const sug = useMemo(() => (ex ? suggest(ex, history, w.readiness?.score) : null), [ex, history, w.readiness])
-  const [rpeFor, setRpeFor] = useState<string | null>(null)
+  const target = useMemo(() => (ex ? targetFor(ex, history) : null), [ex, history])
   const [menu, setMenu] = useState(false)
-  if (!ex || !sug) return null
+  if (!ex || !target) return null
 
-  const weighted = ex.kind === 'weight' || ex.kind === 'weighted-bodyweight'
+  const weighted = loaded(ex)
   const timed = ex.kind === 'duration'
   const prev = history[0]
   const prevWork = prev?.sets.filter((s) => s.kind !== 'warmup') ?? []
@@ -173,26 +157,28 @@ function ExerciseBlock({ w, we, index, count }: { w: World; we: WorkoutExercise;
 
   let nWork = 0
   let nWarm = 0
+  // the weight you last put in on a working set today: the sets after it follow it, whatever the plan said
+  let typed: number | undefined
   const rows = we.sets.map((s) => {
     const warm = s.kind === 'warmup'
     const k = warm ? nWarm++ : nWork++
     const previous = warm ? prevWarm[k] : prevWork[k]
-    return {
+    const before = timed ? previous?.secs : previous?.reps
+    const row = {
       s,
-      label: warm ? 'W' : s.kind === 'drop' ? 'D' : s.kind === 'failure' ? 'F' : String(k + 1),
+      label: warm ? 'W' : String(k + 1),
       previous,
-      phKg: warm ? previous?.kg : (sug.kg ?? previous?.kg),
-      phCount: warm ? (timed ? previous?.secs : previous?.reps) : (targetCount(ex, sug) ?? (timed ? previous?.secs : previous?.reps)),
+      // what ticking the set writes down if you leave it as it is: the target, or for a warm-up what you did last time
+      phKg: warm ? previous?.kg : (typed ?? target.kg ?? previous?.kg),
+      phCount: warm ? before : target.count,
     }
+    if (!warm && s.kg !== undefined) typed = s.kg
+    return row
   })
 
   const tick = (r: (typeof rows)[number]) => {
     const { s } = r
-    if (s.done) {
-      patchSet(s.id, { done: false })
-      if (rpeFor === s.id) setRpeFor(null)
-      return
-    }
+    if (s.done) return patchSet(s.id, { done: false })
     const p: Partial<SetEntry> = { done: true }
     if (timed) {
       if (s.secs === undefined) p.secs = r.phCount
@@ -200,221 +186,113 @@ function ExerciseBlock({ w, we, index, count }: { w: World; we: WorkoutExercise;
       if (s.reps === undefined) p.reps = r.phCount
       if (weighted && s.kg === undefined && r.phKg !== undefined) p.kg = r.phKg
     }
-    const count = timed ? (p.secs ?? s.secs) : (p.reps ?? s.reps)
-    if (!count) return say(timed ? 'Add the seconds first' : 'Add your reps first')
+    if (!(timed ? (p.secs ?? s.secs) : (p.reps ?? s.reps))) return say(timed ? 'Add the seconds first' : 'Add your reps first')
     if (ex.kind === 'weight' && !(p.kg ?? s.kg)) return say('Add the weight first')
     patchSet(s.id, p)
-    setRpeFor(s.kind === 'warmup' ? null : s.id)
     startRest(s.kind === 'warmup' ? Math.round(ex.restS / 2) : ex.restS, ex.name)
   }
 
-  // the bar for the next set you'll lift, for the plate maths
+  // the bar for the next set you'll lift, for the plates
   const nextUp = rows.find((r) => !r.s.done && r.s.kind !== 'warmup') ?? rows[rows.length - 1]
-  const plateKg = nextUp ? (nextUp.s.kg ?? nextUp.phKg) : undefined
-  const cols = timed || ex.kind === 'bodyweight' ? 'grid-cols-[30px_minmax(0,1fr)_76px_46px_40px]' : 'grid-cols-[30px_minmax(0,1fr)_64px_54px_46px_40px]'
+  const barKg = nextUp ? (nextUp.s.kg ?? nextUp.phKg) : undefined
+  const perSide = ex.equipment === 'barbell' && barKg !== undefined && barKg > 20 ? plates(barKg) : []
+  const cols = weighted ? 'grid-cols-[24px_minmax(0,1fr)_70px_56px_40px]' : 'grid-cols-[24px_minmax(0,1fr)_84px_40px]'
 
   return (
-    <section className="card overflow-hidden">
-      <div className="p-3.5 pb-3">
-        <div className="flex items-start gap-2">
-          <div className="min-w-0 flex-1">
-            <h3 className="text-[18px] font-semibold tracking-[-0.02em] leading-tight">{ex.name}</h3>
-            <div className="mt-1 text-[13px] tabular-nums text-fg-3">
-              {MUSCLE_LABEL[ex.muscle]} · {ex.repRange[0]}–{ex.repRange[1]}
-              {timed ? 's' : ' reps'} · rest {dur(ex.restS).replace('m', ' min')}
-            </div>
+    <section className="border-b border-fg/[0.13] py-6">
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <h3 className="display text-[28px] font-bold leading-none">{ex.name}</h3>
+          <div className="mt-2.5 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <span className="num text-[22px] text-fg-2">{targetText(ex, target)}</span>
+            <MoveNote t={target} />
+            {perSide.length > 0 && <span className="meta">{perSide.map(fmtKg).join(' + ')} a side</span>}
           </div>
-          <button
-            aria-label="Exercise options"
-            onClick={() => setMenu((m) => !m)}
-            className={`press grid h-9 w-9 place-items-center rounded-full ${menu ? 'bg-fg text-ink-0' : 'bg-ink-3 text-fg-2'}`}
-          >
-            <MoreHorizontal size={18} />
-          </button>
         </div>
-        <AnimatePresence initial={false}>
-          {menu && (
-            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-              <div className="mt-3 grid grid-cols-3 gap-2">
-                <button disabled={index === 0} onClick={() => move(-1)} className="chip justify-center disabled:opacity-30">
-                  <ArrowUp size={14} /> Up
-                </button>
-                <button disabled={index === count - 1} onClick={() => move(1)} className="chip justify-center disabled:opacity-30">
-                  <ArrowDown size={14} /> Down
-                </button>
-                <button onClick={remove} className="chip justify-center border-z5/40 text-z5">
-                  <Trash2 size={14} /> Remove
-                </button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-        <div className="mt-3 flex items-start gap-2.5 rounded-[8px] bg-ink-2 px-3 py-2.5">
-          <SuggestionTag s={sug} timed={timed} />
-          <p className="text-[13px] leading-snug text-fg-2">{sug.text}</p>
-        </div>
+        <button
+          aria-label="Exercise options"
+          onClick={() => setMenu((m) => !m)}
+          className={`press grid h-9 w-9 place-items-center rounded-full ${menu ? 'bg-fg text-ink-0' : 'text-fg-3'}`}
+        >
+          <MoreHorizontal size={18} />
+        </button>
       </div>
+      <AnimatePresence initial={false}>
+        {menu && (
+          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              <button disabled={index === 0} onClick={() => move(-1)} className="chip h-9 justify-center disabled:opacity-30">
+                <ArrowUp size={14} /> Up
+              </button>
+              <button disabled={index === count - 1} onClick={() => move(1)} className="chip h-9 justify-center disabled:opacity-30">
+                <ArrowDown size={14} /> Down
+              </button>
+              <button onClick={remove} className="chip h-9 justify-center text-bad">
+                <Trash2 size={14} /> Remove
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      <div className={`grid ${cols} items-center gap-1.5 px-3 pb-1.5 text-[11px] tabular-nums text-fg-4`}>
-        <span className="text-center">Set</span>
+      <div className={`mt-5 grid ${cols} items-center gap-2 pb-1 text-[12px] font-medium text-fg-4`}>
+        <span>Set</span>
         <span>Last time</span>
-        {weighted && <span className="text-center">{ex.kind === 'weighted-bodyweight' ? '+kg' : 'kg'}</span>}
+        {weighted && <span className="text-center">{ex.kind === 'weighted-bodyweight' ? '+ kg' : 'kg'}</span>}
         <span className="text-center">{timed ? 'secs' : 'reps'}</span>
-        <span className="text-center">RPE</span>
         <span />
       </div>
 
       {rows.map((r) => (
-        <div key={r.s.id}>
-          <div className={`grid ${cols} items-center gap-1.5 px-3 py-1 transition-colors ${r.s.done ? 'bg-z2/[0.07]' : ''}`}>
-            <button
-              aria-label="Change set type"
-              onClick={() => patchSet(r.s.id, { kind: KIND_ORDER[(KIND_ORDER.indexOf(r.s.kind) + 1) % KIND_ORDER.length] })}
-              className={`press h-9 rounded-[7px] text-[15px] font-semibold tracking-[-0.02em] ${KIND_STYLE[r.s.kind]}`}
-            >
-              {r.label}
-            </button>
-            <span className="min-w-0 text-[13px] tabular-nums leading-tight text-fg-3">
-              {r.previous ? (
-                <>
-                  <span className="block truncate">{setText(ex, r.previous).replace(' × ', '×').replace(' reps', '')}</span>
-                  {r.previous.rpe && <span className="block text-[10px] text-fg-4">@{fmtRpe(r.previous.rpe)}</span>}
-                </>
-              ) : (
-                '–'
-              )}
-            </span>
-            {weighted && (
-              <NumInput
-                label="Weight in kg"
-                decimal
-                value={r.s.kg}
-                placeholder={r.phKg !== undefined ? fmtKg(r.phKg) : ex.kind === 'weighted-bodyweight' ? '0' : ''}
-                onChange={(v) => patchSet(r.s.id, { kg: v })}
-              />
-            )}
+        <div key={r.s.id} className={`grid ${cols} items-center gap-2 py-[5px]`}>
+          <button
+            aria-label={r.s.kind === 'warmup' ? 'Warm-up set. Tap to count it' : 'Tap to make it a warm-up'}
+            onClick={() => patchSet(r.s.id, { kind: r.s.kind === 'warmup' ? 'working' : 'warmup' })}
+            className={`num h-10 text-left text-[21px] ${r.s.kind === 'warmup' ? 'text-z1' : r.s.done ? 'text-fg' : 'text-fg-3'}`}
+          >
+            {r.label}
+          </button>
+          <span className="meta min-w-0 truncate">{r.previous ? setText(ex, r.previous).replace(' reps', '') : ''}</span>
+          {weighted && (
             <NumInput
-              label={timed ? 'Seconds' : 'Reps'}
-              value={timed ? r.s.secs : r.s.reps}
-              placeholder={r.phCount !== undefined ? String(r.phCount) : ''}
-              onChange={(v) => patchSet(r.s.id, timed ? { secs: v } : { reps: v })}
+              label="Weight in kg"
+              decimal
+              value={r.s.kg}
+              placeholder={r.phKg !== undefined ? fmtKg(r.phKg) : ex.kind === 'weighted-bodyweight' ? '0' : ''}
+              onChange={(v) => patchSet(r.s.id, { kg: v })}
             />
-            <button
-              aria-label="Set RPE"
-              onClick={() => setRpeFor(rpeFor === r.s.id ? null : r.s.id)}
-              className={`press h-9 rounded-[7px] text-[14px] tabular-nums font-semibold ${r.s.rpe ? rpeTone(r.s.rpe) : rpeFor === r.s.id ? 'bg-fg text-ink-0' : 'bg-ink-2 text-fg-4'}`}
-            >
-              {r.s.rpe ? fmtRpe(r.s.rpe) : '–'}
-            </button>
-            <button
-              aria-label={r.s.done ? 'Mark set not done' : 'Mark set done'}
-              onClick={() => tick(r)}
-              className={`press grid h-9 place-items-center rounded-[7px] ${r.s.done ? 'bg-z2 text-ink-0' : 'bg-ink-3 text-fg-3'}`}
-            >
-              <Check size={18} strokeWidth={3} />
-            </button>
-          </div>
-          <AnimatePresence initial={false}>
-            {rpeFor === r.s.id && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.18 }}
-                className="overflow-hidden"
-              >
-                <RpePicker
-                  value={r.s.rpe}
-                  onPick={(v) => {
-                    patchSet(r.s.id, { rpe: v })
-                    setRpeFor(null)
-                  }}
-                />
-              </motion.div>
-            )}
-          </AnimatePresence>
+          )}
+          <NumInput
+            label={timed ? 'Seconds' : 'Reps'}
+            value={timed ? r.s.secs : r.s.reps}
+            placeholder={r.phCount !== undefined ? String(r.phCount) : ''}
+            onChange={(v) => patchSet(r.s.id, timed ? { secs: v } : { reps: v })}
+          />
+          <button
+            aria-label={r.s.done ? 'Mark set not done' : 'Mark set done'}
+            aria-pressed={r.s.done}
+            onClick={() => tick(r)}
+            className={`press ml-auto grid h-9 w-9 place-items-center rounded-full ${r.s.done ? 'bg-fg text-ink-0' : 'text-fg-4 ring-1 ring-inset ring-fg/30'}`}
+          >
+            <Tick size={18} strokeWidth={2.25} />
+          </button>
         </div>
       ))}
 
-      <div className="flex items-center gap-2 px-3 pb-3 pt-2">
-        <button onClick={() => patchEx((e) => ({ ...e, sets: [...e.sets, blankSet()] }))} className="chip h-9 flex-1 justify-center">
-          <Plus size={14} /> Add set
+      <div className="mt-2 flex items-center gap-2">
+        <button onClick={() => patchEx((e) => ({ ...e, sets: [...e.sets, blankSet()] }))} className="chip h-9">
+          <Plus size={14} /> Set
         </button>
         <button
           onClick={() => patchEx((e) => ({ ...e, sets: e.sets.slice(0, -1) }))}
           disabled={!we.sets.length}
           aria-label="Remove last set"
-          className="chip h-9 justify-center px-3.5 disabled:opacity-30"
+          className="chip h-9 px-3 disabled:opacity-30"
         >
           <Minus size={14} />
         </button>
       </div>
-      {ex.equipment === 'barbell' && plateKg !== undefined && plateKg > 20 && <Plates kg={plateKg} />}
     </section>
-  )
-}
-
-const PICKS = [6, 7, 7.5, 8, 8.5, 9, 9.5, 10]
-
-function RpePicker({ value, onPick }: { value?: number; onPick: (v: number | undefined) => void }) {
-  const [hover, setHover] = useState<number | undefined>(value)
-  const label = RPE_SCALE.find((x) => x.rpe === (hover ?? value))?.label
-  return (
-    <div className="mx-3 mb-2 mt-1 rounded-[10px] border border-line-2 bg-ink-2 p-2.5">
-      <div className="mb-2 flex items-baseline justify-between px-0.5">
-        <span className="label">How hard was that?</span>
-        <span className="text-[13px] tabular-nums text-fg-2">{label ?? 'Reps in reserve'}</span>
-      </div>
-      <div className="grid grid-cols-8 gap-1">
-        {PICKS.map((v) => (
-          <button
-            key={v}
-            onPointerEnter={() => setHover(v)}
-            onFocus={() => setHover(v)}
-            onClick={() => onPick(v)}
-            className={`press h-10 rounded-[7px] text-[15px] font-semibold tracking-[-0.02em] ${value === v ? rpeTone(v) : 'bg-ink-3 text-fg-2'}`}
-          >
-            {fmtRpe(v)}
-          </button>
-        ))}
-      </div>
-      {value !== undefined && (
-        <button onClick={() => onPick(undefined)} className="mt-2 w-full text-center text-[13px] tabular-nums text-fg-3">
-          Clear
-        </button>
-      )}
-    </div>
-  )
-}
-
-const PLATE: Record<number, { h: number; color: string }> = {
-  25: { h: 40, color: 'rgb(var(--z5))' },
-  20: { h: 40, color: 'rgb(var(--z1))' },
-  15: { h: 34, color: 'rgb(var(--z3))' },
-  10: { h: 28, color: 'rgb(var(--z2))' },
-  5: { h: 22, color: 'rgb(var(--fg))' },
-  2.5: { h: 17, color: 'rgb(var(--fg-3))' },
-  1.25: { h: 14, color: 'rgb(var(--fg-4))' },
-}
-
-/** What goes on each side of a 20 kg bar, drawn like the real plates. */
-function Plates({ kg }: { kg: number }) {
-  const ps = plates(kg)
-  if (!ps.length) return null
-  return (
-    <div className="flex items-center gap-3 border-t border-line px-3.5 py-2.5">
-      <span className="label shrink-0">Per side</span>
-      <span className="flex h-10 items-center">
-        <span className="h-[5px] w-3 rounded-l-sm bg-fg-4" />
-        {ps.map((p, i) => (
-          <span key={i} className="mx-[1px] w-[7px] rounded-[2px]" style={{ height: PLATE[p].h, background: PLATE[p].color }} />
-        ))}
-        <span className="h-[5px] w-4 rounded-r-sm bg-fg-4" />
-      </span>
-      <span className="ml-auto truncate text-[13px] tabular-nums text-fg-2">
-        {ps.map(fmtKg).join(' + ')} <span className="text-fg-4">for {fmtKg(kg)}</span>
-      </span>
-    </div>
   )
 }
 
@@ -445,26 +323,27 @@ function RestBar() {
           transition={{ type: 'spring', stiffness: 420, damping: 38 }}
         >
           <div className="gutter pointer-events-auto mx-auto max-w-app">
-            <div
-              className={`relative overflow-hidden rounded-[14px] border shadow-[0_-10px_40px_rgba(0,0,0,0.55)] backdrop-blur-xl ${over ? 'border-z2/60 bg-z2/15' : 'border-line-2 bg-ink-2/95'}`}
-            >
-              <div className="absolute inset-x-0 top-0 h-[3px] bg-ink-3">
-                <div className="h-full rounded-full bg-fg transition-[width] duration-300 ease-linear" style={{ width: `${Math.min(1, 1 - left / rest.total) * 100}%` }} />
+            <div className="relative overflow-hidden rounded-card bg-ink-1 shadow-[0_-10px_40px_rgba(0,0,0,0.55),inset_0_0_0_1px_rgb(var(--fg)/0.2)]">
+              <div className="absolute inset-x-0 top-0 h-[2px]">
+                <div
+                  className={`h-full transition-[width] duration-300 ease-linear ${over ? 'bg-good' : 'bg-fg'}`}
+                  style={{ width: `${Math.min(1, 1 - left / rest.total) * 100}%` }}
+                />
               </div>
-              <div className="flex items-center gap-3 px-3.5 pb-3 pt-3.5">
-                <div className="min-w-0">
-                  <div className={`label ${over ? 'text-z2' : ''}`}>{over ? 'Go' : 'Rest'}</div>
-                  <div className="truncate text-[12px] text-fg-3">{over ? 'Next set' : rest.label}</div>
+              <div className="flex items-center gap-3 px-4 pb-3 pt-3.5">
+                <div className="min-w-0 flex-1">
+                  <div className={`label ${over ? 'text-good' : ''}`}>{over ? 'Go' : 'Rest'}</div>
+                  <div className="meta truncate">{over ? 'Next set' : rest.label}</div>
                 </div>
-                <span className={`num ml-auto text-[40px] leading-none ${over ? 'text-z2' : ''}`}>{clock(left)}</span>
+                <Digits className={`num text-[46px] !font-light ${over ? 'text-good' : ''}`}>{clock(left)}</Digits>
                 <div className="flex gap-1.5">
-                  <button onClick={() => nudge(-15)} className="press h-10 rounded-[8px] bg-ink-3 px-2.5 text-[13px] tabular-nums font-semibold text-fg-2">
+                  <button onClick={() => nudge(-15)} className="chip h-10 px-2.5">
                     −15
                   </button>
-                  <button onClick={() => nudge(15)} className="press h-10 rounded-[8px] bg-ink-3 px-2.5 text-[13px] tabular-nums font-semibold text-fg-2">
+                  <button onClick={() => nudge(15)} className="chip h-10 px-2.5">
                     +15
                   </button>
-                  <button onClick={stop} className="press h-10 rounded-[8px] bg-fg px-3 text-[13px] font-semibold text-ink-0">
+                  <button onClick={stop} className="chip chip-on h-10 px-3 font-semibold">
                     {over ? 'OK' : 'Skip'}
                   </button>
                 </div>
@@ -477,7 +356,13 @@ function RestBar() {
   )
 }
 
-const SRPE_WORD = ['', 'Very easy', 'Easy', 'Moderate', 'Somewhat hard', 'Hard', 'Hard', 'Very hard', 'Very hard', 'Near max', 'Max']
+/** How the session felt, in four words. It's stored on the 1–10 scale training load is worked out from. */
+const EFFORT = [
+  { srpe: 4, label: 'Easy' },
+  { srpe: 6, label: 'Solid' },
+  { srpe: 8, label: 'Hard' },
+  { srpe: 10, label: 'All out' },
+]
 
 function FinishSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const active = useStore((s) => s.active)
@@ -487,11 +372,11 @@ function FinishSheet({ open, onClose }: { open: boolean; onClose: () => void }) 
   const stopRest = useUi((s) => s.stopRest)
   const say = useUi((s) => s.say)
   const nav = useNavigate()
-  const [srpe, setSrpe] = useState(7)
+  const [srpe, setSrpe] = useState(6)
   const [sure, setSure] = useState(false)
   if (!active) return null
   const mins = Math.max(1, (Date.now() - Date.parse(active.start)) / 60000)
-  const done = active.exercises.reduce((a, we) => a + we.sets.filter((s) => s.done && s.kind !== 'warmup').length, 0)
+  const done = active.exercises.reduce((a, we) => a + working(we).filter((s) => s.done).length, 0)
   const left = active.exercises.reduce((a, we) => a + we.sets.filter((s) => !s.done).length, 0)
 
   const save = () => {
@@ -512,44 +397,41 @@ function FinishSheet({ open, onClose }: { open: boolean; onClose: () => void }) 
 
   return (
     <Sheet open={open} onClose={onClose} title="Finish" kicker={active.name}>
-      <div className="grid grid-cols-3 divide-x divide-line card">
-        {[
-          { label: 'Time', value: dur(mins * 60) },
-          { label: 'Sets', value: String(done) },
-          { label: 'Volume', value: tonnes(volume(active)) },
-        ].map((s) => (
-          <div key={s.label} className="px-3 py-3">
-            <div className="label mb-1.5">{s.label}</div>
-            <div className="num text-[26px]">{s.value}</div>
-          </div>
-        ))}
+      <div className="flex items-baseline gap-8">
+        <div>
+          <div className="label mb-2">Time</div>
+          <div className="num text-[34px]">{dur(mins * 60)}</div>
+        </div>
+        <div>
+          <div className="label mb-2">Sets</div>
+          <div className="num text-[34px]">{done}</div>
+        </div>
       </div>
-      {left > 0 && done > 0 && <p className="mt-2 text-[12.5px] text-fg-3">{left} unticked sets will be dropped.</p>}
+      {left > 0 && done > 0 && (
+        <p className="meta mt-3">
+          {left} unticked {left === 1 ? 'set' : 'sets'} will be dropped.
+        </p>
+      )}
 
-      <div className="mt-6 flex items-end justify-between">
-        <span className="label">How hard was the whole session?</span>
-        <span className="text-[13px] tabular-nums text-fg-3">load +{srpeLoad(mins, srpe)}</span>
-      </div>
-      <div className="mt-2.5 grid grid-cols-5 gap-1.5">
-        {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+      <div className="label mb-2.5 mt-7">How was it?</div>
+      <div className="grid grid-cols-4 gap-2">
+        {EFFORT.map((e) => (
           <button
-            key={n}
-            onClick={() => setSrpe(n)}
-            className={`press h-12 rounded-[8px] text-[17px] font-semibold tracking-[-0.02em] ${srpe === n ? srpeTone(n) : 'border border-line bg-ink-1 text-fg-2'}`}
+            key={e.srpe}
+            onClick={() => setSrpe(e.srpe)}
+            aria-pressed={srpe === e.srpe}
+            className={`chip h-12 justify-center px-1 text-[15px] ${srpe === e.srpe ? 'chip-on font-semibold' : ''}`}
           >
-            {n}
+            {e.label}
           </button>
         ))}
       </div>
-      <div className="mt-3 text-[20px] font-semibold tracking-[-0.02em] leading-none">
-        <Bump value={SRPE_WORD[srpe]} />
-      </div>
 
-      <button onClick={save} disabled={!done} className="btn-primary mt-6 h-14 w-full text-[16px] disabled:opacity-40">
+      <button onClick={save} disabled={!done} className="btn-primary mt-7 w-full disabled:opacity-40">
         Save workout
       </button>
-      {!done && <p className="mt-2 text-center text-[12.5px] text-fg-3">Tick off at least one set to save.</p>}
-      <button onClick={bin} className={`mt-3 h-11 w-full rounded-[10px] text-[14px] font-semibold ${sure ? 'bg-z5 text-ink-0' : 'text-fg-3'}`}>
+      {!done && <p className="meta mt-2 text-center">Tick off at least one set to save.</p>}
+      <button onClick={bin} className={`mt-3 h-11 w-full rounded-[5px] text-[14.5px] font-semibold ${sure ? 'bg-bad text-ink-0' : 'text-fg-3'}`}>
         {sure ? 'Tap again to discard' : 'Discard workout'}
       </button>
     </Sheet>
@@ -564,30 +446,27 @@ export function MiniWorkoutBar() {
   const rest = useUi((s) => s.rest)
   const now = useNow()
   if (!active || open) return null
-  const done = active.exercises.reduce((a, we) => a + we.sets.filter((s) => s.done && s.kind !== 'warmup').length, 0)
-  const total = active.exercises.reduce((a, we) => a + we.sets.filter((s) => s.kind !== 'warmup').length, 0)
+  const done = active.exercises.reduce((a, we) => a + working(we).filter((s) => s.done).length, 0)
+  const total = active.exercises.reduce((a, we) => a + working(we).length, 0)
   const left = rest ? Math.max(0, Math.ceil((rest.until - now) / 1000)) : 0
   return (
     <div className="fixed inset-x-0 bottom-[calc(var(--tabbar-h)+env(safe-area-inset-bottom,0px))] z-40">
       <div className="gutter mx-auto max-w-app pb-2">
         <button
           onClick={() => setOpen(true)}
-          className="press relative flex h-[52px] w-full items-center gap-3 overflow-hidden rounded-[12px] border border-line-2 bg-ink-2/95 px-3.5 text-left shadow-[0_10px_30px_rgba(0,0,0,0.5)] backdrop-blur-xl"
+          className="press relative flex h-[52px] w-full items-center gap-3 overflow-hidden rounded-card bg-ink-1 px-3.5 text-left shadow-[0_10px_30px_rgba(0,0,0,0.5),inset_0_0_0_1px_rgb(var(--fg)/0.2)]"
         >
-          <span className="absolute inset-x-0 top-0 h-[2px] bg-ink-3">
-            <span className="block h-full rounded-full bg-fg" style={{ width: `${total ? (done / total) * 100 : 0}%` }} />
+          <span className="absolute inset-x-0 top-0 h-[2px]">
+            <span className="block h-full bg-fg" style={{ width: `${total ? (done / total) * 100 : 0}%` }} />
           </span>
-          <span className="relative flex h-2 w-2 shrink-0">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-z5 opacity-60" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-z5" />
-          </span>
+          <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-bad" />
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-[15px] font-semibold tracking-[-0.02em] leading-none">{active.name}</span>
-            <span className="mt-0.5 block text-[13px] tabular-nums text-fg-3">
-              {done}/{total} sets{rest ? (left ? ` · rest ${clock(left)}` : ' · go') : ''}
+            <span className="display block truncate text-[19px] font-bold leading-none">{active.name}</span>
+            <span className="meta mt-0.5 block">
+              {done} of {total} sets{rest ? (left ? ` · rest ${clock(left)}` : ' · go') : ''}
             </span>
           </span>
-          <span className="num text-[22px]">{clock((now - Date.parse(active.start)) / 1000)}</span>
+          <Digits className="num text-[24px] !font-normal">{clock((now - Date.parse(active.start)) / 1000)}</Digits>
           <ChevronUp size={18} className="text-fg-3" />
         </button>
       </div>

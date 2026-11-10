@@ -6,7 +6,8 @@ export type SheetState =
   | { type: 'logMatch'; activityId?: string; matchId?: string }
   | { type: 'logBody' }
   | { type: 'exercise'; exerciseId?: string; name?: string; onSaved?: (id: string) => void }
-  | { type: 'pickExercise'; onPick: (id: string) => void }
+  // `many` keeps the sheet open while you build a workout, so several can go in at one sitting
+  | { type: 'pickExercise'; onPick: (id: string) => void; many?: boolean }
   | { type: 'finishWorkout' }
 
 export interface Rest {

@@ -29,26 +29,26 @@ export function Screen({ title, kicker, actions, back, bare, hero, children, bot
     <div className={bottomPad ? 'pb-[calc(var(--tabbar-h)+var(--mini-h)+40px)]' : 'pb-10'}>
       <div
         className={`sticky top-[env(safe-area-inset-top,0px)] z-30 transition-colors duration-200 ${
-          scrolled ? 'bg-ink-0/95 shadow-[0_1px_0_rgb(var(--line))] backdrop-blur-xl' : 'bg-ink-0/0'
+          scrolled ? 'bg-ink-0/95 shadow-[0_1px_0_rgb(var(--fg)/0.13)] backdrop-blur-xl' : 'bg-ink-0/0'
         }`}
       >
         <div className="gutter mx-auto grid h-12 max-w-app grid-cols-[1fr_auto_1fr] items-center">
           <div className="flex">
             {back && (
               <button onClick={() => (window.history.length > 1 ? nav(-1) : nav('/'))} className="press -ml-2 flex h-10 items-center pr-3 text-fg-2" aria-label="Back">
-                <ChevronLeft size={24} strokeWidth={1.75} />
+                <ChevronLeft size={22} strokeWidth={1.75} />
                 <span className="text-[15px] font-medium">Back</span>
               </button>
             )}
           </div>
-          <span className={`truncate text-[15px] font-semibold tracking-[-0.01em] transition-opacity duration-200 ${scrolled ? 'opacity-100' : 'opacity-0'}`}>{title}</span>
+          <span className={`display truncate text-[19px] font-bold transition-opacity duration-200 ${scrolled ? 'opacity-100' : 'opacity-0'}`}>{title}</span>
           <div className="flex justify-end gap-2">{actions}</div>
         </div>
       </div>
       {!bare && (
-        <header className="gutter mx-auto max-w-app pb-7 pt-1">
-          {kicker && <div className="mb-1.5 text-[13px] font-medium text-fg-3">{kicker}</div>}
-          <h1 className="text-[30px] font-semibold leading-[1.1] tracking-[-0.03em]">{title}</h1>
+        <header className="gutter mx-auto max-w-app pb-6 pt-1">
+          {kicker && <div className="mb-2 text-[13.5px] font-medium text-fg-3">{kicker}</div>}
+          <h1 className="t-page">{title}</h1>
         </header>
       )}
       {hero}
@@ -63,7 +63,7 @@ export function IconButton({ label, onClick, children, active }: { label: string
       aria-label={label}
       title={label}
       onClick={onClick}
-      className={`press grid h-9 w-9 place-items-center rounded-full ${active ? 'bg-fg text-ink-0' : 'bg-ink-2 text-fg-2'}`}
+      className={`press grid h-9 w-9 place-items-center rounded-full ${active ? 'bg-fg text-ink-0' : 'text-fg-2 ring-1 ring-inset ring-fg/25'}`}
     >
       {children}
     </button>

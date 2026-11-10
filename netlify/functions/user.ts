@@ -1,6 +1,7 @@
 // GET /api/user: the copy of what you've typed into the app (matches, workouts,
 // weigh-ins, routines, settings), kept here so a lost phone doesn't lose it.
 // PUT /api/user: replace it. An empty copy never replaces one with something in it.
+import { hasContent, type Backup } from '../../src/lib/backup'
 import { json, refuse } from '../lib/http'
 import { blobs } from '../lib/kv'
 
@@ -17,7 +18,8 @@ const isCopy = (x: unknown): x is Copy => {
   return !!c && c.v === 1 && typeof c.savedAt === 'string' && !!c.data && typeof c.data === 'object' && LISTS.every((k) => c.data[k] === undefined || Array.isArray(c.data[k]))
 }
 
-const hasContent = (c: Copy) => ['matches', 'workouts', 'body', 'customExercises'].some((k) => (c.data[k] as unknown[] | undefined)?.length)
+/** anything you'd miss; the workouts every phone starts with don't count */
+const full = (c: Copy) => hasContent(c.data as Partial<Backup>)
 
 export default async (req: Request) => {
   const no = refuse(req)
@@ -28,7 +30,7 @@ export default async (req: Request) => {
   const copy: unknown = await req.json().catch(() => null)
   if (!isCopy(copy)) return json({ error: 'That isn’t a copy of your data.' }, 400)
   const saved = await kv.get<Copy>('user')
-  if (saved && hasContent(saved) && !hasContent(copy)) return json({ error: 'The server’s copy has your data in it and this one is empty, so it was kept.' }, 409)
+  if (saved && full(saved) && !full(copy)) return json({ error: 'The server’s copy has your data in it and this one is empty, so it was kept.' }, 409)
   await kv.set('user', copy)
   return json({ savedAt: copy.savedAt })
 }
