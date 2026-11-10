@@ -65,7 +65,7 @@ export function LiftScreen() {
       ) : (
         <section>
           <div className="label">Start here</div>
-          <h2 className="display mt-3 text-balance text-[62px] font-extrabold leading-[0.9]">Make your first workout</h2>
+          <h2 className="display mt-3 text-balance text-[48px] font-extrabold leading-[0.9]">Make your first workout</h2>
           <p className="mt-5 text-[17px] leading-snug text-fg-2">Your exercises, in the order you do them. From the second session it tells you what to lift.</p>
           <button onClick={create} className="btn-primary mt-6 w-full">
             New workout
@@ -103,7 +103,7 @@ function NextUp({ w, routine }: { w: World; routine: Routine }) {
     <section>
       <div className="label">Next up</div>
       <Link to={`/lift/workout/${routine.id}`} className="press mt-3 block">
-        <h2 className="display text-balance text-[62px] font-extrabold leading-[0.9]">{routine.name}</h2>
+        <h2 className="display text-balance text-[48px] font-extrabold leading-[0.9]">{routine.name}</h2>
       </Link>
       <div className="meta mt-3">{[focusOf(routine, w.exerciseById), daysAgo(since)].filter(Boolean).join(' · ')}</div>
       <Targets w={w} routine={routine} className="mt-5" />
@@ -130,7 +130,7 @@ export function Targets({ w, routine, className = '' }: { w: World; routine: Rou
                 {it.sets} {it.sets === 1 ? 'set' : 'sets'} · <MoveNote t={t} />
               </span>
             </span>
-            <span className="num shrink-0 text-right text-[27px]">{targetText(ex, t)}</span>
+            <span className="num shrink-0 text-right text-[21px]">{targetText(ex, t)}</span>
           </Link>
         )
       })}
@@ -148,7 +148,7 @@ function InProgress() {
       <div className="label flex items-center gap-2">
         <span className="h-2 w-2 animate-pulse rounded-full bg-bad" /> In progress
       </div>
-      <h2 className="display mt-3 text-balance text-[62px] font-extrabold leading-[0.9]">{active.name}</h2>
+      <h2 className="display mt-3 text-balance text-[48px] font-extrabold leading-[0.9]">{active.name}</h2>
       <div className="meta mt-3">
         {done} of {total} sets · started {format(parseISO(active.start), 'HH:mm')}
       </div>
@@ -216,7 +216,7 @@ function ProgressList({ w }: { w: World }) {
               </span>
             </span>
             <Sparkline values={p.points.map((x) => x.v)} height={30} color="rgb(var(--fg-2))" />
-            <span className="num min-w-[84px] text-right text-[24px]">{amount(p.ex, p.now)}</span>
+            <span className="num min-w-[84px] text-right text-[19px]">{amount(p.ex, p.now)}</span>
           </Link>
         ))}
       </div>
@@ -302,7 +302,7 @@ export function ExercisesScreen() {
                   {st ? ` · ${format(parseISO(st.last), 'd MMM')}` : ''}
                 </span>
               </span>
-              {st && st.top > 0 && <span className="num text-[22px]">{amount(e, st.top)}</span>}
+              {st && st.top > 0 && <span className="num text-[17px]">{amount(e, st.top)}</span>}
               <ChevronRight size={16} strokeWidth={2} className="shrink-0 text-fg-4" />
             </Link>
           )

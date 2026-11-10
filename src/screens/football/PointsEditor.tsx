@@ -55,7 +55,7 @@ function Column({ good, points, onChange, add }: { good: boolean; points: MatchP
     <div>
       <div className="flex items-baseline justify-between gap-2 border-b border-fg/[0.16] pb-2">
         <span className={`text-[13.5px] font-semibold ${good ? 'text-z2' : 'text-z5'}`}>{good ? 'Went well' : 'Went badly'}</span>
-        {mine.length > 0 && <span className="num text-[17px] text-fg-3">{signed(total, 2)}</span>}
+        {mine.length > 0 && <span className="num text-[13.5px] text-fg-3">{signed(total, 2)}</span>}
       </div>
       <div>
         {mine.map(({ p, i }) => (

@@ -247,7 +247,7 @@ function Splits({ a }: { a: Activity }) {
               <span className="h-[9px]">
                 <span className={`block h-full ${best ? 'solid' : 'hatch'}`} style={{ width: `${30 + t * 70}%` }} />
               </span>
-              <span className={`num text-right text-[21px] ${best ? '' : 'text-fg-2'}`}>{l.distanceM < 950 ? pace(l.avgSpeed) + '*' : pace(l.avgSpeed)}</span>
+              <span className={`num text-right text-[16.5px] ${best ? '' : 'text-fg-2'}`}>{l.distanceM < 950 ? pace(l.avgSpeed) + '*' : pace(l.avgSpeed)}</span>
               <span className="text-right text-[14px] tabular-nums text-fg-3">{l.avgHr}</span>
             </div>
           )

@@ -1,4 +1,4 @@
-@import '@fontsource-variable/big-shoulders/standard.css';
+@import '@fontsource-variable/libre-franklin/wght.css';
 @import '@fontsource-variable/sofia-sans-semi-condensed/wght.css';
 
 @tailwind base;
@@ -133,26 +133,26 @@
     padding-right: max(16px, env(safe-area-inset-right, 0px));
   }
 
-  /* ---- type: Big Shoulders for anything chalked up big, Sofia Sans for reading ---- */
+  /* ---- type: Libre Franklin for anything chalked up big, Sofia Sans for reading ---- */
   .display {
     font-family: theme('fontFamily.display');
     letter-spacing: 0.01em;
   }
   /* a screen's title */
   .t-page {
-    @apply display text-[40px] font-bold leading-[0.98];
+    @apply display text-[31px] font-bold leading-[1.05];
   }
   /* a section's title, sat on its rule */
   .t-section {
-    @apply display text-[22px] font-bold leading-[1.05];
+    @apply display text-[18px] font-bold leading-[1.1];
   }
   /* a back-page headline */
   .t-story {
-    @apply display text-balance text-[38px] font-extrabold leading-[0.98];
+    @apply display text-balance text-[30px] font-extrabold leading-[1.05];
   }
   /* names in rows and blocks */
   .t-name {
-    @apply display text-[21px] font-bold leading-[1.05];
+    @apply display text-[17px] font-bold leading-[1.15];
   }
   /* small sentence-case caption above a value */
   .label {
@@ -218,8 +218,7 @@
     @apply transition duration-150 ease-snap active:scale-[0.98] active:opacity-80;
   }
   .btn {
-    @apply press display inline-flex h-[52px] items-center justify-center gap-2 rounded-[5px] px-5 text-[20px] font-bold;
-    letter-spacing: 0.035em;
+    @apply press display inline-flex h-[52px] items-center justify-center gap-2 rounded-[5px] px-5 text-[16px] font-bold;
   }
   .btn-primary {
     @apply btn bg-fg text-ink-0;
@@ -239,10 +238,10 @@
   .link {
     @apply press inline-flex items-center gap-0.5 text-[14px] font-medium text-fg-3;
   }
-  /* figures that tick over: every digit the same width, since the display face has no tabular set */
+  /* figures that tick over: every digit the width of the widest (0), since the display face has no tabular set */
   .digit {
     display: inline-block;
-    width: 0.43em;
+    width: 0.7em;
     text-align: center;
   }
   .no-scrollbar::-webkit-scrollbar {

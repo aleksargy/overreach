@@ -87,7 +87,7 @@ function Week({ runs, lead }: { runs: Activity[]; lead: boolean }) {
     <>
       <div className="flex items-end justify-between gap-4">
         <div className="flex items-baseline">
-          <span className={`num-hero ${lead ? '-ml-0.5 text-[104px]' : 'text-[64px]'}`}>{now.km ? now.km.toFixed(1) : '0'}</span>
+          <span className={`num-hero ${lead ? '-ml-0.5 text-[81px]' : 'text-[50px]'}`}>{now.km ? now.km.toFixed(1) : '0'}</span>
           <span className="unit ml-2 text-[16px]">km</span>
         </div>
         <div className="meta pb-1 text-right">
@@ -127,7 +127,7 @@ function Fitness({ m }: { m: RunModel }) {
     <Section title="Fitness" action={<span className="meta">Pace at an easy {m.refHr} bpm</span>}>
       <div className="flex items-baseline justify-between gap-4">
         <div className="flex items-baseline">
-          <span className="num-hero text-[64px]">{pace(now.v)}</span>
+          <span className="num-hero text-[50px]">{pace(now.v)}</span>
           <span className="unit ml-2 text-[16px]">/km</span>
         </div>
         {change !== undefined && now.since && (
@@ -159,7 +159,7 @@ function Bests({ runs }: { runs: Activity[] }) {
             <span className="t-name min-w-0 flex-1 truncate">{BEST_NAME[b.k]}</span>
             {fresh(b.date) && <span className="text-[12.5px] font-semibold text-mark">New</span>}
             <span className="meta">{fmt(b.date, 'd MMM')}</span>
-            <span className="num w-[92px] text-right text-[27px]">{clock(b.s)}</span>
+            <span className="num w-[92px] text-right text-[21px]">{clock(b.s)}</span>
           </Link>
         ))}
       </div>
@@ -176,7 +176,7 @@ function RaceAhead({ race, days }: { race: Race; days: number }) {
         {raceName(race.distanceM)} · {fmt(race.date, 'EEE d MMM')}
       </div>
       <div className="flex items-baseline">
-        <span className="num-hero -ml-0.5 text-[104px]">{days}</span>
+        <span className="num-hero -ml-0.5 text-[81px]">{days}</span>
         <span className="unit ml-3 text-[16px]">{days === 0 ? 'race day' : days === 1 ? 'day to go' : 'days to go'}</span>
       </div>
       {race.goalS && goalPace && (
@@ -191,14 +191,14 @@ function RaceAhead({ race, days }: { race: Race; days: number }) {
 /** After race day, for a month: the result, and the way into the report. */
 function RaceDone({ race, a }: { race: Race; a: Activity }) {
   const under = race.goalS !== undefined ? race.goalS - a.durationS : undefined
-  const time = <span className="num-hero text-[92px]">{clock(a.durationS)}</span>
+  const time = <span className="num-hero text-[72px]">{clock(a.durationS)}</span>
   return (
     <Link to={`/race/${a.id}`} className="press mb-9 block">
-      <div className="label mb-5">
+      <div className="label mb-4">
         {raceName(race.distanceM)} · {fmt(race.date, 'EEE d MMM')}
       </div>
-      <div className="pl-3">{under !== undefined && under >= 0 ? <Circled seed={a.durationS}>{time}</Circled> : time}</div>
-      <div className="mt-6 flex items-baseline justify-between gap-3">
+      <div>{under !== undefined && under >= 0 ? <Circled seed={a.durationS}>{time}</Circled> : time}</div>
+      <div className="mt-4 flex items-baseline justify-between gap-3">
         {under !== undefined && (
           <span className={`text-[16px] font-medium ${under >= 0 ? 'text-good' : 'text-warn'}`}>
             {under >= 0 ? `${clock(under)} inside your goal` : `${clock(-under)} over your goal`}
@@ -231,7 +231,7 @@ function Races() {
                 {fmt(a.start, 'EEE d MMM')} · {km(a.distanceM, 1)} km
               </span>
             </span>
-            <span className="num text-[24px]">{clock(a.durationS)}</span>
+            <span className="num text-[19px]">{clock(a.durationS)}</span>
             <ChevronRight size={16} strokeWidth={2} className="text-fg-4" />
           </Link>
         ))}

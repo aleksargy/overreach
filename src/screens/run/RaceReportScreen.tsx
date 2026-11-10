@@ -63,14 +63,14 @@ export function RaceReportScreen() {
 
       <div className="mt-7 border-t border-fg/[0.13] pt-6">
         <div className="label">Finish</div>
-        <div className="mt-5 pl-3">
+        <div className="mt-4">
           {/* the time gets circled when it's one to remember: inside the goal, or a best */}
           {(under !== undefined && under >= 0) || (r.bestS !== undefined && r.timeS < r.bestS) ? (
             <Circled seed={Math.round(r.timeS)}>
-              <span className="num-hero text-[88px]">{clock(r.timeS)}</span>
+              <span className="num-hero text-[69px]">{clock(r.timeS)}</span>
             </Circled>
           ) : (
-            <span className="num-hero -ml-3 text-[88px]">{clock(r.timeS)}</span>
+            <span className="num-hero text-[69px]">{clock(r.timeS)}</span>
           )}
         </div>
         {under !== undefined && (
@@ -118,7 +118,7 @@ export function RaceReportScreen() {
               <div key={s.toM} className={`grid ${cols} items-baseline gap-2 border-b border-fg/[0.08] py-2 last:border-0`}>
                 <span className="text-[14px] tabular-nums text-fg-3">{+(s.toM / 1000).toFixed(1)}</span>
                 {long && <span className="text-right text-[14px] tabular-nums text-fg-2">{clock(s.s)}</span>}
-                <span className="num text-right text-[21px]">{pace(len / s.s)}</span>
+                <span className="num text-right text-[16.5px]">{pace(len / s.s)}</span>
                 {vs !== undefined && <span className={`text-right text-[13.5px] font-medium tabular-nums ${vs <= 0 ? 'text-good' : 'text-warn'}`}>{gapLabel(-vs)}</span>}
                 <span className="text-right text-[14px] tabular-nums text-fg-3">{s.hr ?? ''}</span>
               </div>

@@ -23,7 +23,7 @@ export function SettingsScreen() {
       <Football />
       <YourData />
       <footer className="mt-14 text-center">
-        <div className="display text-[26px] font-extrabold leading-none">{APP_NAME}</div>
+        <div className="display text-[20px] font-extrabold leading-none">{APP_NAME}</div>
         <div className="meta mt-1.5 text-fg-4">{APP_TAGLINE}</div>
       </footer>
     </Screen>

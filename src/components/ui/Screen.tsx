@@ -37,7 +37,7 @@ export function Screen({ title, kicker, actions, back, bare, hero, children, bot
               </button>
             )}
           </div>
-          <span className={`display truncate text-[19px] font-bold transition-opacity duration-200 ${scrolled ? 'opacity-100' : 'opacity-0'}`}>{title}</span>
+          <span className={`display truncate text-[15px] font-bold transition-opacity duration-200 ${scrolled ? 'opacity-100' : 'opacity-0'}`}>{title}</span>
           <div className="flex justify-end gap-2">{actions}</div>
         </div>
       </div>

@@ -45,7 +45,7 @@ export function TodayScreen() {
             aria-label="Settings"
             title="Settings"
             onClick={() => nav('/settings')}
-            className="display press grid h-9 w-9 place-items-center rounded-full text-[17px] font-bold text-fg-2 ring-1 ring-inset ring-fg/25"
+            className="display press grid h-9 w-9 place-items-center rounded-full text-[13.5px] font-bold text-fg-2 ring-1 ring-inset ring-fg/25"
           >
             {w.profile.name.trim().charAt(0).toUpperCase() || '·'}
           </button>
@@ -100,10 +100,10 @@ function ReadinessHero({ r, w }: { r: Readiness; w: World }) {
   return (
     <section>
       <button onClick={() => setWhy((x) => !x)} aria-expanded={why} className="label -my-2 flex items-center gap-2 py-2">
-        Readiness <span className="num text-[17px] text-fg-2">{r.score}</span>
+        Readiness <span className="num text-[13.5px] text-fg-2">{r.score}</span>
         <ChevronDown size={14} strokeWidth={2} className={`transition-transform duration-200 ${why ? 'rotate-180' : ''}`} />
       </button>
-      <h2 className="display mt-3 text-[62px] font-extrabold leading-[0.9]">
+      <h2 className="display mt-3 text-[48px] font-extrabold leading-[0.9]">
         <span className="relative inline-block pb-2">
           {r.label}
           <Underline color={toneColor(r.tone)} seed={r.score} className="bottom-[-3px]" />
@@ -126,7 +126,7 @@ function ReadinessHero({ r, w }: { r: Readiness; w: World }) {
                   <div key={f.key} className="grid grid-cols-[96px_1fr_64px] items-center gap-3 py-2.5">
                     <span className="text-[14.5px] text-fg-2">{f.label}</span>
                     <RangeBar min={f.min} max={f.max} lo={f.lo} hi={f.hi} today={f.today} good={good} />
-                    <span className="num text-right text-[21px]">{f.display}</span>
+                    <span className="num text-right text-[16.5px]">{f.display}</span>
                   </div>
                 )
               })}
@@ -187,7 +187,7 @@ function Football({ w }: { w: World }) {
                   {km(unrated.distanceM, 1)} km{unrated.football ? ` · ${unrated.football.sprints} sprints` : ''} · {dur(unrated.durationS)}
                 </span>
               </span>
-              <span className="btn-primary h-9 px-4 text-[17px]">Rate</span>
+              <span className="btn-primary h-9 px-4 text-[13.5px]">Rate</span>
             </button>
           </Swipeable>
         )}
@@ -200,7 +200,7 @@ function Football({ w }: { w: World }) {
                 <span className="label">Last match</span>
                 <RatingBadge rating={last.rating} size="sm" />
               </span>
-              <span className="num-hero mt-4 text-[56px] leading-none">
+              <span className="num-hero mt-4 text-[44px] leading-none">
                 {last.scoreFor}–{last.scoreAgainst}
               </span>
               <span className="meta mt-2 truncate">
@@ -211,7 +211,7 @@ function Football({ w }: { w: World }) {
           {next && (
             <div className={`card flex flex-col p-4 ${last ? '' : 'col-span-2'}`}>
               <span className="label">Next game</span>
-              <span className="display mt-4 text-[27px] font-bold leading-[1.02]">{cap(next.label)}</span>
+              <span className="display mt-4 text-[21px] font-bold leading-[1.02]">{cap(next.label)}</span>
               <span className="meta mt-auto pt-2">{format(next.at, 'EEE HH:mm')}, as usual</span>
             </div>
           )}
@@ -241,7 +241,7 @@ function Week({ w }: { w: World }) {
           return (
             <div key={d.toISOString()} className="flex flex-col items-center">
               <span className="text-[11.5px] font-medium text-fg-4">{format(d, 'EEEEE')}</span>
-              <span className={`num mt-1.5 grid h-8 w-8 place-items-center rounded-full text-[21px] ${isToday ? 'bg-fg text-ink-0' : future ? 'text-fg-4' : 'text-fg-2'}`}>
+              <span className={`num mt-1.5 grid h-8 w-8 place-items-center rounded-full text-[16.5px] ${isToday ? 'bg-fg text-ink-0' : future ? 'text-fg-4' : 'text-fg-2'}`}>
                 {format(d, 'd')}
               </span>
               <div className="mt-2.5 flex min-h-[46px] flex-col items-center gap-2">

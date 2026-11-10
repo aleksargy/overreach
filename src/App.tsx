@@ -118,7 +118,7 @@ function Splash() {
   return (
     <div className="fixed inset-0 grid place-items-center bg-ink-0">
       <div className="flex flex-col items-center gap-5">
-        <span className="display text-[40px] font-extrabold leading-none">{APP_NAME}</span>
+        <span className="display text-[31px] font-extrabold leading-none">{APP_NAME}</span>
         <span className="relative h-[2px] w-20 overflow-hidden rounded-full bg-fg/15">
           <span className="absolute inset-y-0 left-0 w-1/2 animate-[load_1s_ease-in-out_infinite] rounded-full bg-fg" />
         </span>

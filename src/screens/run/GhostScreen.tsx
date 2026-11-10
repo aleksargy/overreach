@@ -207,7 +207,7 @@ function Race({ a, course, you, ghosts }: { a: Activity; course: Course; you: Pa
             className="feel w-full"
             style={{ ['--p' as string]: `${(t / longest) * 100}%` }}
           />
-          <Digits className="num w-[68px] shrink-0 text-right text-[22px]">{clock(t)}</Digits>
+          <Digits className="num w-[68px] shrink-0 text-right text-[17px]">{clock(t)}</Digits>
         </div>
       </div>
 
@@ -216,10 +216,10 @@ function Race({ a, course, you, ghosts }: { a: Activity; course: Course; you: Pa
           const ahead = x.m - youAt.m
           return (
             <div key={x.key} className="flex items-center gap-3 py-2.5">
-              <span className="num w-4 text-[19px] text-fg-4">{i + 1}</span>
+              <span className="num w-4 text-[15px] text-fg-4">{i + 1}</span>
               <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${x.you ? 'bg-run' : x.key === best.a.id ? 'bg-fg' : 'ring-1 ring-inset ring-fg/50'}`} />
               <span className={`min-w-0 flex-1 truncate text-[16px] ${x.you ? 'font-semibold' : 'text-fg-2'}`}>{x.label}</span>
-              <span className={`num text-[21px] ${x.you ? '' : 'text-fg-2'}`}>
+              <span className={`num text-[16.5px] ${x.you ? '' : 'text-fg-2'}`}>
                 {x.done ? clock(x.time) : x.you ? `${km(x.m, 2)} km` : `${ahead >= 0 ? '+' : '−'}${Math.round(Math.abs(ahead))} m`}
               </span>
             </div>

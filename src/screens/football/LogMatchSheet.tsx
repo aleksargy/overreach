@@ -158,7 +158,7 @@ function Form({ activityId, matchId }: { activityId?: string; matchId?: string }
                 setTeamTyped(true)
               }}
               placeholder="Your team"
-              className="display w-full bg-transparent text-center text-[22px] font-bold text-fg placeholder:text-fg-4 focus:outline-none"
+              className="display w-full bg-transparent text-center text-[17px] font-bold text-fg placeholder:text-fg-4 focus:outline-none"
             />
             <Stepper value={scoreFor} onChange={setFor} big stack />
           </div>
@@ -175,7 +175,7 @@ function Form({ activityId, matchId }: { activityId?: string; matchId?: string }
               value={opponent}
               onChange={(e) => setOpponent(e.target.value)}
               placeholder="Opponent"
-              className="display w-full bg-transparent text-center text-[22px] font-bold text-fg-2 placeholder:text-fg-4 focus:outline-none"
+              className="display w-full bg-transparent text-center text-[17px] font-bold text-fg-2 placeholder:text-fg-4 focus:outline-none"
             />
             <Stepper value={scoreAgainst} onChange={setAgainst} big stack />
           </div>
@@ -209,7 +209,7 @@ function Form({ activityId, matchId }: { activityId?: string; matchId?: string }
       <div>
         <div className="flex items-baseline justify-between gap-3">
           <span className="label">How did you play?</span>
-          <span className="display text-[24px] font-bold leading-none">{FEEL[feel]}</span>
+          <span className="display text-[19px] font-bold leading-none">{FEEL[feel]}</span>
         </div>
         <input
           type="range"

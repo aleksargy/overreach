@@ -65,7 +65,7 @@ export function WorkoutScreen() {
         <Section title={records.length === 1 ? 'A new best' : 'New bests'}>
           <div className="list">
             {records.map((r, i) => {
-              const value = <span className="num whitespace-nowrap text-[30px] !font-normal">{r.value}</span>
+              const value = <span className="num whitespace-nowrap text-[23px] !font-normal">{r.value}</span>
               return (
                 <Link key={r.exerciseId} to={`/lift/exercise/${r.exerciseId}`} className="flex items-center gap-5 py-4 transition-colors duration-150 active:bg-ink-2">
                   <span className="min-w-0 flex-1">
@@ -73,7 +73,7 @@ export function WorkoutScreen() {
                     <span className="meta block">{r.text}</span>
                   </span>
                   {/* the first is the one that gets circled; the rest are in the same chalk */}
-                  <span className="shrink-0 pr-3 text-mark">
+                  <span className="shrink-0 text-mark">
                     {i === 0 ? (
                       <Circled seed={hashString(r.value)} delay={fresh ? 0.6 : 0.35}>
                         <span className="text-fg">{value}</span>
@@ -97,7 +97,7 @@ export function WorkoutScreen() {
             return (
               <Link key={we.id} to={`/lift/exercise/${ex.id}`} className="flex items-baseline gap-3 py-3 transition-colors duration-150 active:bg-ink-2">
                 <span className="min-w-0 flex-1 truncate text-[16px] font-semibold">{ex.name}</span>
-                <span className="num max-w-[58%] truncate text-right text-[22px]">{setsLine(ex, we.sets)}</span>
+                <span className="num max-w-[58%] truncate text-right text-[17px]">{setsLine(ex, we.sets)}</span>
               </Link>
             )
           })}
