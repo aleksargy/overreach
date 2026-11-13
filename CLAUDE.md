@@ -49,7 +49,7 @@ The preview build uses a memory router. A bare hash picks the first screen: `#ru
 - `scripts/` the local API, screenshots, icon rendering, the preview inliner.
 - `.github/` `ci.yml` (checks and a preview for every pull request), `deploy.yml` (main to Netlify), Dependabot, the pull request template.
 - `.claude/` Claude Code's project settings (permissions, a Prettier hook, attribution off) and skills: `check-screens`, `garmin-shapes`.
-- `docs/` decisions, Garmin API notes, roadmap.
+- `docs/` decisions, Garmin API notes, roadmap, and the Floodlight design with its mockups (`design/`).
 
 ## How data flows
 
@@ -100,6 +100,8 @@ The preview build uses a memory router. A bare hash picks the first screen: `#ru
 
 ## Design rules
 
+**Being replaced.** On 13 Nov 2026 Alex picked a new look, Floodlight: graphite, big rounded tiles and soft colour, with readiness taken out and a black Ultimate Team-style player card. `docs/design/floodlight.md` has the rules, the tokens and each screen, with mockups beside it in `docs/design/floodlight/`. Until the restyle lands the code still has the board described below: build anything new the Floodlight way, and rewrite this section once the restyle is in.
+
 The app looks like the board in a dressing room: slate, with everything on it drawn in chalk. Alex asked for a look that's one of a kind, not the stock dark dashboard an AI turns out, so the things that make that look are left out on purpose: no filled grey cards, no pills, no gradients, glows, frosted glass or blurred blobs, no Geist or Inter, no grids of stat tiles.
 
 - **Slate and chalk.** Dark only. The board is `ink-0`, a near-black with a little green in it; chalk is a warm white (`fg`, fading through `fg-2` to `fg-4`). Coloured chalk is for data only: HR zones z1 to z5, sports (`sportColor()`), match ratings, readiness. `mark` is the yellow that circles things. Colours are RGB CSS variables in `src/styles/index.css`, used through Tailwind (`text-fg-3`, `text-z4`); don't hardcode hex colours in components.
@@ -135,4 +137,4 @@ GitHub Actions deploys; Netlify doesn't build from git. `ci.yml` checks every pu
 
 Done: Garmin sync (on app open); the board, the app's own look, slate and chalk with Libre Franklin and the hand-drawn marks; Today (the readiness call with a week of history, the one thing worth a look, football, the week, load, latest); Run, kept small (this week, fitness, bests, races, recent, plus race reports and ghosts over the stretches you shared with earlier runs); football (log a match with what went well and badly in your own words, rating reveal, match report with heatmap and engine stats, season, form, records, head to head, the season heatmap, player card after three rated games, all split by format where it matters); Lift (your own workouts, the next one up with what to lift, the logger, bests, progress); Body (weight trend, recovery, last night; the weigh-in takes weight only); all activity and activity detail; offline shell; backup of what you type to the server; the deploy pipeline; a local mode against the real Garmin account.
 
-Next: Alex's first weeks on the Lift tab (does double progression suit how he trains, are each exercise's rep range and weight step right for him), and whether the things that get circled are the ones he'd have circled. Still to check on real data: the season heatmap's ends. The name is still open.
+Next: restyle the app to Floodlight and take readiness out (`docs/design/floodlight.md`). Then Alex's first weeks on the Lift tab (does double progression suit how he trains, are each exercise's rep range and weight step right for him), and whether the things that get circled are the ones he'd have circled. Still to check on real data: the season heatmap's ends. The name is still open.
