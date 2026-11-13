@@ -5,26 +5,10 @@ import { useMeasure } from '../../components/charts/primitives'
 import { GapChart } from '../../components/charts/running'
 import { Screen } from '../../components/ui/Screen'
 import { Empty, Section, Segmented } from '../../components/ui/bits'
-import { Digits } from '../../components/ui/chalk'
 import type { Activity, Stream } from '../../data/types'
 import { loadStream, useWorld } from '../../data/world'
 import { clock, fmt, km } from '../../lib/format'
-import {
-  biggestGain,
-  coursesOf,
-  gapTo,
-  hrAlong,
-  mineAt,
-  pathOf,
-  positionAt,
-  ROUTE_STEP,
-  stretchNeeded,
-  theirsAt,
-  timeAt,
-  type Course,
-  type Path,
-  type Stretch,
-} from '../../lib/ghost'
+import { coursesOf, gapTo, hrAlong, mineAt, pathOf, positionAt, ROUTE_STEP, stretchNeeded, theirsAt, timeAt, type Course, type Path, type Stretch } from '../../lib/ghost'
 
 /** a race plays back in about this many seconds, however long it was */
 const PLAY_S = 24
@@ -95,7 +79,7 @@ export function GhostScreen() {
   return (
     <Screen title="Ghosts" back bare>
       {courses.length > 1 && (
-        <div className="pt-2">
+        <div className="mb-3">
           <Segmented
             size="sm"
             value={Math.min(pick, courses.length - 1)}
@@ -152,7 +136,6 @@ function Race({ a, course, you, ghosts }: { a: Activity; course: Course; you: Pa
   const gaps = useMemo(() => ghosts.map((g) => ({ g, gap: gapTo(you, g.p, g.s, course) })), [you, ghosts, course])
   const vsBest = gaps.find((x) => x.g === best)!.gap
   const finish = vsBest[vsBest.length - 1].s
-  const gain = biggestGain(vsBest)
   const hr = useMemo(() => [hrAlong(best.p, course, best.s), hrAlong(you, course)], [best, you, course])
   // everyone's clock starts where the course does
   const youAt = positionAt(you, mine.start + Math.min(t, mine.time))
@@ -165,27 +148,29 @@ function Race({ a, course, you, ghosts }: { a: Activity; course: Course; you: Pa
 
   return (
     <>
-      <div className="pt-2">
-        <div className="meta">
+      <div>
+        <div className="label">
           {course.from <= ROUTE_STEP && course.to >= you.d[you.d.length - 1] - ROUTE_STEP
             ? `${km(course.to, 1)} km`
             : `${km(course.from, 1)}–${km(course.to, 1)} km of ${km(you.d[you.d.length - 1], 1)} km`}{' '}
           · {fmt(a.start, 'EEE d MMM')}
         </div>
-        <h1 className="t-story mt-2">{ghosts.length === 1 ? 'You against your last run here' : `You against ${ghosts.length} earlier runs here`}</h1>
-        <p className="mt-3 text-[16px] leading-relaxed text-fg-2">
-          {Math.abs(finish) < 1
-            ? `Dead level with your best here, ${fmt(best.a.start, 'd MMM')}.`
-            : finish > 0
-              ? `${clock(finish)} quicker than your best here, ${fmt(best.a.start, 'd MMM')}.`
-              : `${clock(-finish)} off your best here, ${fmt(best.a.start, 'd MMM')}.`}{' '}
-          {gain && gain.s >= 5 ? `You gained most between ${(gain.from / 1000).toFixed(1)} and ${(gain.to / 1000).toFixed(1)} km.` : ''}
-        </p>
+        <h1 className="t-page mt-0.5">{ghosts.length === 1 ? 'Your last run here' : `${ghosts.length} earlier runs here`}</h1>
       </div>
 
-      <div className="card mt-6 overflow-hidden">
+      <section className="hero mt-4 flex flex-col gap-1.5 bg-run-tint">
+        <div className="flex items-center justify-between gap-3 text-run-label">
+          <h2 className="text-[13px] font-bold">Against your best here</h2>
+          <span className="text-[12.5px] font-semibold">{fmt(best.a.start, 'd MMM')}</span>
+        </div>
+        <span className={`num-hero text-[58px] ${Math.abs(finish) < 1 ? 'text-run-head' : finish > 0 ? 'text-good' : 'text-bad'}`}>
+          {Math.abs(finish) < 1 ? '0:00' : `${finish > 0 ? '−' : '+'}${clock(Math.abs(finish))}`}
+        </span>
+      </section>
+
+      <div className="tile mt-2.5 overflow-hidden p-0">
         <GhostMap you={you} course={course} dots={dots} />
-        <div className="flex items-center gap-3 border-t border-fg/[0.13] px-4 py-3">
+        <div className="flex items-center gap-3 border-t border-ink-2 px-4 py-3">
           <button
             aria-label={playing ? 'Pause' : 'Play'}
             onClick={() => (t >= longest ? (setT(0), setPlaying(true)) : setPlaying((x) => !x))}
@@ -207,19 +192,19 @@ function Race({ a, course, you, ghosts }: { a: Activity; course: Course; you: Pa
             className="feel w-full"
             style={{ ['--p' as string]: `${(t / longest) * 100}%` }}
           />
-          <Digits className="num w-[68px] shrink-0 text-right text-[17px]">{clock(t)}</Digits>
+          <span className="num w-[68px] shrink-0 text-right text-[17px] tabular-nums">{clock(t)}</span>
         </div>
       </div>
 
-      <div className="list mt-2">
+      <div className="tile list mt-2.5 py-1">
         {field.map((x, i) => {
           const ahead = x.m - youAt.m
           return (
             <div key={x.key} className="flex items-center gap-3 py-2.5">
               <span className="num w-4 text-[15px] text-fg-4">{i + 1}</span>
-              <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${x.you ? 'bg-run' : x.key === best.a.id ? 'bg-fg' : 'ring-1 ring-inset ring-fg/50'}`} />
-              <span className={`min-w-0 flex-1 truncate text-[16px] ${x.you ? 'font-semibold' : 'text-fg-2'}`}>{x.label}</span>
-              <span className={`num text-[16.5px] ${x.you ? '' : 'text-fg-2'}`}>
+              <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${x.you ? 'bg-run' : x.key === best.a.id ? 'bg-fg' : 'ring-[1.5px] ring-inset ring-fg/50'}`} />
+              <span className={`min-w-0 flex-1 truncate text-[15px] ${x.you ? 'font-bold' : 'text-fg-2'}`}>{x.label}</span>
+              <span className={`num text-[16px] tabular-nums ${x.you ? '' : 'text-fg-2'}`}>
                 {x.done ? clock(x.time) : x.you ? `${km(x.m, 2)} km` : `${ahead >= 0 ? '+' : '−'}${Math.round(Math.abs(ahead))} m`}
               </span>
             </div>
@@ -227,7 +212,7 @@ function Race({ a, course, you, ghosts }: { a: Activity; course: Course; you: Pa
         })}
       </div>
 
-      <Section title="Where the time went" action={<span className="meta">Against each ghost</span>}>
+      <Section title="Where the time went" action={<span className="label">Ahead above the line</span>}>
         <div>
           <GapChart
             lines={[...gaps.filter((x) => x.g !== best).map((x) => ({ pts: x.gap, color: 'rgb(var(--fg) / 0.22)' })), { pts: vsBest, color: 'rgb(var(--run))', width: 2 }]}
@@ -235,14 +220,11 @@ function Race({ a, course, you, ghosts }: { a: Activity; course: Course; you: Pa
             at={youAt.m}
             from={course.from}
           />
-          <p className="meta mt-3 leading-snug">
-            Above the line you’re ahead, on moving time: stops don’t count. The bright line is your best run here; the faint ones are the rest.
-          </p>
         </div>
       </Section>
 
       {hr[0].length > 3 && hr[1].length > 3 && (
-        <Section title="Heart rate" action={<span className="meta">Along the stretch</span>}>
+        <Section title="Heart rate" action={<span className="label">Against your best here</span>}>
           <div>
             <GapChart
               zero={false}
@@ -255,23 +237,11 @@ function Race({ a, course, you, ghosts }: { a: Activity; course: Course; you: Pa
               at={youAt.m}
               from={course.from}
             />
-            <p className="meta mt-3 leading-snug">This run against your best here. {hrNote(hr[1], hr[0], finish)}</p>
           </div>
         </Section>
       )}
     </>
   )
-}
-
-/** Faster with less heart rate is fitness; faster with more is just trying harder. */
-function hrNote(you: { s: number }[], best: { s: number }[], ahead: number): string {
-  const mean = (xs: { s: number }[]) => xs.reduce((a, x) => a + x.s, 0) / xs.length
-  const diff = Math.round(mean(you) - mean(best))
-  const hr = Math.abs(diff) < 2 ? 'about the same heart rate' : `${Math.abs(diff)} bpm ${diff > 0 ? 'higher' : 'lower'} on average`
-  if (Math.abs(ahead) < 1) return `Level, at ${hr}.`
-  if (ahead > 0 && diff < 2) return `Quicker at ${hr}: that’s fitness.`
-  if (ahead < 0 && diff > 1) return `Slower at ${hr}: a tired day, or a hot one.`
-  return `${ahead > 0 ? 'Quicker' : 'Slower'}, at ${hr}.`
 }
 
 /** The stretch, framed, with the rest of your run faint around it, and every runner where they were at this point in the race. */

@@ -2,13 +2,11 @@ import { useMemo, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import { Screen } from '../../components/ui/Screen'
 import { Empty, Section, Stat } from '../../components/ui/bits'
-import { Circled } from '../../components/ui/chalk'
 import { useStore } from '../../data/store'
 import { useUi } from '../../data/ui'
 import { useWorld } from '../../data/world'
 import { dur, fmt } from '../../lib/format'
 import { recordsIn, setsLine, workingSets } from '../../lib/lift'
-import { hashString } from '../../lib/rng'
 
 const EFFORT = ['', 'Easy', 'Easy', 'Easy', 'Easy', 'Solid', 'Solid', 'Hard', 'Hard', 'All out', 'All out']
 
@@ -49,11 +47,11 @@ export function WorkoutScreen() {
 
   return (
     <Screen title={wk.name} back bare>
-      <div className="meta pt-2">
+      <div className="label">
         {fresh && <span className="mr-2 font-semibold text-good">Saved</span>}
         {fmt(wk.start, 'EEEE d MMMM · HH:mm')}
       </div>
-      <h1 className="t-page mt-2 text-balance">{wk.name}</h1>
+      <h1 className="t-page mt-0.5 text-balance">{wk.name}</h1>
 
       <div className="mt-7 grid grid-cols-3 gap-x-3">
         <Stat label="Time" value={dur(secs)} />
@@ -64,24 +62,16 @@ export function WorkoutScreen() {
       {records.length > 0 && (
         <Section title={records.length === 1 ? 'A new best' : 'New bests'}>
           <div className="list">
-            {records.map((r, i) => {
-              const value = <span className="num whitespace-nowrap text-[23px] !font-normal">{r.value}</span>
+            {records.map((r) => {
+              const value = <span className="num whitespace-nowrap text-[22px]">{r.value}</span>
               return (
                 <Link key={r.exerciseId} to={`/lift/exercise/${r.exerciseId}`} className="flex items-center gap-5 py-4 transition-colors duration-150 active:bg-ink-2">
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[16px] font-semibold leading-5">{w.exerciseById.get(r.exerciseId)?.name}</span>
                     <span className="meta block">{r.text}</span>
                   </span>
-                  {/* the first is the one that gets circled; the rest are in the same chalk */}
-                  <span className="shrink-0 text-mark">
-                    {i === 0 ? (
-                      <Circled seed={hashString(r.value)} delay={fresh ? 0.6 : 0.35}>
-                        <span className="text-fg">{value}</span>
-                      </Circled>
-                    ) : (
-                      value
-                    )}
-                  </span>
+                  {/* a new best is said in sage */}
+                  <span className="shrink-0 text-football">{value}</span>
                 </Link>
               )
             })}

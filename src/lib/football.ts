@@ -1,6 +1,5 @@
 import type { Activity, FootballSummary, Format, Match, MatchPoint, MomentKey, PitchTrace, Position, RatingFactor, Stream } from '../data/types'
 import { clamp, mapRange, mean, median, quantile, round } from './math'
-import { hashString } from './rng'
 
 /** What a point you note is worth, a big one, and the most your notes can move a rating either way. */
 export const POINT = 0.15
@@ -584,13 +583,15 @@ export function rateMatch(i: RateInput): { rating: number; breakdown: RatingFact
   }
 }
 
-export function ratingTone(r: number): { cls: string; text: string; word: string } {
-  if (r >= 9) return { cls: 'bg-strength', text: 'text-strength', word: 'World class' }
-  if (r >= 8) return { cls: 'bg-z1', text: 'text-z1', word: 'Excellent' }
-  if (r >= 7) return { cls: 'bg-z2', text: 'text-z2', word: 'Good' }
-  if (r >= 6) return { cls: 'bg-z3', text: 'text-z3', word: 'Decent' }
-  if (r >= 5) return { cls: 'bg-z4', text: 'text-z4', word: 'Poor' }
-  return { cls: 'bg-z5', text: 'text-z5', word: 'Shocker' }
+/** A rating's band: its colour (as a class, a text class and the variable behind both) and its word. */
+export function ratingTone(r: number): { cls: string; text: string; v: string; word: string } {
+  if (r >= 9) return { cls: 'bg-strength', text: 'text-strength', v: '--strength', word: 'World class' }
+  if (r >= 8) return { cls: 'bg-z1', text: 'text-z1', v: '--z1', word: 'Excellent' }
+  if (r >= 7) return { cls: 'bg-z2', text: 'text-z2', v: '--z2', word: 'Good' }
+  if (r >= 6) return { cls: 'bg-z3', text: 'text-z3', v: '--z3', word: 'Decent' }
+  // red from 5 down: the ochre zone colour is kept for zone charts
+  if (r >= 5) return { cls: 'bg-z5', text: 'text-z5', v: '--z5', word: 'Poor' }
+  return { cls: 'bg-z5', text: 'text-z5', v: '--z5', word: 'Shocker' }
 }
 
 export function result(m: Pick<Match, 'scoreFor' | 'scoreAgainst'>): 'W' | 'D' | 'L' {
@@ -659,84 +660,10 @@ export function recordWords(r: Pick<Rivalry, 'w' | 'd' | 'l'>): string {
 
 export const sameOpponent = (a: string, b: string) => norm(a) === norm(b)
 
-/** Tabloid back-page headline, picked from the most newsworthy thing that happened. */
-export function headline(
-  m: Pick<Match, 'id' | 'scoreFor' | 'scoreAgainst' | 'goals' | 'assists' | 'points' | 'team' | 'opponent' | 'rating'>,
-  name: string,
-  a?: Physical,
-  base?: Pick<Baseline, 'mPerMin'>,
-): string {
-  const N = name
-  const T = m.team
-  const O = m.opponent
-  const s = `${m.scoreFor}-${m.scoreAgainst}`
-  const r = result(m)
-  const word = r === 'W' ? 'win' : r === 'D' ? 'draw' : 'defeat'
-  const had = (k: MomentKey) => m.points.some((p) => p.key === k)
-  // a big point in your own words makes the back page, quoted, if it's short enough to fit
-  const quote = (good: boolean) => {
-    const p = m.points.find((x) => x.big && !x.key && x.good === good && x.text.trim().length <= 32)
-    return p && `“${p.text.trim().charAt(0).toUpperCase()}${p.text.trim().slice(1)}”`
-  }
-  const praise = quote(true)
-  const blame = quote(false)
-  // tiers from most to least newsworthy; the first tier with a story wins
-  const tiers: string[][] = [
-    [
-      ...(had('ownGoal') ? [`Own goal agony for ${N}`, `${N} scores at the wrong end`] : []),
-      ...(m.goals >= 3 ? [`${N} hat-trick hero as ${T} sink ${O}`, `Treble trouble: ${N} bags ${m.goals === 3 ? 'three' : m.goals}`] : []),
-      ...(m.rating >= 9 && m.goals < 3 ? [`${N} unplayable in ${s} ${word}`] : []),
-    ],
-    [
-      ...(m.goals === 2 && r === 'W' ? [`${N}’s brace sinks ${O}`, `Double top: ${N} fires ${T} to ${s} win`] : []),
-      ...(m.goals === 2 && r !== 'W' ? [`${N} brace not enough in ${s} ${word}`] : []),
-      ...(m.assists >= 3 ? [`${N} pulls the strings in ${s} ${word}`, `Provider: ${N} sets up ${m.assists}`] : []),
-      ...(had('worldie') ? [`What a hit! ${N} stuns ${O}`] : []),
-      ...(had('sitter') && m.goals === 0 ? [`Sitter shame for ${N}`, `${N} misses a sitter as ${T} ${r === 'W' ? 'hang on' : 'pay the price'}`] : []),
-      ...(had('error') ? [`Howler: ${N} gifts ${O} a goal`] : []),
-      ...(praise ? [`${praise}: ${N} stars in ${s} ${word}`] : []),
-      ...(blame ? [`${blame}: ${N}’s ${r === 'W' ? 'blushes spared' : 'day to forget'}`] : []),
-    ],
-    [
-      ...(r === 'L' && m.rating >= 7 ? [`${N} the only positive in ${s} defeat`] : []),
-      ...(r === 'L' && m.rating < 6 ? [`${T} crumble: ${N} posted missing`, `Nightmare for ${N} as ${O} run riot`] : []),
-      ...(r === 'D' ? [`Honours even in ${s} thriller`, `Stalemate: ${T} and ${O} can’t be separated`] : []),
-      ...(m.scoreAgainst === 0 ? [`${N} shuts up shop`] : []),
-      ...(m.goals === 1 && r === 'W' ? [`${N} on target as ${T} beat ${O}`] : []),
-    ],
-    [...(a && base && a.mPerMin > base.mPerMin * 1.12 ? [`${N} runs the legs off ${O}`] : []), ...(a && a.fadeMinute !== undefined ? [`${N} fades after bright start`] : [])],
-    r === 'W' ? [`${T} edge ${O} in ${s} scrap`, `Job done: ${T} see off ${O}`] : [`${T} fall ${s} to ${O}`],
-  ]
-  const pool = tiers.find((t) => t.length) ?? tiers[tiers.length - 1]
-  return pool[hashString(m.id) % pool.length]
-}
-
-/** Headlines used to be written in capitals; show an old one the way new ones read, names included. */
-export function tidyHeadline(h: string, names: string[]): string {
-  if (/[a-z]/.test(h)) return h
-  let out = h.toLowerCase().replace(/(^|[:!] )(\S)/g, (_, pre: string, c: string) => pre + c.toUpperCase())
-  for (const n of names.filter(Boolean)) out = out.replace(new RegExp(n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), n)
-  return out
-}
-
 export function ordinal(n: number): string {
   const v = n % 100
   const suf = v >= 11 && v <= 13 ? 'th' : (['th', 'st', 'nd', 'rd'][n % 10] ?? 'th')
   return `${n}${suf}`
-}
-
-export function standfirst(m: Match, a?: Physical): string {
-  const what = [m.goals ? `${m.goals === 1 ? 'A goal' : `${m.goals} goals`}` : '', m.assists ? `${m.assists === 1 ? 'an assist' : `${m.assists} assists`}` : ''].filter(Boolean)
-  const joined = what.join(' and ')
-  const contrib = joined ? joined.charAt(0).toUpperCase() + joined.slice(1) : 'No goal involvement'
-  const r = result(m)
-  const outcome = r === 'W' ? `${m.scoreFor}–${m.scoreAgainst} win` : r === 'D' ? `${m.scoreFor}–${m.scoreAgainst} draw` : `${m.scoreFor}–${m.scoreAgainst} defeat`
-  let s = `${contrib} in a ${outcome} against ${m.opponent}.`
-  if (a && a.minutes > 10) {
-    s += ` ${(a.distanceM / 1000).toFixed(1)} km covered, ${a.sprints} sprints, top speed ${a.topSpeedKmh} km/h.`
-    if (a.fadeMinute !== undefined) s += ` The legs went around the ${ordinal(a.fadeMinute)} minute.`
-  }
-  return s
 }
 
 export interface CardAttr {

@@ -3,7 +3,6 @@
 
 import { differenceInCalendarDays, parseISO } from 'date-fns'
 import type { Activity, Race, Stream } from '../data/types'
-import { clock } from './format'
 
 export const DISTANCES = [
   { m: 5000, label: '5K' },
@@ -89,18 +88,14 @@ export interface RaceReport {
   fadeM?: number
   /** your best before this one at the distance */
   bestS?: number
-  headline: string
 }
-
-/** "3:30" for a goal of whole minutes over an hour, "3:29:30" or "19:30" otherwise */
-const short = (s: number) => (s >= 3600 && s % 60 === 0 ? clock(s).slice(0, -3) : clock(s))
 
 /**
  * What happened in a race, from its stream. The watch measures a course a bit
  * long, so distances are scaled to the race distance and the finish is the
  * time on the watch.
  */
-export function raceReport(a: Activity, st: Stream, opts: { race?: Race; earlier: Activity[]; name: string }): RaceReport | undefined {
+export function raceReport(a: Activity, st: Stream, opts: { race?: Race; earlier: Activity[] }): RaceReport | undefined {
   const race = raceFor(a, opts.race)
   const D = race.distanceM
   const n = st.d?.length ?? st.v?.length ?? 0
@@ -164,25 +159,6 @@ export function raceReport(a: Activity, st: Stream, opts: { race?: Race; earlier
   }
   const before = opts.earlier.filter((x) => x.sport === 'run' && x.start < a.start && Math.abs((x.distanceM ?? 0) - D) <= D * 0.04).map((x) => x.durationS)
   const bestS = before.length ? Math.min(...before) : undefined
-  const report = { race, timeS: T, splits, gap, halves, settledHr, finishHr: hrBetween(D * 0.9, D + 1), driftM, fadeM, bestS, headline: '' }
-  report.headline = raceHeadline(report, opts.name)
+  const report = { race, timeS: T, splits, gap, halves, settledHr, finishHr: hrBetween(D * 0.9, D + 1), driftM, fadeM, bestS }
   return report
-}
-
-function raceHeadline(r: RaceReport, name: string): string {
-  const t = clock(r.timeS)
-  const label = raceName(r.race.distanceM).replace(/^(Half|Marathon)$/, (x) => x.toLowerCase())
-  const at = (m: number) => `${Math.round(m / 1000)} km`
-  if (r.race.goalS !== undefined) {
-    const under = r.race.goalS - r.timeS
-    const goal = short(r.race.goalS)
-    if (under >= 120) return `${name} smashes the ${goal} target in ${t}`
-    if (under >= 0) return `Sub-${goal}! ${name} beats the clock by ${clock(under)}`
-    if (r.fadeM !== undefined) return `Legs go at ${at(r.fadeM)} as ${name} misses ${goal} by ${clock(-under)}`
-    return `${name} falls ${clock(-under)} short of ${goal}`
-  }
-  if (r.bestS !== undefined && r.timeS < r.bestS) return `New PB: ${name} runs ${t} for the ${label}`
-  if (r.halves[1] < r.halves[0]) return `${name} saves the best for last in ${t}`
-  if (r.fadeM !== undefined && r.race.distanceM >= 10_000) return `The wall at ${at(r.fadeM)}: ${name} hangs on for ${t}`
-  return `${name} clocks ${t} for the ${label}`
 }

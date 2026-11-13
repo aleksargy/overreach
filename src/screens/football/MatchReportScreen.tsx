@@ -1,22 +1,19 @@
 import { FlipHorizontal2, Pencil, Trash2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
-import { RatingBadge } from '../../components/ActivityRow'
 import { Bars, StreamChart } from '../../components/charts/charts'
 import { PitchHeatmap } from '../../components/charts/PitchHeatmap'
 import { zoneColor } from '../../components/charts/primitives'
 import { IconButton, Screen } from '../../components/ui/Screen'
-import { Delta, Empty, Section, Segmented } from '../../components/ui/bits'
-import { Mark } from '../../components/ui/chalk'
+import { Empty, Section, Segmented } from '../../components/ui/bits'
 import { useStore } from '../../data/store'
-import type { MatchPoint } from '../../data/types'
 import { useUi } from '../../data/ui'
 import { useFootballAnalysis, useStream, useWorld } from '../../data/world'
-import { fmt, signed } from '../../lib/format'
-import { FEEL, baselineFor, headToHead, ordinal, ratingTone, recordWords, result, sameOpponent, standfirst, tidyHeadline } from '../../lib/football'
+import { fmt } from '../../lib/format'
+import { FEEL, headToHead, ordinal, ratingTone, result, sameOpponent } from '../../lib/football'
 import { zoneBounds, zoneOf } from '../../lib/load'
 import { median } from '../../lib/math'
-import { rowsFor } from './season'
+import { RatingLines } from './RatingLines'
 
 export function MatchReportScreen() {
   const { id } = useParams()
@@ -32,33 +29,6 @@ export function MatchReportScreen() {
   const [half, setHalf] = useState<'all' | '1' | '2'>('all')
   const [confirmDelete, setConfirmDelete] = useState(false)
 
-  const base = useMemo(
-    () =>
-      m
-        ? baselineFor(
-            m.format,
-            rowsFor(
-              w,
-              w.matches.filter((x) => x.id !== m.id),
-            ),
-          )
-        : null,
-    [m, w],
-  )
-  // only games of the same format are a fair comparison: 11s and 7s differ in pitch, length and goals
-  const seasonMedian = useMemo(() => {
-    if (!m) return null
-    const others = rowsFor(
-      w,
-      w.matches.filter((x) => x.id !== m.id && x.format === m.format),
-    ).filter((r) => r.analysis)
-    if (!others.length) return null
-    return {
-      dist: median(others.map((r) => r.analysis!.distanceM)),
-      sprints: median(others.map((r) => r.analysis!.sprints)),
-      top: median(others.map((r) => r.analysis!.topSpeedKmh)),
-    }
-  }, [m, w])
   // the games against this side before this one, in the same format
   const before = useMemo(() => (m ? headToHead(w.matches.filter((x) => x.format === m.format && x.date < m.date && sameOpponent(x.opponent, m.opponent)))[0] : undefined), [m, w])
   const ratingMedian = useMemo(() => {
@@ -87,149 +57,97 @@ export function MatchReportScreen() {
       bare
       actions={
         <IconButton label="Edit match" onClick={() => open({ type: 'logMatch', matchId: m.id })}>
-          <Pencil size={16} strokeWidth={1.75} />
+          <Pencil size={16} strokeWidth={2} />
         </IconButton>
       }
     >
-      <div className="pt-2">
-        <div className="meta">
-          {fmt(m.date, 'EEEE d MMMM, HH:mm')} · {m.format}-a-side
-        </div>
-        <h1 className="t-story mt-2">{tidyHeadline(m.headline, [w.profile.name, m.team, m.opponent])}</h1>
-        <p className="mt-3 text-[16px] leading-relaxed text-fg-2">{standfirst(m, an ?? act?.football)}</p>
-        {before && (
-          <p className="meta mt-2">
-            Your {ordinal(before.games + 1)} game against {m.opponent}. Before this you’d {recordWords(before)}.
-          </p>
-        )}
+      <div className="label">
+        {fmt(m.date, 'EEEE d MMM · HH:mm')} · {m.format}-a-side{before ? ` · ${ordinal(before.games + 1)} meeting` : ''}
       </div>
 
-      {/* scoreboard */}
-      <div className="ruled mt-7">
-        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 pb-5 pt-6">
-          <div className="min-w-0">
-            <div className="display line-clamp-2 break-words text-[16.5px] font-bold leading-[1.05]">{m.team}</div>
-            <div className="meta mt-1">You</div>
-          </div>
-          <div className="flex flex-col items-center">
-            <div className="flex items-center gap-3">
-              <span className="num-hero text-[66px] !font-normal">{m.scoreFor}</span>
-              <span className="num-hero text-[31px] text-fg-4">–</span>
-              <span className="num-hero text-[66px] text-fg-2">{m.scoreAgainst}</span>
-            </div>
-            <div className={`mt-3 text-[13px] font-medium ${r === 'W' ? 'text-z2' : r === 'L' ? 'text-z5' : 'text-fg-3'}`}>{r === 'W' ? 'Win' : r === 'L' ? 'Defeat' : 'Draw'}</div>
-          </div>
-          <div className="min-w-0 text-right">
-            <div className="display line-clamp-2 break-words text-[16.5px] font-bold leading-[1.05] text-fg-2">{m.opponent}</div>
-            <div className="meta mt-1">Them</div>
-          </div>
+      {/* the score */}
+      <section className="hero mt-3 flex flex-col gap-3.5 bg-ink-1">
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+          <Side name={m.team} ours />
+          <span className="num-hero text-[62px] leading-none">
+            {m.scoreFor}–{m.scoreAgainst}
+          </span>
+          <Side name={m.opponent} />
         </div>
-        <div className="rule" />
-        <div className="grid grid-cols-3 gap-x-3">
+        <span className={`pill self-center px-3.5 py-[5px] font-extrabold ${r === 'W' ? '[--p:var(--good)]' : r === 'L' ? '[--p:var(--bad)]' : '[--p:var(--fg-2)]'}`}>
+          {r === 'W' ? 'Win' : r === 'L' ? 'Loss' : 'Draw'}
+        </span>
+        <div className="grid grid-cols-3 border-t border-ink-2 pt-3.5">
           {[
             { k: 'Goals', v: m.goals },
             { k: 'Assists', v: m.assists },
             { k: 'Felt', v: FEEL[m.feel] },
           ].map((x) => (
-            <div key={x.k} className="py-4">
-              <div className="label">{x.k}</div>
-              <div className="num mt-2.5 truncate text-[23px]">{x.v}</div>
+            <div key={x.k} className="flex min-w-0 flex-col items-center gap-0.5">
+              <span className="num max-w-full truncate text-[24px] leading-[1.2]">{x.v}</span>
+              <span className="label">{x.k}</span>
             </div>
           ))}
         </div>
-      </div>
+      </section>
 
-      {/* rating */}
-      <Section title="Rating">
-        <div>
-          <div className="flex items-center gap-4">
-            <RatingBadge rating={m.rating} size="lg" />
-            <div>
-              <div className={`display text-[23px] font-bold leading-none ${tone.text}`}>{tone.word}</div>
-              {ratingMedian !== undefined && (
-                <div className="meta mt-2 flex items-center gap-2">
-                  Your {m.format}s median {ratingMedian.toFixed(1)} <Delta value={m.rating - ratingMedian} />
-                </div>
-              )}
-            </div>
-          </div>
-          <div className="list mt-4 [--inset:0px]">
-            <div className="flex items-baseline justify-between py-2.5 text-[14.5px] text-fg-3">
-              <span>Everyone starts on</span>
-              <span className="num text-[15.5px]">6.00</span>
-            </div>
-            {m.breakdown.map((f) => (
-              <div key={f.key} className="flex items-center justify-between gap-3 py-2.5">
-                <span className="text-[14.5px] text-fg-2">{f.label}</span>
-                <span className="flex items-center gap-3">
-                  {/* how far it moved the rating, either side of a centre line */}
-                  <span className="relative h-[9px] w-16">
-                    <span className="absolute inset-y-0 left-1/2 w-px bg-fg/25" />
-                    <span
-                      className={`solid absolute inset-y-[1.5px] ${f.value >= 0 ? 'left-1/2 [--h:var(--good)]' : 'right-1/2 [--h:var(--bad)]'}`}
-                      style={{ width: `${Math.min(50, Math.abs(f.value) * 30)}%` }}
-                    />
-                  </span>
-                  <span className={`num w-12 text-right text-[15.5px] ${f.value > 0 ? 'text-good' : f.value < 0 ? 'text-bad' : 'text-fg-3'}`}>{signed(f.value, 2)}</span>
-                </span>
-              </div>
-            ))}
-          </div>
+      {/* the rating, and every line that moved it from 6.00 */}
+      <section className="hero mt-2.5 flex flex-col gap-1.5 bg-gold-tint">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-[13px] font-bold text-gold-label">Match rating</h2>
+          {ratingMedian !== undefined && (
+            <span className="pill [--p:var(--gold-head)]">
+              Your {m.format}s median {ratingMedian.toFixed(1)}
+            </span>
+          )}
         </div>
-      </Section>
+        <div className="mb-2 mt-0.5 flex items-baseline gap-2.5">
+          <span className="num-hero text-[64px] leading-[0.95] text-gold-head">{m.rating.toFixed(1)}</span>
+          <span className="text-[15px] font-bold text-gold-label">{tone.word}</span>
+        </div>
+        <RatingLines m={m} />
+      </section>
 
       {act && an ? (
         <>
-          <Section
-            title="Heatmap"
-            action={
-              <button onClick={() => saveMatch({ ...m, flip: !m.flip })} className="link text-[13px]">
-                <FlipHorizontal2 size={14} strokeWidth={1.75} className="mr-1" /> Flip
+          <section className="tile mt-2.5 flex flex-col gap-2.5">
+            <h2 className="t-section">From the watch</h2>
+            <div className="grid grid-cols-4">
+              {[
+                { v: (an.distanceM / 1000).toFixed(1), u: 'km' },
+                { v: an.topSpeedKmh.toFixed(1), u: 'km/h top' },
+                { v: String(an.sprints), u: 'sprints' },
+                { v: String(Math.round(an.mPerMin)), u: 'm/min' },
+              ].map((x) => (
+                <div key={x.u} className="flex min-w-0 flex-col gap-0.5">
+                  <span className="num text-[22px] leading-[1.2]">{x.v}</span>
+                  <span className="truncate text-[11.5px] font-semibold text-fg-3">{x.u}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="tile mt-2.5 flex flex-col gap-3">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="t-section">Where you played</h2>
+              <button onClick={() => saveMatch({ ...m, flip: !m.flip })} title="Attacking the other way? Tap to turn it round" className="link text-[12.5px]">
+                <FlipHorizontal2 size={13} strokeWidth={2} className="mr-1" /> Attacking →
               </button>
-            }
-          >
+            </div>
             <PitchHeatmap points={heat} format={m.format} flip={m.flip} />
-            <div className="mt-3">
-              <Segmented
-                size="sm"
-                value={half}
-                onChange={setHalf}
-                options={[
-                  { value: 'all', label: 'Full game' },
-                  { value: '1', label: '1st half' },
-                  { value: '2', label: '2nd half' },
-                ]}
-              />
-            </div>
-            <p className="meta mt-3 text-fg-4">Pitch framed from your GPS. Tap flip if you were attacking the other way.</p>
-          </Section>
+            <Segmented
+              size="sm"
+              value={half}
+              onChange={setHalf}
+              options={[
+                { value: 'all', label: 'Full game' },
+                { value: '1', label: '1st half' },
+                { value: '2', label: '2nd half' },
+              ]}
+            />
+          </section>
 
-          <Section title="Engine" action={seasonMedian ? <span className="meta">Against your other {m.format}s</span> : undefined}>
-            <div className="grid grid-cols-3 gap-x-3 gap-y-6">
-              <PhysStat label="Distance" value={(an.distanceM / 1000).toFixed(2)} unit="km" delta={seasonMedian ? (an.distanceM - seasonMedian.dist) / 1000 : undefined} dp={2} />
-              <PhysStat label="Sprints" value={String(an.sprints)} delta={seasonMedian ? an.sprints - seasonMedian.sprints : undefined} dp={0} />
-              <PhysStat label="Top speed" value={an.topSpeedKmh.toFixed(1)} unit="km/h" delta={seasonMedian ? an.topSpeedKmh - seasonMedian.top : undefined} />
-              <PhysStat label="Work rate" value={String(Math.round(an.mPerMin))} unit="m/min" delta={base ? an.mPerMin - base.mPerMin : undefined} dp={0} />
-              <PhysStat label="High speed" value={String(Math.round(an.hiDistM))} unit="m" />
-              {an.avgHr !== undefined && <PhysStat label="Avg HR" value={String(an.avgHr)} unit="bpm" />}
-            </div>
-            <div className="mt-6 grid grid-cols-3 gap-x-3">
-              <div>
-                <div className="label">Sprints by half</div>
-                <div className="num mt-2 text-[25px]">
-                  {an.sprintsByHalf[0]} <span className="font-light text-fg-4">/</span> {an.sprintsByHalf[1]}
-                </div>
-              </div>
-              <div>
-                <div className="label">Legs went</div>
-                <div className={`num mt-2 text-[25px] ${an.fadeMinute !== undefined ? 'text-bad' : 'text-good'}`}>
-                  {an.fadeMinute !== undefined ? `${ordinal(an.fadeMinute)} min` : 'Never'}
-                </div>
-              </div>
-            </div>
-          </Section>
-
-          <Section title="Intensity" action={<span className="meta">Metres per 5 minutes</span>}>
+          <Section title="Intensity" action={<span className="label">Metres per 5 minutes</span>}>
             <Bars
               values={an.buckets.map((b) => Math.round(b.distM))}
               labels={an.buckets.map((b, i) => (i % 2 === 0 ? `${b.startMin}′` : null))}
@@ -238,7 +156,6 @@ export function MatchReportScreen() {
               height={140}
               valueLabels
             />
-            <p className="meta mt-3 text-fg-4">Bar colour is your average heart rate zone in that block.</p>
           </Section>
 
           {stream?.hr && (
@@ -248,20 +165,18 @@ export function MatchReportScreen() {
           )}
         </>
       ) : (
-        <Section title="Engine">
-          <Empty title="No watch data">This match isn’t linked to a recording, so there’s no heatmap or work rate. Edit the match to link one.</Empty>
+        <Section title="From the watch">
+          <p className="text-[14px] leading-snug text-fg-3">This match isn’t linked to a recording, so there’s no heatmap or work rate. Edit the match to link one.</p>
         </Section>
       )}
-
-      {m.points.length > 0 && <HowItWent points={m.points} />}
 
       {m.notes && (
         <Section title="Your notes">
-          <blockquote className="border-l-2 border-fg/30 pl-4 text-[18px] leading-snug text-fg-2">“{m.notes}”</blockquote>
+          <p className="text-[16px] leading-snug text-fg-2">“{m.notes}”</p>
         </Section>
       )}
 
-      <div className="mt-12 flex justify-center">
+      <div className="mt-8 flex justify-center">
         {confirmDelete ? (
           <div className="flex items-center gap-2">
             <span className="text-[14px] text-fg-3">Delete this match?</span>
@@ -279,8 +194,8 @@ export function MatchReportScreen() {
             </button>
           </div>
         ) : (
-          <button onClick={() => setConfirmDelete(true)} className="link text-[13px] text-fg-4">
-            <Trash2 size={14} strokeWidth={1.75} className="mr-1" /> Delete match
+          <button onClick={() => setConfirmDelete(true)} className="link text-fg-4">
+            <Trash2 size={14} strokeWidth={2} className="mr-1" /> Delete match
           </button>
         )}
       </div>
@@ -288,45 +203,16 @@ export function MatchReportScreen() {
   )
 }
 
-function HowItWent({ points }: { points: MatchPoint[] }) {
-  const sides = [true, false].map((good) => ({ good, ps: points.filter((p) => p.good === good) })).filter((x) => x.ps.length)
+/** A side on the scoreboard: its initials in a circle (yours in sage) and its name. */
+function Side({ name, ours }: { name: string; ours?: boolean }) {
+  const words = name.trim().split(/\s+/).filter(Boolean)
+  const initials = (words.length > 1 ? words[0][0] + words[1][0] : (words[0] ?? '?').slice(0, 2)).toUpperCase()
   return (
-    <Section title="How it went">
-      <div className={`grid items-start gap-5 ${sides.length > 1 ? 'grid-cols-2' : ''}`}>
-        {sides.map(({ good, ps }) => (
-          <div key={String(good)}>
-            <div className={`text-[13.5px] font-semibold ${good ? 'text-z2' : 'text-z5'}`}>{good ? 'Went well' : 'Went badly'}</div>
-            <ul className="mt-2.5 flex flex-col gap-2">
-              {ps.map((p) => (
-                <li key={p.text} className={`flex gap-2 text-[15.5px] leading-snug ${p.big ? 'font-semibold text-fg' : 'text-fg-2'}`}>
-                  <Mark good={good} className="mt-[4px] shrink-0" />
-                  <span>
-                    {p.text}
-                    {p.big && <span className={`ml-1.5 text-[12px] font-semibold ${good ? 'text-z2' : 'text-z5'}`}>Big</span>}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
-      </div>
-    </Section>
-  )
-}
-
-function PhysStat({ label, value, unit, delta, dp = 1 }: { label: string; value: string; unit?: string; delta?: number; dp?: number }) {
-  return (
-    <div className="min-w-0">
-      <div className="label truncate">{label}</div>
-      <div className="num mt-2.5 text-[23px]">
-        {value}
-        {unit && <span className="unit ml-0.5 text-[12px]">{unit}</span>}
-      </div>
-      {delta !== undefined && (
-        <div className="mt-1">
-          <Delta value={delta} dp={dp} />
-        </div>
-      )}
+    <div className="flex min-w-0 flex-col items-center gap-1.5">
+      <span className={`grid h-[42px] w-[42px] place-items-center rounded-full text-[13px] font-extrabold ${ours ? 'bg-football-tint text-football' : 'bg-ink-2 text-fg-3'}`}>
+        {initials}
+      </span>
+      <span className={`line-clamp-2 break-words text-center text-[13.5px] font-bold leading-[1.2] ${ours ? '' : 'text-fg-2'}`}>{name}</span>
     </div>
   )
 }

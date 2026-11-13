@@ -9,7 +9,6 @@ import { analyseFootball, gamesToRate, usualFormatAt, type FootballAnalysis } fr
 import { liftSummary } from '../lib/lift'
 import { isoDay } from '../lib/format'
 import { loadModel, srpeLoad, trimp, zoneBounds, zoneSecondsFromAvg, type LoadModel } from '../lib/load'
-import { readiness, type Readiness } from '../lib/readiness'
 import { runModel, type RunModel } from '../lib/running'
 import { nextOccurrence, recurringSlots, type Slot } from '../lib/schedule'
 import { footballSeries, liftSeries, recoverySeries, runSeries, weightSeries } from '../lib/series'
@@ -32,8 +31,6 @@ export interface World {
   body: BodyEntry[]
   analyses: Map<string, FootballAnalysis>
   load: LoadModel
-  acwr: number
-  readiness: Readiness | null
   /** the one thing worth a look in each part of the app, when there is one; `today` is the rarest of them all */
   news: { today?: Standout; recovery?: Standout; run?: Standout; lift?: Standout; football?: Standout; body?: Standout }
   slots: Slot[]
@@ -96,6 +93,8 @@ export interface Upcoming {
   slot: Slot
   at: Date
   label: string
+  /** football: the format usually played then */
+  format?: number
 }
 
 /** The soonest of your usual slots, optionally only those matching `pick`. Football says which format you usually play then. */
@@ -109,7 +108,7 @@ function upcoming(slots: Slot[], now: Date, matches: Match[], pick: (s: Slot) =>
     const when = days === 0 ? (at.getHours() >= 18 ? 'tonight' : 'today') : days === 1 ? 'tomorrow' : format(at, 'EEEE')
     const fmt = slot.sport === 'football' ? (usualFormatAt(at, matches) ?? (Number(slot.kind) || undefined)) : undefined
     const what = slot.sport === 'football' ? (fmt ? `${fmt}-a-side` : 'football') : (SPORT_PLAN[slot.sport] ?? slot.sport)
-    next = { slot, at, label: `${what} ${when}` }
+    next = { slot, at, label: `${what} ${when}`, format: fmt }
   }
   return next
 }
@@ -162,8 +161,6 @@ export function useWorld(): World {
     const body = [...s.body, ...(live ? s.garmin!.body : sample!.body)].sort((a, b) => b.date.localeCompare(a.date))
 
     const load = loadModel(activities, 84, now)
-    // judge readiness on load up to yesterday, so this morning's empty day doesn't read as detraining
-    const acwr = load.ratio[load.ratio.length - 2] ?? 1
     const slots = recurringSlots(activities, now)
 
     const next = upcoming(slots, now, matches)
@@ -204,8 +201,6 @@ export function useWorld(): World {
       body,
       analyses: sample?.analyses ?? new Map(),
       load,
-      acwr,
-      readiness: readiness(dailies, activities, acwr, now),
       news,
       slots,
       next,

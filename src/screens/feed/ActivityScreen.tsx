@@ -37,7 +37,7 @@ export function ActivityScreen() {
   const act = withLaps.elevGainM === undefined && stream?.alt ? { ...withLaps, elevGainM: climb(stream.alt) } : withLaps
   return (
     <Screen title={a.name} back bare>
-      <div className="flex items-center gap-2 pt-2">
+      <div className="label flex items-center gap-2">
         <span style={{ color: sportColor(a.sport) }}>
           <SportIcon sport={a.sport} size={16} />
         </span>
@@ -46,10 +46,10 @@ export function ActivityScreen() {
           {a.kind && KIND[a.kind] ? `, ${KIND[a.kind].toLowerCase()}` : ''} · {fmt(a.start, 'EEE d MMM yyyy, HH:mm')}
         </span>
       </div>
-      <h1 className="t-page mt-2">{a.name}</h1>
+      <h1 className="t-page mt-0.5">{a.name}</h1>
 
       {stream?.lat && (a.sport === 'run' || a.sport === 'ride') && (
-        <div className="card mt-5 overflow-hidden">
+        <div className="tile mt-5 overflow-hidden">
           <RouteArt stream={stream} bounds={bounds} height={230} />
         </div>
       )}
@@ -139,7 +139,7 @@ function Ghosts({ a }: { a: Activity }) {
   const whole = courses.filter((c) => c.to - c.from >= 0.9 * (a.distanceM ?? 0)).length
   const where = whole === courses.length ? 'on this route' : whole ? 'on all or part of this route' : 'on stretches of this route'
   return (
-    <Link to={`/ghost/${a.id}`} className="press card mt-3 flex items-center gap-3 px-4 py-3.5">
+    <Link to={`/ghost/${a.id}`} className="press tile mt-3 flex items-center gap-3 px-4 py-3.5">
       <span className="min-w-0 flex-1">
         <span className="t-name block">Race your ghosts</span>
         <span className="meta block">
@@ -231,7 +231,7 @@ function Splits({ a }: { a: Activity }) {
   return (
     <Section title="Splits">
       <div>
-        <div className="grid grid-cols-[28px_1fr_64px_44px] gap-3 border-b border-fg/[0.13] pb-2 text-[12.5px] font-medium text-fg-4">
+        <div className="grid grid-cols-[28px_1fr_64px_44px] gap-3 border-b border-ink-2 pb-2 text-[12.5px] font-medium text-fg-4">
           <span>Km</span>
           <span />
           <span className="text-right">Pace</span>
@@ -242,10 +242,10 @@ function Splits({ a }: { a: Activity }) {
           const t = slowest === fastest ? 1 : 1 - (p - fastest) / (slowest - fastest)
           const best = p === fastest
           return (
-            <div key={i} className="grid grid-cols-[28px_1fr_64px_44px] items-center gap-3 border-b border-fg/[0.08] py-2 last:border-0">
+            <div key={i} className="grid grid-cols-[28px_1fr_64px_44px] items-center gap-3 border-b border-ink-2 py-2 last:border-0">
               <span className="text-[14px] tabular-nums text-fg-3">{i + 1}</span>
               <span className="h-[9px]">
-                <span className={`block h-full ${best ? 'solid' : 'hatch'}`} style={{ width: `${30 + t * 70}%` }} />
+                <span className={`block h-full ${best ? 'solid' : 'faint'}`} style={{ width: `${30 + t * 70}%` }} />
               </span>
               <span className={`num text-right text-[16.5px] ${best ? '' : 'text-fg-2'}`}>{l.distanceM < 950 ? pace(l.avgSpeed) + '*' : pace(l.avgSpeed)}</span>
               <span className="text-right text-[14px] tabular-nums text-fg-3">{l.avgHr}</span>
@@ -269,7 +269,6 @@ function Lengths({ a }: { a: Activity }) {
       }
     >
       <Bars values={laps.map((l) => l.durationS)} height={110} highlight={laps.reduce((b, l, i) => (l.durationS < laps[b].durationS ? i : b), 0)} />
-      <p className="meta mt-3">Seconds per {a.swim?.poolM} m length. The fastest is filled in.</p>
     </Section>
   )
 }

@@ -33,17 +33,18 @@ export function secondary(a: Activity): string[] {
   return out.filter(Boolean)
 }
 
+/** A rating as a pill: the number in its band's colour, on that colour's tint. */
 export function RatingBadge({ rating, size = 'md' }: { rating: number; size?: 'sm' | 'row' | 'md' | 'lg' }) {
   const t = ratingTone(rating)
-  const s =
-    size === 'lg'
-      ? 'h-14 min-w-[64px] rounded-[5px] px-2 text-[36px]'
-      : size === 'sm'
-        ? 'h-6 min-w-[34px] rounded-[4px] px-1.5 text-[17px]'
-        : size === 'row'
-          ? 'h-7 min-w-[38px] rounded-[4px] px-1.5 text-[19px]'
-          : 'h-8 min-w-[44px] rounded-[4px] px-2 text-[21px]'
-  return <span className={`num grid shrink-0 place-items-center !font-bold ${s} ${t.cls} text-ink-0`}>{rating.toFixed(1)}</span>
+  const s = size === 'lg' ? 'h-12 px-4 text-[26px]' : size === 'sm' ? 'h-6 px-2 text-[12.5px]' : size === 'row' ? 'h-7 px-2.5 text-[13.5px]' : 'h-8 px-3 text-[15px]'
+  return (
+    <span
+      className={`inline-grid shrink-0 place-items-center rounded-full font-extrabold tabular-nums ${s}`}
+      style={{ color: `rgb(var(${t.v}))`, background: `rgb(var(${t.v}) / 0.14)` }}
+    >
+      {rating.toFixed(1)}
+    </span>
+  )
 }
 
 /** One session as a row in a grouped list: what, when, and the number that matters for its sport. */
@@ -54,17 +55,12 @@ export function ActivityRow({ a, match }: { a: Activity; match?: Match }) {
     <Link to={to} className="flex items-center gap-3 py-3 transition-colors duration-150 active:bg-ink-2">
       <SportDot sport={a.sport} />
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[16px] font-semibold leading-5">{a.name}</span>
+        <span className="block truncate text-[15px] font-bold leading-5">{a.name}</span>
         <span className="meta block truncate">{fmt(a.start, 'EEE d MMM · HH:mm')}</span>
       </span>
-      {a.sport === 'football' &&
-        (match ? (
-          <RatingBadge rating={match.rating} size="sm" />
-        ) : (
-          <span className="rounded-[4px] px-2 py-1 text-[12px] font-semibold leading-none text-mark ring-1 ring-inset ring-mark/50">Rate</span>
-        ))}
+      {a.sport === 'football' && (match ? <RatingBadge rating={match.rating} size="sm" /> : <span className="pill [--p:var(--run)]">Rate</span>)}
       <span className="shrink-0 text-right">
-        <span className="num block text-[17px] leading-5">
+        <span className="num block text-[18px] leading-5">
           {h.value}
           <span className="unit ml-0.5 text-[12px]">{h.unit}</span>
         </span>
@@ -74,7 +70,7 @@ export function ActivityRow({ a, match }: { a: Activity; match?: Match }) {
   )
 }
 
-/** Rows straight on the board, split by chalk rules: the way every list in the app is set. */
+/** Rows inside a tile, split by hairlines: the way every list in the app is set. */
 export function ActivityList({ items, matchFor }: { items: Activity[]; matchFor: (a: Activity) => Match | undefined }) {
   return (
     <div className="list">

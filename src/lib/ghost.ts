@@ -331,14 +331,3 @@ export function hrAlong(p: Path, c: { from: number; to: number }, s?: Shared, st
 export function positionAt(p: Path, t: number): { lat: number; lon: number; m: number } {
   return { lat: lerp(p.t, p.lat, t), lon: lerp(p.t, p.lon, t), m: lerp(p.t, p.d, t) }
 }
-
-/** Where you gained most on a ghost: the kilometre or so with the biggest swing your way. */
-export function biggestGain(gap: { m: number; s: number }[], len = 1000): { from: number; to: number; s: number } | undefined {
-  const k = Math.max(1, Math.round(len / ((gap[1]?.m ?? len) - (gap[0]?.m ?? 0))))
-  let best: { from: number; to: number; s: number } | undefined
-  for (let i = 0; i + k < gap.length; i++) {
-    const s = gap[i + k].s - gap[i].s
-    if (!best || s > best.s) best = { from: gap[i].m, to: gap[i + k].m, s }
-  }
-  return best
-}

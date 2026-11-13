@@ -6,7 +6,6 @@ import {
   baselineFor,
   formatOf,
   gamesToRate,
-  headline,
   playerCard,
   rateMatch,
   recurringPoints,
@@ -34,7 +33,6 @@ const match = (id: string, date: string, format: Format, over: Partial<Match> = 
   feel: 6,
   rating: 7,
   breakdown: [],
-  headline: '',
   createdAt: date,
   ...over,
 })
@@ -96,8 +94,6 @@ test('games rated with moments read as points, and only points in your own words
     { key: 'nutmeg', text: 'Nutmeg', good: true },
   ])
   assert.ok(!('moments' in m))
-  // the headline still knows an own goal
-  assert.match(headline(m, 'Alex'), /own goal|wrong end/i)
   const games = [
     match('x', '2026-10-18T10:30:00', 11, { points: [{ text: 'Lost my man at corners', good: false }] }),
     match('y', '2026-10-11T10:30:00', 11, {
@@ -130,11 +126,6 @@ test('what you usually play comes from your games, with no settings', () => {
   // 11s and 7s twice each: the latest game breaks the tie; midfield is played most; the team is the last one
   assert.deepEqual(usualOf(games), { format: 7, position: 'MID', team: 'Ctrl Alt Defeat' })
   assert.deepEqual(usualOf(games.slice(0, 3)), { format: 11, position: 'MID', team: 'Ctrl Alt Defeat' })
-})
-
-test('a big point in your own words can make the headline', () => {
-  const m = match('h', '2026-10-18T10:30:00', 11, { scoreFor: 3, scoreAgainst: 1, points: [{ text: 'won every header', good: true, big: true }] })
-  assert.equal(headline(m, 'Alex'), '“Won every header”: Alex stars in 3-1 win')
 })
 
 test('the player card judges each game against its own format', () => {

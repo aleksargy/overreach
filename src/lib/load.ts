@@ -1,6 +1,6 @@
 import { addDays, differenceInCalendarDays, parseISO, startOfDay } from 'date-fns'
 import type { Activity, Daily, Profile, ZoneSeconds } from '../data/types'
-import { ewma, median, round } from './math'
+import { median, round } from './math'
 import { isoDay } from './format'
 
 /**
@@ -77,17 +77,9 @@ export function dailyLoads(activities: Activity[], days: number, today = new Dat
 
 export interface LoadModel {
   days: LoadDay[]
-  acute: number[]
-  chronic: number[]
-  ratio: number[]
 }
 
-/** Acute:chronic workload ratio from 7- and 28-day EWMAs. */
+/** Each day's load, by sport, over the last `days` days. */
 export function loadModel(activities: Activity[], days = 84, today = new Date()): LoadModel {
-  const ds = dailyLoads(activities, days, today)
-  const loads = ds.map((d) => d.load)
-  const acute = ewma(loads, 7)
-  const chronic = ewma(loads, 28)
-  const ratio = acute.map((a, i) => (chronic[i] > 1 ? a / chronic[i] : 1))
-  return { days: ds, acute, chronic, ratio }
+  return { days: dailyLoads(activities, days, today) }
 }

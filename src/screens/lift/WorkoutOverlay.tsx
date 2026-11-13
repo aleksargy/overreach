@@ -1,11 +1,10 @@
-import { ArrowDown, ArrowUp, ChevronDown, ChevronUp, Minus, MoreHorizontal, Plus, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, Check, ChevronDown, ChevronUp, Minus, MoreHorizontal, Plus, Trash2 } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router'
 import { Sheet } from '../../components/ui/Sheet'
 import { NumInput } from '../../components/ui/bits'
-import { Digits, Tick } from '../../components/ui/chalk'
 import { useStore } from '../../data/store'
 import type { SetEntry, WorkoutExercise } from '../../data/types'
 import { useUi } from '../../data/ui'
@@ -88,24 +87,26 @@ function Live() {
 
   return (
     <div className="flex h-full flex-col">
-      <header className="relative bg-ink-0 pt-[env(safe-area-inset-top,0px)]">
-        <div className="gutter mx-auto flex h-[64px] max-w-app items-center gap-2">
-          <button aria-label="Minimise workout" onClick={() => setOpen(false)} className="press -ml-2 grid h-10 w-10 place-items-center rounded-full text-fg-2">
-            <ChevronDown size={26} strokeWidth={1.75} />
+      <header className="bg-ink-0 pt-[max(12px,env(safe-area-inset-top,0px))]">
+        <div className="gutter mx-auto flex max-w-app items-center gap-3 pb-3 pt-1">
+          <button aria-label="Minimise workout" onClick={() => setOpen(false)} className="round text-fg-2">
+            <ChevronDown size={20} strokeWidth={2.2} />
           </button>
           <div className="min-w-0 flex-1">
-            <div className="display truncate text-[18px] font-bold leading-none">{active.name}</div>
-            <div className="meta mt-1">
+            <div className="display truncate text-[18px] font-extrabold leading-tight">{active.name}</div>
+            <div className="meta">
               {done} of {total} sets
             </div>
           </div>
-          <Digits className="num mr-2 text-[20px] !font-normal text-fg-2">{clock(elapsed)}</Digits>
-          <button onClick={() => setFinishing(true)} className="btn-primary h-10 px-4 text-[13.5px]">
+          <span className="num text-[20px] tabular-nums text-fg-2">{clock(elapsed)}</span>
+          <button onClick={() => setFinishing(true)} className="btn-primary h-10 px-4 text-[14px]">
             Finish
           </button>
         </div>
-        <div className="h-px bg-fg/[0.13]">
-          <div className="h-full bg-fg transition-[width] duration-500" style={{ width: `${total ? (done / total) * 100 : 0}%` }} />
+        <div className="gutter mx-auto max-w-app pb-1">
+          <div className="h-1 overflow-hidden rounded-full bg-strength/[0.16]">
+            <div className="h-full rounded-full bg-strength transition-[width] duration-500" style={{ width: `${total ? (done / total) * 100 : 0}%` }} />
+          </div>
         </div>
       </header>
 
@@ -199,21 +200,17 @@ function ExerciseBlock({ w, we, index, count }: { w: World; we: WorkoutExercise;
   const cols = weighted ? 'grid-cols-[24px_minmax(0,1fr)_70px_56px_40px]' : 'grid-cols-[24px_minmax(0,1fr)_84px_40px]'
 
   return (
-    <section className="border-b border-fg/[0.13] py-6">
+    <section className="tile mt-2.5">
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
-          <h3 className="display text-[22px] font-bold leading-none">{ex.name}</h3>
+          <h3 className="display text-[20px] font-extrabold leading-tight">{ex.name}</h3>
           <div className="mt-2.5 flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <span className="num text-[17px] text-fg-2">{targetText(ex, target)}</span>
             <MoveNote t={target} />
             {perSide.length > 0 && <span className="meta">{perSide.map(fmtKg).join(' + ')} a side</span>}
           </div>
         </div>
-        <button
-          aria-label="Exercise options"
-          onClick={() => setMenu((m) => !m)}
-          className={`press grid h-9 w-9 place-items-center rounded-full ${menu ? 'bg-fg text-ink-0' : 'text-fg-3'}`}
-        >
+        <button aria-label="Exercise options" onClick={() => setMenu((m) => !m)} className={`round h-9 w-9 ${menu ? 'round-on' : 'text-fg-3'}`}>
           <MoreHorizontal size={18} />
         </button>
       </div>
@@ -235,7 +232,7 @@ function ExerciseBlock({ w, we, index, count }: { w: World; we: WorkoutExercise;
         )}
       </AnimatePresence>
 
-      <div className={`mt-5 grid ${cols} items-center gap-2 pb-1 text-[12px] font-medium text-fg-4`}>
+      <div className={`mt-4 grid ${cols} items-center gap-2 pb-1 text-[12px] font-semibold text-fg-3`}>
         <span>Set</span>
         <span>Last time</span>
         {weighted && <span className="text-center">{ex.kind === 'weighted-bodyweight' ? '+ kg' : 'kg'}</span>}
@@ -272,9 +269,9 @@ function ExerciseBlock({ w, we, index, count }: { w: World; we: WorkoutExercise;
             aria-label={r.s.done ? 'Mark set not done' : 'Mark set done'}
             aria-pressed={r.s.done}
             onClick={() => tick(r)}
-            className={`press ml-auto grid h-9 w-9 place-items-center rounded-full ${r.s.done ? 'bg-fg text-ink-0' : 'text-fg-4 ring-1 ring-inset ring-fg/30'}`}
+            className={`press ml-auto grid h-9 w-9 place-items-center rounded-full transition-colors ${r.s.done ? 'bg-strength text-ink-0' : 'bg-ink-2 text-fg-4'}`}
           >
-            <Tick size={18} strokeWidth={2.25} />
+            <Check size={18} strokeWidth={2.75} />
           </button>
         </div>
       ))}
@@ -296,7 +293,7 @@ function ExerciseBlock({ w, we, index, count }: { w: World; we: WorkoutExercise;
   )
 }
 
-/** The rest timer: a strip across the foot of the board, like the header, whose rule fills as the rest runs down. */
+/** The rest timer: a graphite tile floating at the foot of the logger, its track filling as the rest runs down. */
 function RestBar() {
   const rest = useUi((s) => s.rest)
   const nudge = useUi((s) => s.nudgeRest)
@@ -317,29 +314,32 @@ function RestBar() {
       {rest && (
         <motion.div
           key="rest"
-          className="absolute inset-x-0 bottom-0 bg-ink-0 pb-[env(safe-area-inset-bottom,0px)]"
-          initial={{ y: '100%' }}
+          className="gutter absolute inset-x-0 bottom-0 pb-[max(12px,env(safe-area-inset-bottom,0px))]"
+          initial={{ y: '120%' }}
           animate={{ y: 0 }}
-          exit={{ y: '100%' }}
+          exit={{ y: '120%' }}
           transition={{ type: 'spring', stiffness: 420, damping: 38 }}
         >
-          <div className="h-[2px] bg-fg/[0.13]">
-            <div className={`h-full transition-[width] duration-300 ease-linear ${over ? 'bg-good' : 'bg-fg'}`} style={{ width: `${Math.min(1, 1 - left / rest.total) * 100}%` }} />
-          </div>
-          <div className="gutter mx-auto flex max-w-app items-center gap-3 py-3">
+          <div className="relative mx-auto flex max-w-app items-center gap-3 overflow-hidden rounded-[22px] bg-ink-2 px-4 pb-3.5 pt-3">
+            <div className="absolute inset-x-4 bottom-1.5 h-[3px] overflow-hidden rounded-full bg-fg/10">
+              <div
+                className={`h-full rounded-full transition-[width] duration-300 ease-linear ${over ? 'bg-good' : 'bg-strength'}`}
+                style={{ width: `${Math.min(1, 1 - left / rest.total) * 100}%` }}
+              />
+            </div>
             <div className="min-w-0 flex-1">
               <div className={`label ${over ? 'text-good' : ''}`}>{over ? 'Go' : 'Rest'}</div>
               <div className="meta truncate">{over ? 'Next set' : rest.label}</div>
             </div>
-            <Digits className={`num text-[36px] !font-light ${over ? 'text-good' : ''}`}>{clock(left)}</Digits>
+            <span className={`num text-[36px] tabular-nums ${over ? 'text-good' : ''}`}>{clock(left)}</span>
             <div className="flex gap-1.5">
-              <button onClick={() => nudge(-15)} className="chip h-10 px-2.5">
+              <button onClick={() => nudge(-15)} className="chip h-10 bg-ink-3 px-2.5">
                 −15
               </button>
-              <button onClick={() => nudge(15)} className="chip h-10 px-2.5">
+              <button onClick={() => nudge(15)} className="chip h-10 bg-ink-3 px-2.5">
                 +15
               </button>
-              <button onClick={stop} className="chip chip-on h-10 px-3 font-semibold">
+              <button onClick={stop} className="chip chip-on h-10 px-3 font-bold">
                 {over ? 'OK' : 'Skip'}
               </button>
             </div>
@@ -425,14 +425,14 @@ function FinishSheet({ open, onClose }: { open: boolean; onClose: () => void }) 
         Save workout
       </button>
       {!done && <p className="meta mt-2 text-center">Tick off at least one set to save.</p>}
-      <button onClick={bin} className={`mt-3 h-11 w-full rounded-[5px] text-[14.5px] font-semibold ${sure ? 'bg-bad text-ink-0' : 'text-fg-3'}`}>
+      <button onClick={bin} className={`press mt-3 h-11 w-full rounded-full text-[14.5px] font-semibold ${sure ? 'bg-bad text-ink-0' : 'text-fg-3'}`}>
         {sure ? 'Tap again to discard' : 'Discard workout'}
       </button>
     </Sheet>
   )
 }
 
-/** Sits on the tab bar while a workout is minimised: a strip of the board whose top rule fills as the sets get ticked. */
+/** Floats just above the tab bar while a workout is minimised: a graphite tile whose track fills as the sets get ticked. */
 export function MiniWorkoutBar() {
   const active = useStore((s) => s.active)
   const open = useUi((s) => s.workoutOpen)
@@ -444,20 +444,20 @@ export function MiniWorkoutBar() {
   const total = active.exercises.reduce((a, we) => a + working(we).length, 0)
   const left = rest ? Math.max(0, Math.ceil((rest.until - now) / 1000)) : 0
   return (
-    <div className="fixed inset-x-0 bottom-[calc(var(--tabbar-h)+env(safe-area-inset-bottom,0px))] z-40 bg-ink-0">
-      <div className="h-px bg-fg/[0.13]">
-        <div className="h-full bg-fg transition-[width] duration-500" style={{ width: `${total ? (done / total) * 100 : 0}%` }} />
-      </div>
-      <button onClick={() => setOpen(true)} className="block w-full text-left transition-colors duration-150 active:bg-ink-2">
-        <span className="gutter mx-auto flex h-14 max-w-app items-center gap-3">
+    <div className="gutter pointer-events-none fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom,0px)+var(--tabbar-gap)+var(--tabbar-h)+8px)] z-40">
+      <button onClick={() => setOpen(true)} className="press pointer-events-auto relative mx-auto block w-full max-w-app overflow-hidden rounded-[22px] bg-ink-2 text-left">
+        <span className="absolute inset-x-4 bottom-1.5 h-[3px] overflow-hidden rounded-full bg-fg/10">
+          <span className="block h-full rounded-full bg-strength transition-[width] duration-500" style={{ width: `${total ? (done / total) * 100 : 0}%` }} />
+        </span>
+        <span className="flex h-14 items-center gap-3 px-4">
           <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-bad" />
           <span className="min-w-0 flex-1">
-            <span className="display block truncate text-[15px] font-bold leading-none">{active.name}</span>
+            <span className="block truncate text-[15px] font-bold leading-tight">{active.name}</span>
             <span className="meta mt-0.5 block">
               {done} of {total} sets{rest ? (left ? ` · rest ${clock(left)}` : ' · go') : ''}
             </span>
           </span>
-          <Digits className="num text-[19px] !font-normal">{clock((now - Date.parse(active.start)) / 1000)}</Digits>
+          <span className="num text-[19px] tabular-nums">{clock((now - Date.parse(active.start)) / 1000)}</span>
           <ChevronUp size={18} className="text-fg-3" />
         </span>
       </button>

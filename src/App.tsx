@@ -76,7 +76,7 @@ function Shell() {
 
   // Screens pad their bottom by this so the minimised workout bar never covers content.
   useEffect(() => {
-    document.documentElement.style.setProperty('--mini-h', mini ? '57px' : '0px')
+    document.documentElement.style.setProperty('--mini-h', mini ? '64px' : '0px')
   }, [mini])
 
   // Pick up new Garmin data when the app opens or comes back to the foreground.
@@ -118,8 +118,8 @@ function Splash() {
   return (
     <div className="fixed inset-0 grid place-items-center bg-ink-0">
       <div className="flex flex-col items-center gap-5">
-        <span className="display text-[31px] font-extrabold leading-none">{APP_NAME}</span>
-        <span className="relative h-[2px] w-20 overflow-hidden rounded-full bg-fg/15">
+        <span className="display text-[30px] font-extrabold leading-none">{APP_NAME}</span>
+        <span className="relative h-1 w-20 overflow-hidden rounded-full bg-fg/15">
           <span className="absolute inset-y-0 left-0 w-1/2 animate-[load_1s_ease-in-out_infinite] rounded-full bg-fg" />
         </span>
       </div>
@@ -136,7 +136,7 @@ function Toast() {
           <motion.div
             key={toast.id}
             role="status"
-            className="rounded-[5px] bg-fg px-4 py-2.5 text-[14.5px] font-semibold text-ink-0 shadow-[0_12px_40px_rgb(0_0_0/0.5)]"
+            className="rounded-full bg-fg px-4 py-2.5 text-[14px] font-bold text-ink-0"
             initial={{ opacity: 0, y: -12, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8 }}

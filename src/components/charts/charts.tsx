@@ -1,9 +1,8 @@
-import { useId, useMemo, type ReactNode } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import { zoneOf } from '../../lib/load'
-import { Hatch } from '../ui/chalk'
 import { useMeasure, zoneColor } from './primitives'
 
-/** axis labels: small chalk notes in the reading face, figures lined up */
+/** labels, only where they're needed: small, in the reading face */
 const TICK = 'font-mono text-[10.5px]'
 
 function downsample(xs: number[], n: number): number[] {
@@ -45,7 +44,6 @@ interface StreamProps {
 
 export function StreamChart({ values, dt, height = 150, kind, bounds, format = (v) => v.toFixed(0), markers }: StreamProps) {
   const [ref, w] = useMeasure<HTMLDivElement>()
-  const id = useId()
   const geo = useMemo(() => {
     if (!w || values.length < 2) return null
     // a heart rate of 0 is the strap or watch dropping out, not a reading
@@ -111,14 +109,7 @@ export function StreamChart({ values, dt, height = 150, kind, bounds, format = (
     <div ref={ref} className="w-full" style={{ height }}>
       {geo && (
         <svg width={w} height={height} className="block overflow-visible">
-          {kind === 'alt' && (
-            <>
-              <defs>
-                <Hatch id={id} opacity={0.3} />
-              </defs>
-              <path d={geo.area} fill={`url(#${id})`} />
-            </>
-          )}
+          {kind === 'alt' && <path d={geo.area} fill="rgb(var(--fg) / 0.07)" />}
           {geo.guides.map((g) => (
             <g key={g.z}>
               <line x1={0} x2={geo.right} y1={g.y} y2={g.y} stroke={zoneColor(g.z, 0.35)} strokeDasharray="2 5" strokeLinecap="round" />
@@ -175,10 +166,9 @@ interface BarsProps {
   format?: (v: number) => string
 }
 
-/** Bars shaded in chalk, with the one that matters filled in solid. */
+/** Capsule bars, faint in their colour, with the one that matters solid. */
 export function Bars({ values, labels, colors, height = 120, highlight, usual, marker, valueLabels, format = (v) => v.toFixed(0) }: BarsProps) {
   const [ref, w] = useMeasure<HTMLDivElement>()
-  const id = useId()
   const max = Math.max(...values, usual ?? 0, 1)
   const labelH = labels ? 19 : 0
   const topH = valueLabels ? 16 : 4
@@ -192,9 +182,6 @@ export function Bars({ values, labels, colors, height = 120, highlight, usual, m
     <div ref={ref} style={{ height }} className="w-full">
       {w > 0 && (
         <svg width={w} height={height} className="block overflow-visible">
-          <defs>
-            <Hatch id={id} />
-          </defs>
           {values.map((v, i) => {
             const bh = v > 0 ? Math.max(3, (v / max) * plot) : 0
             const on = i === highlight
@@ -203,17 +190,16 @@ export function Bars({ values, labels, colors, height = 120, highlight, usual, m
               <g key={i}>
                 {bh > 0 ? (
                   <rect
-                    x={cx(i) - bw / 2 + 0.5}
-                    y={base - bh + 0.5}
-                    width={bw - 1}
-                    height={bh - 0.5}
-                    fill={color ?? (on ? 'rgb(var(--fg))' : `url(#${id})`)}
+                    x={cx(i) - bw / 2}
+                    y={base - bh}
+                    width={bw}
+                    height={bh}
+                    rx={Math.min(5, bw / 2, bh / 2)}
+                    fill={color ?? (on ? 'rgb(var(--fg))' : 'rgb(var(--fg) / 0.2)')}
                     fillOpacity={color ? 0.85 : 1}
-                    stroke={color ?? (on ? 'rgb(var(--fg))' : 'rgb(var(--fg) / 0.5)')}
-                    strokeWidth={1}
                   />
                 ) : (
-                  <line x1={cx(i) - bw / 2} x2={cx(i) + bw / 2} y1={base} y2={base} stroke="rgb(var(--fg) / 0.25)" />
+                  <rect x={cx(i) - bw / 2} y={base - 3} width={bw} height={3} rx={1.5} fill="rgb(var(--fg) / 0.1)" />
                 )}
                 {valueLabels && v > 0 && (
                   <text x={cx(i)} y={base - bh - 5} textAnchor="middle" className={`fill-fg-3 ${TICK}`}>
@@ -237,16 +223,7 @@ export function Bars({ values, labels, colors, height = 120, highlight, usual, m
             </g>
           )}
           {usual !== undefined && usual > 0 && (
-            <line
-              x1={0}
-              x2={w}
-              y1={base - (usual / max) * plot}
-              y2={base - (usual / max) * plot}
-              stroke="rgb(var(--fg) / 0.55)"
-              strokeDasharray="1 5"
-              strokeLinecap="round"
-              strokeWidth={1.5}
-            />
+            <line x1={0} x2={w} y1={base - (usual / max) * plot} y2={base - (usual / max) * plot} stroke="rgb(var(--line-2))" strokeDasharray="4 4" strokeWidth={1.5} />
           )}
         </svg>
       )}
@@ -259,7 +236,6 @@ interface TrendProps {
   avg?: { t: number; v: number }[]
   band?: [number, number]
   height?: number
-  format?: (v: number) => string
   xLabel?: (t: number) => string
   color?: string
   /** smallest range the y axis shows, so a flat series doesn't fill the chart with noise and repeat its labels */
@@ -268,7 +244,7 @@ interface TrendProps {
 }
 
 /** Raw readings as dots, the rolling average as the line that matters. */
-export function TrendChart({ points, avg, band, height = 170, format = (v) => v.toFixed(1), xLabel, color = 'rgb(var(--fg))', minSpan = 0 }: TrendProps) {
+export function TrendChart({ points, avg, band, height = 170, xLabel, color = 'rgb(var(--fg))', minSpan = 0 }: TrendProps) {
   const [ref, w] = useMeasure<HTMLDivElement>()
   const geo = useMemo(() => {
     if (!w || points.length < 2) return null
@@ -287,40 +263,27 @@ export function TrendChart({ points, avg, band, height = 170, format = (v) => v.
     lo -= pad
     hi += pad
     const left = 0
-    const right = w - 46
+    const right = w - 6
     const top = 8
     const bottom = height - 20
     const X = (t: number) => left + ((t - t0) / (t1 - t0 || 1)) * (right - left)
     const Y = (v: number) => bottom - ((v - lo) / (hi - lo)) * (bottom - top)
     const line = (avg ?? []).map((p, i) => `${i ? 'L' : 'M'}${X(p.t).toFixed(1)},${Y(p.v).toFixed(1)}`).join('')
     const last = avg?.length ? avg[avg.length - 1] : points[points.length - 1]
-    const grid = [0.25, 0.5, 0.75].map((f) => lo + (hi - lo) * f)
-    return { X, Y, line, last, t0, t1, lo, hi, right, top, bottom, grid }
+    return { X, Y, line, last, t0, t1, lo, hi, right, top, bottom }
   }, [points, avg, band, w, height, minSpan])
 
   return (
     <div ref={ref} className="w-full" style={{ height }}>
       {geo && (
         <svg width={w} height={height} className="block overflow-visible">
-          {geo.grid.map((g, i) => (
-            <g key={i}>
-              <line x1={0} x2={geo.right} y1={geo.Y(g)} y2={geo.Y(g)} stroke="rgb(var(--fg) / 0.14)" strokeDasharray="1 6" strokeLinecap="round" />
-              <text x={geo.right + 14} y={geo.Y(g) + 3.5} className={`fill-fg-4 ${TICK}`}>
-                {format(g)}
-              </text>
-            </g>
+          {band && <rect x={0} width={geo.right} y={geo.Y(band[1])} height={geo.Y(band[0]) - geo.Y(band[1])} rx={4} fill="rgb(var(--fg) / 0.06)" />}
+          {/* each reading is a small dot, faint in the line's colour */}
+          {points.map((p, i) => (
+            <circle key={i} cx={geo.X(p.t)} cy={geo.Y(p.v)} r={1.5} fill={color} fillOpacity={0.4} />
           ))}
-          {band && <rect x={0} width={geo.right} y={geo.Y(band[1])} height={geo.Y(band[0]) - geo.Y(band[1])} fill="rgb(var(--fg) / 0.06)" />}
-          {/* each reading is a small cross, the way you'd mark a point on a board */}
-          <path
-            d={points.map((p) => `M${(geo.X(p.t) - 2.2).toFixed(1)},${(geo.Y(p.v) - 2.2).toFixed(1)}l4.4,4.4m0,-4.4l-4.4,4.4`).join('')}
-            fill="none"
-            stroke="rgb(var(--fg) / 0.36)"
-            strokeWidth={1}
-            strokeLinecap="round"
-          />
-          {geo.line && <path d={geo.line} fill="none" stroke={color} strokeWidth={1.75} strokeLinejoin="round" strokeLinecap="round" />}
-          <circle cx={geo.X(geo.last.t)} cy={geo.Y(geo.last.v)} r={4} fill="rgb(var(--ink-0))" stroke={color} strokeWidth={1.75} />
+          {geo.line && <path d={geo.line} fill="none" stroke={color} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />}
+          <circle cx={geo.X(geo.last.t)} cy={geo.Y(geo.last.v)} r={5} fill="rgb(var(--fg))" />
           {xLabel && (
             <>
               <text x={0} y={height - 4} className={`fill-fg-4 ${TICK}`}>
