@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Floodlight · Football</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,400..800&amp;family=Manrope:wght@400;500;600;700;800&amp;display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        margin: 0;
+        background: #101214;
+      }
+      a {
+        color: #c4d39b;
+      }
+      a:hover {
+        color: #dbe6bf;
+      }
+      .d {
+        font-family: 'Bricolage Grotesque', sans-serif;
+      }
+      .tile {
+        background: #1a1d20;
+        border-radius: 22px;
+        padding: 16px;
+        box-sizing: border-box;
+      }
+      .lbl {
+        font-size: 12.5px;
+        font-weight: 600;
+        color: #8e918f;
+      }
+      .tab {
+        width: 44px;
+        height: 44px;
+        border-radius: 22px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #8e918f;
+      }
+      .st {
+        display: flex;
+        align-items: baseline;
+        gap: 6px;
+      }
+      .sv {
+        font-family: 'Bricolage Grotesque', sans-serif;
+        font-stretch: 75%;
+        font-size: 19px;
+        font-weight: 800;
+        color: #eadcae;
+      }
+      .sk {
+        font-size: 11.5px;
+        font-weight: 700;
+        color: #a8996c;
+      }
+      .fp {
+        flex: 1;
+        height: 44px;
+        border-radius: 14px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        font-weight: 800;
+        font-size: 13px;
+        color: #101214;
+        line-height: 1.1;
+      }
+      .mini {
+        background: #1a1d20;
+        border-radius: 16px;
+        padding: 10px 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div style="width: 390px; height: 844px; box-sizing: border-box; background: #101214; color: #ebe9e4; font-family: 'Manrope', sans-serif; position: relative; overflow: hidden">
+      <div style="padding: 58px 16px 0; display: flex; flex-direction: column; gap: 10px">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px">
+          <div style="display: flex; flex-direction: column; gap: 2px">
+            <span class="lbl">Season 26/27 · 16 rated</span>
+            <h1 class="d" style="margin: 0; font-size: 30px; font-weight: 800; letter-spacing: -0.02em">Football</h1>
+          </div>
+          <button
+            aria-label="Log a match"
+            style="
+              width: 40px;
+              height: 40px;
+              border-radius: 20px;
+              border: 0;
+              background: #ebe9e4;
+              color: #101214;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              padding: 0;
+            "
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M8 2v12M2 8h12" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></path>
+            </svg>
+          </button>
+        </div>
+
+        <div style="display: flex; background: #1a1d20; border-radius: 999px; padding: 4px">
+          <button style="flex: 1; height: 34px; border: 0; border-radius: 999px; background: #ebe9e4; color: #101214; font: 700 13.5px 'Manrope'">11-a-side</button>
+          <button style="flex: 1; height: 34px; border: 0; border-radius: 999px; background: none; color: #8e918f; font: 600 13.5px 'Manrope'">7-a-side</button>
+        </div>
+
+        <div style="display: flex; gap: 12px; align-items: stretch">
+          <div style="position: relative; width: 200px; height: 300px; flex: none">
+            <svg width="200" height="300" viewBox="0 0 200 300" aria-hidden="true" style="position: absolute; inset: 0">
+              <defs>
+                <linearGradient id="blk" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0" stop-color="#2b2c31"></stop>
+                  <stop offset=".55" stop-color="#16171a"></stop>
+                  <stop offset="1" stop-color="#0c0c0e"></stop>
+                </linearGradient>
+                <linearGradient id="edge" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0" stop-color="#ecdcaa"></stop>
+                  <stop offset="1" stop-color="#8a7646"></stop>
+                </linearGradient>
+              </defs>
+              <path
+                d="M100 4C130 4 150 9 168 18H196V236C196 257 160 275 100 296C40 275 4 257 4 236V18H32C50 9 70 4 100 4Z"
+                fill="url(#blk)"
+                stroke="url(#edge)"
+                stroke-width="2.5"
+              ></path>
+              <g stroke="#ffffff" stroke-opacity=".035" stroke-width="6"><path d="M-20 120L120 -20M0 170L170 0M20 220L220 20M60 260L240 80"></path></g>
+              <path
+                d="M100 13C127 13 146 18 163 26H187V234C187 251 156 266 100 286C44 266 13 251 13 234V26H37C54 18 73 13 100 13Z"
+                fill="none"
+                stroke="#d9c690"
+                stroke-opacity=".3"
+                stroke-width="1"
+              ></path>
+              <g fill="#2f3035">
+                <circle cx="128" cy="70" r="26"></circle>
+                <path d="M78 150C80 116 102 102 128 102S176 116 178 150Z"></path>
+              </g>
+            </svg>
+            <div style="position: absolute; left: 24px; top: 30px; display: flex; flex-direction: column; align-items: center; gap: 2px; color: #eadcae">
+              <span class="d" style="font-size: 50px; font-weight: 800; line-height: 0.85; letter-spacing: -0.03em; font-stretch: 75%">82</span>
+              <span style="font-size: 14px; font-weight: 800">RM</span>
+              <span style="width: 26px; height: 1px; background: #8a7646; margin: 6px 0"></span>
+              <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="#eadcae" stroke-width="1.6" aria-label="Football" role="img">
+                <circle cx="11" cy="11" r="8"></circle>
+                <path d="M11 7l3.5 2.5-1.3 4h-4.4l-1.3-4z"></path>
+              </svg>
+              <span style="margin-top: 4px; font-size: 10.5px; font-weight: 800">In form</span>
+            </div>
+            <div style="position: absolute; left: 16px; right: 16px; top: 148px; display: flex; flex-direction: column; align-items: center">
+              <span class="d" style="font-size: 24px; font-weight: 800; color: #f1e6c2; letter-spacing: -0.01em; font-stretch: 75%">Alex</span>
+              <span style="width: 100%; height: 1px; background: #8a7646; opacity: 0.6; margin: 6px 0 8px"></span>
+              <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 0; row-gap: 1px; width: 140px">
+                <div class="st" style="padding-right: 10px; border-right: 1px solid rgba(138, 118, 70, 0.5)"><span class="sv">84</span><span class="sk">PAC</span></div>
+                <div class="st" style="padding-left: 12px"><span class="sv">71</span><span class="sk">SHO</span></div>
+                <div class="st" style="padding-right: 10px; border-right: 1px solid rgba(138, 118, 70, 0.5)"><span class="sv">79</span><span class="sk">PAS</span></div>
+                <div class="st" style="padding-left: 12px"><span class="sv">88</span><span class="sk">STA</span></div>
+                <div class="st" style="padding-right: 10px; border-right: 1px solid rgba(138, 118, 70, 0.5)"><span class="sv">86</span><span class="sk">WRK</span></div>
+                <div class="st" style="padding-left: 12px"><span class="sv">90</span><span class="sk">FRM</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div style="flex: 1; display: flex; flex-direction: column; gap: 8px">
+            <div class="mini"><span class="d" style="font-size: 24px; font-weight: 700">12</span><span class="lbl">Apps</span></div>
+            <div class="mini"><span class="d" style="font-size: 24px; font-weight: 700">5 · 4</span><span class="lbl">Goals · assists</span></div>
+            <div class="mini"><span class="d" style="font-size: 24px; font-weight: 700; color: #a3c4a9">7.1</span><span class="lbl">Avg rating</span></div>
+            <div class="mini" style="gap: 8px; flex: 1; justify-content: center">
+              <div style="display: flex; height: 8px; gap: 2px">
+                <div style="flex: 7; background: #94b89e; border-radius: 3px"></div>
+                <div style="flex: 2; background: #4a4f54; border-radius: 3px"></div>
+                <div style="flex: 3; background: #c48c8c; border-radius: 3px"></div>
+              </div>
+              <span class="lbl">W7 · D2 · L3</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="tile" style="display: flex; align-items: center; gap: 12px; background: #1d232c; padding: 14px 16px">
+          <div style="flex: 1; display: flex; flex-direction: column; gap: 2px">
+            <span style="font-size: 15px; font-weight: 700">Rate Tuesday</span><span style="font-size: 12.5px; color: #a7b3c4">7s v Bayer Neverlusen · lost 2–4</span>
+          </div>
+          <button style="height: 38px; padding: 0 18px; border-radius: 999px; border: 0; background: #ebe9e4; color: #101214; font: 800 14px 'Manrope'">Rate</button>
+        </div>
+
+        <div class="tile" style="display: flex; flex-direction: column; gap: 10px">
+          <span class="lbl">Form</span>
+          <div style="display: flex; gap: 5px">
+            <div class="fp" style="background: #94b89e">W<span style="font-size: 10.5px; font-weight: 700">7.4</span></div>
+            <div class="fp" style="background: #94b89e">W<span style="font-size: 10.5px; font-weight: 700">8.1</span></div>
+            <div class="fp" style="background: #c48c8c">L<span style="font-size: 10.5px; font-weight: 700">5.9</span></div>
+            <div class="fp" style="background: #3a3f44; color: #ebe9e4">D<span style="font-size: 10.5px; font-weight: 700">6.6</span></div>
+            <div class="fp" style="background: #94b89e">W<span style="font-size: 10.5px; font-weight: 700">7.2</span></div>
+            <div class="fp" style="background: #94b89e">W<span style="font-size: 10.5px; font-weight: 700">6.9</span></div>
+            <div class="fp" style="background: #c48c8c">L<span style="font-size: 10.5px; font-weight: 700">6.1</span></div>
+            <div class="fp" style="background: #94b89e">W<span style="font-size: 10.5px; font-weight: 700">7.8</span></div>
+          </div>
+        </div>
+      </div>
+
+      <nav
+        style="
+          position: absolute;
+          left: 50%;
+          transform: translateX(-50%);
+          bottom: 26px;
+          height: 60px;
+          background: #23272b;
+          border-radius: 30px;
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          padding: 0 8px;
+          box-sizing: border-box;
+        "
+      >
+        <a href="#" class="tab" aria-label="Today"
+          ><svg width="20" height="20" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <circle cx="11" cy="11" r="8"></circle>
+            <path d="M11 6v5l3 2" stroke-linecap="round"></path></svg
+        ></a>
+        <a href="#" class="tab" aria-label="Run"
+          ><svg width="20" height="20" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <rect x="3" y="5" width="16" height="12" rx="6"></rect>
+            <rect x="7" y="8.5" width="8" height="5" rx="2.5"></rect></svg
+        ></a>
+        <a href="#" class="tab" style="background: #ebe9e4; color: #101214; width: auto; padding: 0 16px; gap: 8px; text-decoration: none; font-weight: 700; font-size: 14px"
+          ><svg width="20" height="20" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <circle cx="11" cy="11" r="8"></circle>
+            <path d="M11 7l3.5 2.5-1.3 4h-4.4l-1.3-4z"></path></svg
+          >Football</a
+        >
+        <a href="#" class="tab" aria-label="Lift"
+          ><svg width="20" height="20" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <path d="M2 11h18M5 7v8M8 6v10M14 6v10M17 7v8"></path></svg
+        ></a>
+        <a href="#" class="tab" aria-label="Body"
+          ><svg width="20" height="20" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M2 12h4l2-5 3 9 2-6 1.5 2H20"></path></svg
+        ></a>
+      </nav>
+    </div>
+  </body>
+</html>

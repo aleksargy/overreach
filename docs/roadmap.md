@@ -2,12 +2,13 @@
 
 ## Next
 
-1. Alex's first weeks on the Lift tab: does double progression suit how he trains, and are each exercise's rep range and weight step right for him? He can change them per exercise, but the defaults should be close.
-2. Whether the things that get circled are the ones he'd have circled, and whether it's the right amount. The bars are `min` on each series in `src/lib/series.ts` (three weeks for a morning's reading) and `headline` in `src/lib/standout.ts` for Today (twice that, and no more than a day and a half old). Replayed over 60 mornings of his data, Today circled something on 17 and each tab on 11 to 15.
-3. If the lines still read canned: have Claude write Today's one line from the day's numbers on the server, once a day. It needs an Anthropic API key in Netlify and sends those numbers out, so it's Alex's call.
-4. Check that run weather gets filled in from Netlify (it does from the Mac).
-5. Once there are ten or so rated games in each format, revisit `PAR`, `ENGINE_RANGE` and `BIG_MARGIN` in `src/lib/football.ts`. They're judgement calls, not fitted to data.
-6. Check the season heatmap's ends on real data (it says so when it can't tell). Ghosts: loops run the other way round would be the next step.
+1. Restyle the app to Floodlight and take readiness out (`docs/design/floodlight.md`, with mockups in `docs/design/floodlight/`). Today first, shown to Alex before the rest.
+2. Alex's first weeks on the Lift tab: does double progression suit how he trains, and are each exercise's rep range and weight step right for him? He can change them per exercise, but the defaults should be close.
+3. Whether the things that get circled are the ones he'd have circled, and whether it's the right amount. The bars are `min` on each series in `src/lib/series.ts` (three weeks for a morning's reading) and `headline` in `src/lib/standout.ts` for Today (twice that, and no more than a day and a half old). Replayed over 60 mornings of his data, Today circled something on 17 and each tab on 11 to 15.
+4. If the lines still read canned: have Claude write Today's one line from the day's numbers on the server, once a day. It needs an Anthropic API key in Netlify and sends those numbers out, so it's Alex's call.
+5. Check that run weather gets filled in from Netlify (it does from the Mac).
+6. Once there are ten or so rated games in each format, revisit `PAR`, `ENGINE_RANGE` and `BIG_MARGIN` in `src/lib/football.ts`. They're judgement calls, not fitted to data.
+7. Check the season heatmap's ends on real data (it says so when it can't tell). Ghosts: loops run the other way round would be the next step.
 
 ## Not checked yet
 

@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Floodlight · Body</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,400..800&amp;family=Manrope:wght@400;500;600;700;800&amp;display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        margin: 0;
+        background: #101214;
+      }
+      a {
+        color: #c4d39b;
+      }
+      a:hover {
+        color: #dbe6bf;
+      }
+      .d {
+        font-family: 'Bricolage Grotesque', sans-serif;
+      }
+      .tile {
+        background: #1a1d20;
+        border-radius: 22px;
+        padding: 16px;
+        box-sizing: border-box;
+      }
+      .lbl {
+        font-size: 12.5px;
+        font-weight: 600;
+        color: #8e918f;
+      }
+      .tab {
+        width: 44px;
+        height: 44px;
+        border-radius: 22px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #8e918f;
+      }
+      .mini {
+        background: #1a1d20;
+        border-radius: 18px;
+        padding: 12px 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        box-sizing: border-box;
+      }
+      .leg {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+      }
+      .sw {
+        width: 8px;
+        height: 8px;
+        border-radius: 4px;
+        display: inline-block;
+        margin-right: 6px;
+      }
+    </style>
+  </head>
+  <body>
+    <div style="width: 390px; height: 844px; box-sizing: border-box; background: #101214; color: #ebe9e4; font-family: 'Manrope', sans-serif; position: relative; overflow: hidden">
+      <div style="padding: 58px 16px 0; display: flex; flex-direction: column; gap: 10px">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px">
+          <div style="display: flex; flex-direction: column; gap: 2px">
+            <span class="lbl">Weight and sleep</span>
+            <h1 class="d" style="margin: 0; font-size: 30px; font-weight: 800; letter-spacing: -0.02em">Body</h1>
+          </div>
+          <button
+            aria-label="Add a weigh-in"
+            style="
+              width: 40px;
+              height: 40px;
+              border-radius: 20px;
+              border: 0;
+              background: #ebe9e4;
+              color: #101214;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              padding: 0;
+            "
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M8 2v12M2 8h12" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></path>
+            </svg>
+          </button>
+        </div>
+
+        <div style="background: #261f24; border-radius: 26px; padding: 18px; display: flex; flex-direction: column; gap: 10px">
+          <div style="display: flex; justify-content: space-between; align-items: center">
+            <span style="font-size: 13px; font-weight: 700; color: #b8a0ad">Weight · 7-day average</span>
+            <span style="font-size: 12.5px; font-weight: 700; color: #e6d3dd; background: rgba(199, 166, 184, 0.14); padding: 4px 10px; border-radius: 999px"
+              >↓ 0.5 kg in 4 weeks</span
+            >
+          </div>
+          <span class="d" style="font-size: 58px; font-weight: 800; line-height: 0.9; letter-spacing: -0.04em; color: #e6d3dd"
+            >76.5<span style="font-size: 18px; font-weight: 600; letter-spacing: 0; color: #b8a0ad"> kg</span></span
+          >
+          <svg width="322" height="70" viewBox="0 0 322 70" role="img" aria-label="Weight over 8 weeks, drifting down, with today the lowest">
+            <g fill="#c7a6b8" fill-opacity=".4">
+              <circle cx="4" cy="18" r="2"></circle>
+              <circle cx="18" cy="26" r="2"></circle>
+              <circle cx="32" cy="14" r="2"></circle>
+              <circle cx="46" cy="24" r="2"></circle>
+              <circle cx="60" cy="20" r="2"></circle>
+              <circle cx="74" cy="30" r="2"></circle>
+              <circle cx="88" cy="22" r="2"></circle>
+              <circle cx="102" cy="16" r="2"></circle>
+              <circle cx="116" cy="28" r="2"></circle>
+              <circle cx="130" cy="24" r="2"></circle>
+              <circle cx="144" cy="32" r="2"></circle>
+              <circle cx="158" cy="22" r="2"></circle>
+              <circle cx="172" cy="30" r="2"></circle>
+              <circle cx="186" cy="26" r="2"></circle>
+              <circle cx="200" cy="36" r="2"></circle>
+              <circle cx="214" cy="28" r="2"></circle>
+              <circle cx="228" cy="34" r="2"></circle>
+              <circle cx="242" cy="30" r="2"></circle>
+              <circle cx="256" cy="40" r="2"></circle>
+              <circle cx="270" cy="32" r="2"></circle>
+              <circle cx="284" cy="38" r="2"></circle>
+              <circle cx="298" cy="44" r="2"></circle>
+            </g>
+            <path d="M4 21C80 24 160 27 220 30S290 34 314 35" fill="none" stroke="#c7a6b8" stroke-width="2.5" stroke-linecap="round"></path>
+            <circle cx="314" cy="60" r="5" fill="#261f24" stroke="#e6d3dd" stroke-width="2"></circle>
+          </svg>
+          <span style="font-size: 13px; font-weight: 600; color: #e6d3dd">75.5 kg this morning, the lightest in 3 months</span>
+        </div>
+
+        <div class="tile" style="display: flex; flex-direction: column; gap: 12px">
+          <div style="display: flex; justify-content: space-between; align-items: center">
+            <span class="lbl">Last night</span>
+            <span style="font-size: 12.5px; font-weight: 700; color: #c9d6ea; background: rgba(138, 160, 191, 0.14); padding: 4px 10px; border-radius: 999px">Sleep score 82</span>
+          </div>
+          <span class="d" style="font-size: 40px; font-weight: 700; line-height: 1; letter-spacing: -0.03em"
+            >7:42<span style="font-size: 14px; color: #8e918f; font-family: 'Manrope'; letter-spacing: 0"> asleep</span></span
+          >
+          <div style="display: flex; height: 12px; gap: 3px">
+            <div style="flex: 84; background: #6f86ab; border-radius: 6px"></div>
+            <div style="flex: 111; background: #a99fc4; border-radius: 6px"></div>
+            <div style="flex: 267; background: #3f4550; border-radius: 6px"></div>
+            <div style="flex: 18; background: #c48c8c; border-radius: 6px; min-width: 8px"></div>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr))">
+            <div class="leg">
+              <span class="lbl"><span class="sw" style="background: #6f86ab"></span>Deep</span><span style="font-size: 14px; font-weight: 700">1:24</span>
+            </div>
+            <div class="leg">
+              <span class="lbl"><span class="sw" style="background: #a99fc4"></span>REM</span><span style="font-size: 14px; font-weight: 700">1:51</span>
+            </div>
+            <div class="leg">
+              <span class="lbl"><span class="sw" style="background: #3f4550"></span>Light</span><span style="font-size: 14px; font-weight: 700">4:27</span>
+            </div>
+            <div class="leg">
+              <span class="lbl"><span class="sw" style="background: #c48c8c"></span>Awake</span><span style="font-size: 14px; font-weight: 700">0:18</span>
+            </div>
+          </div>
+        </div>
+
+        <span class="lbl" style="margin-top: 4px">Last 7 days, against your usual</span>
+        <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px">
+          <div class="mini">
+            <span class="lbl" style="font-size: 11.5px">HRV</span><span class="d" style="font-size: 21px; font-weight: 700">58</span
+            ><span style="font-size: 12px; font-weight: 700; color: #a3c4a9">+3 ms</span>
+          </div>
+          <div class="mini">
+            <span class="lbl" style="font-size: 11.5px">Resting HR</span><span class="d" style="font-size: 21px; font-weight: 700">48</span
+            ><span style="font-size: 12px; font-weight: 700; color: #a3c4a9">−1 bpm</span>
+          </div>
+          <div class="mini">
+            <span class="lbl" style="font-size: 11.5px">Sleep</span><span class="d" style="font-size: 21px; font-weight: 700">7:31</span
+            ><span style="font-size: 12px; font-weight: 700; color: #a3c4a9">+12 min</span>
+          </div>
+          <div class="mini">
+            <span class="lbl" style="font-size: 11.5px">Steps</span><span class="d" style="font-size: 21px; font-weight: 700">9.8k</span
+            ><span style="font-size: 12px; font-weight: 700; color: #8e918f">−6%</span>
+          </div>
+        </div>
+      </div>
+
+      <nav
+        style="
+          position: absolute;
+          left: 50%;
+          transform: translateX(-50%);
+          bottom: 26px;
+          height: 60px;
+          background: #23272b;
+          border-radius: 30px;
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          padding: 0 8px;
+          box-sizing: border-box;
+        "
+      >
+        <a href="#" class="tab" aria-label="Today"
+          ><svg width="20" height="20" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <circle cx="11" cy="11" r="8"></circle>
+            <path d="M11 6v5l3 2" stroke-linecap="round"></path></svg
+        ></a>
+        <a href="#" class="tab" aria-label="Run"
+          ><svg width="20" height="20" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <rect x="3" y="5" width="16" height="12" rx="6"></rect>
+            <rect x="7" y="8.5" width="8" height="5" rx="2.5"></rect></svg
+        ></a>
+        <a href="#" class="tab" aria-label="Football"
+          ><svg width="20" height="20" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <circle cx="11" cy="11" r="8"></circle>
+            <path d="M11 7l3.5 2.5-1.3 4h-4.4l-1.3-4z"></path></svg
+        ></a>
+        <a href="#" class="tab" aria-label="Lift"
+          ><svg width="20" height="20" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <path d="M2 11h18M5 7v8M8 6v10M14 6v10M17 7v8"></path></svg
+        ></a>
+        <a href="#" class="tab" style="background: #ebe9e4; color: #101214; width: auto; padding: 0 16px; gap: 8px; text-decoration: none; font-weight: 700; font-size: 14px"
+          ><svg width="20" height="20" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M2 12h4l2-5 3 9 2-6 1.5 2H20"></path></svg
+          >Body</a
+        >
+      </nav>
+    </div>
+  </body>
+</html>
