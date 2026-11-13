@@ -48,7 +48,7 @@ export function FeedScreen() {
         </span>
       }
     >
-      <div className="no-scrollbar -mx-4 mb-6 flex gap-2 overflow-x-auto px-4">
+      <div className="no-scrollbar -mx-4 mb-2.5 flex gap-2 overflow-x-auto px-4">
         {filters.map((x) => (
           <button
             key={x.key}
@@ -63,18 +63,18 @@ export function FeedScreen() {
           </button>
         ))}
       </div>
-      <div className="flex flex-col gap-8">
+      <div className="flex flex-col gap-2.5">
         {[...weeks.entries()].slice(0, shown).map(([k, acts]) => {
           const start = parseISO(k)
           const dist = acts.reduce((s, a) => s + (a.sport === 'swim' ? 0 : (a.distanceM ?? 0)), 0)
           const time = acts.reduce((s, a) => s + a.durationS, 0)
           return (
-            <section key={k}>
-              <div className="flex items-baseline justify-between gap-3 border-b border-fg/[0.13] pb-2">
-                <h2 className="display text-[16.5px] font-bold leading-none">
+            <section key={k} className="tile pb-1">
+              <div className="mb-1 flex items-baseline justify-between gap-3">
+                <h2 className="t-section">
                   {format(start, 'd MMM')} – {format(endOfISOWeek(start), 'd MMM')}
                 </h2>
-                <span className="meta">
+                <span className="label">
                   {dur(time)}
                   {dist > 0 && ` · ${km(dist, 0)} km`}
                 </span>

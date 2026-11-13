@@ -2,12 +2,11 @@ import { ArrowLeftRight } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Sheet } from '../../components/ui/Sheet'
 import { Segmented, Stepper, inputCls } from '../../components/ui/bits'
-import { Tick } from '../../components/ui/chalk'
 import { useStore } from '../../data/store'
 import type { Activity, Format, Match, MatchPoint, Position } from '../../data/types'
 import { useUi } from '../../data/ui'
 import { loadFootballAnalysis, useWorld } from '../../data/world'
-import { FEEL, FORMATS, POSITIONS, baselineFor, formatOf, headline, rateMatch, suggestPoints, usualOf } from '../../lib/football'
+import { FEEL, FORMATS, POSITIONS, baselineFor, formatOf, rateMatch, suggestPoints, usualOf } from '../../lib/football'
 import { dur, fmt, km } from '../../lib/format'
 import { uid } from '../../lib/rng'
 import { PointsEditor } from './PointsEditor'
@@ -30,7 +29,6 @@ function Form({ activityId, matchId }: { activityId?: string; matchId?: string }
   const close = useUi((s) => s.close)
   const showReveal = useUi((s) => s.showReveal)
   const editing = matchId ? w.matches.find((m) => m.id === matchId) : undefined
-  const p = w.profile
 
   const candidates = useMemo(() => {
     const list = w.activities.filter((a) => a.sport === 'football').slice(0, 8)
@@ -104,10 +102,8 @@ function Form({ activityId, matchId }: { activityId?: string; matchId?: string }
       flip: editing?.flip,
       rating,
       breakdown,
-      headline: '',
       createdAt: editing?.createdAt ?? new Date().toISOString(),
     }
-    m.headline = headline(m, p.name, analysis ?? undefined, baseline)
     saveMatch(m)
     setBusy(false)
     close()
@@ -123,24 +119,21 @@ function Form({ activityId, matchId }: { activityId?: string; matchId?: string }
             <button
               key={a.id}
               onClick={() => setLinked(a.id)}
-              className={`press min-w-[150px] shrink-0 rounded-card p-3.5 text-left ring-inset transition-shadow ${linked === a.id ? 'ring-[1.5px] ring-fg' : 'ring-1 ring-fg/[0.16]'}`}
+              className={`press min-w-[150px] shrink-0 rounded-[18px] p-3.5 text-left transition-colors ${linked === a.id ? 'bg-fg text-ink-0' : 'bg-ink-2'}`}
             >
-              <span className="flex items-center justify-between">
-                <span className="text-[12.5px] font-medium text-fg-3">{fmt(a.start, 'EEE d MMM')}</span>
-                {linked === a.id && <Tick size={15} strokeWidth={2.25} />}
-              </span>
-              <span className="mt-1.5 block truncate text-[16px] font-semibold leading-tight">{a.name}</span>
-              <span className="meta mt-0.5 block">
+              <span className={`block text-[12.5px] font-semibold ${linked === a.id ? 'text-ink-0/60' : 'text-fg-3'}`}>{fmt(a.start, 'EEE d MMM')}</span>
+              <span className="mt-1.5 block truncate text-[15px] font-bold leading-tight">{a.name}</span>
+              <span className={`mt-0.5 block text-[13px] font-medium ${linked === a.id ? 'text-ink-0/60' : 'text-fg-3'}`}>
                 {dur(a.durationS)} · {km(a.distanceM, 1)} km
               </span>
             </button>
           ))}
           <button
             onClick={() => setLinked(undefined)}
-            className={`press min-w-[130px] shrink-0 rounded-card p-3.5 text-left ring-inset ${!linked ? 'ring-[1.5px] ring-fg' : 'ring-1 ring-fg/[0.16]'}`}
+            className={`press min-w-[130px] shrink-0 rounded-[18px] p-3.5 text-left transition-colors ${!linked ? 'bg-fg text-ink-0' : 'bg-ink-2'}`}
           >
-            <span className="text-[12.5px] font-medium text-fg-3">No watch</span>
-            <span className="mt-1.5 block text-[13.5px] leading-snug text-fg-2">Rate it from what you log</span>
+            <span className={`text-[12.5px] font-semibold ${!linked ? 'text-ink-0/60' : 'text-fg-3'}`}>No watch</span>
+            <span className={`mt-1.5 block text-[13.5px] leading-snug ${!linked ? 'text-ink-0' : 'text-fg-2'}`}>Rate it from what you log</span>
           </button>
         </div>
       </div>
@@ -189,7 +182,7 @@ function Form({ activityId, matchId }: { activityId?: string; matchId?: string }
         <Stepper label="Your goals" value={goals} onChange={setGoals} />
         <Stepper label="Assists" value={assists} onChange={setAssists} />
       </div>
-      {tooMany && <p className="-mt-4 text-[13.5px] text-warn">That’s more goals and assists than your team scored. Check the score.</p>}
+      {tooMany && <p className="-mt-4 text-[13.5px] text-bad">That’s more goals and assists than your team scored. Check the score.</p>}
 
       <div>
         <div className="label mb-2.5">Where you played</div>

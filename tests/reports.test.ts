@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import type { Activity, Stream } from '../src/data/types'
-import { biggestGain, coursesOf, gapTo, pathOf, sharedStretch } from '../src/lib/ghost'
+import { coursesOf, gapTo, pathOf, sharedStretch } from '../src/lib/ghost'
 import { raceReport, racesIn } from '../src/lib/race'
 import { summariseRun } from '../src/lib/running'
 
@@ -71,14 +71,13 @@ test('a race report splits the race, finds where the pace went and says how it w
     { measure: 1.01 },
   )
   const a = run('r', s, '2026-11-01T09:00:00')
-  const r = raceReport(a, s, { race: { date: '2026-11-01', distanceM: 10_000, goalS: 45 * 60 }, earlier: [], name: 'Alex' })!
+  const r = raceReport(a, s, { race: { date: '2026-11-01', distanceM: 10_000, goalS: 45 * 60 }, earlier: [] })!
   assert.equal(r.splits.length, 10)
   assert.ok(Math.abs(r.halves[0] - 1250) <= 2 && Math.abs(r.halves[1] - 1389) <= 2, `halves ${r.halves}`)
   // the slow second half starts right at halfway
   assert.equal(r.fadeM, 5000)
   // the gap at the line is the time inside the goal
   assert.ok(Math.abs(r.gap[r.gap.length - 1].s - (2700 - a.durationS)) < 1)
-  assert.equal(r.headline, `Sub-45:00! Alex beats the clock by 1:01`)
 })
 
 test('races are runs marked as a race, and the run on the day of the race you set', () => {
@@ -138,7 +137,6 @@ test('ghosts are your earlier runs on the same route the same way round, matched
   const gap = gapTo(p, pathOf(streams.slower)!, slower, whole)
   // 5000/3.4 − 5000/3.6 = 81.7 s ahead at the line, gained evenly
   assert.ok(Math.abs(gap[gap.length - 1].s - 81.7) < 2, `gap ${gap[gap.length - 1].s}`)
-  assert.ok(Math.abs(biggestGain(gap)!.s - 16.3) < 1)
   // by place, the watch that measured long is just slower: 5000/3.5 − 5000/3.6 = 39.7 s at the line, half that halfway
   const vsLong = gapTo(p, pathOf(streams.long)!, long, whole)
   assert.ok(Math.abs(vsLong[vsLong.length - 1].s - 39.7) < 2, `gap ${vsLong[vsLong.length - 1].s}`)

@@ -1,59 +1,101 @@
-@import '@fontsource-variable/libre-franklin/wght.css';
-@import '@fontsource-variable/sofia-sans-semi-condensed/wght.css';
+@import '@fontsource-variable/bricolage-grotesque/standard.css';
+@import '@fontsource-variable/manrope/wght.css';
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 /*
-  The board. Overreach looks like the board in a dressing room: slate, with
-  everything on it drawn in chalk. One stick of chalk does the lot, so numbers,
-  rules and chart lines share a stroke; fills are hatched, not flooded; and the
-  one number worth a look gets circled (--mark). Coloured chalk is for data
-  only: HR zones, sports, ratings, readiness. Values are RGB triplets so
-  Tailwind opacity modifiers work (bg-z4/20).
+  Floodlight. Graphite and big rounded tiles: each tab has one hero tile tinted
+  in its own muted colour, and everything else sits on plain graphite tiles.
+  Colour is soft, never neon, and nothing glows or blurs. The rules and the
+  mockups are in docs/design/floodlight.md. Values are RGB triplets so Tailwind
+  opacity modifiers work (bg-run/20).
 */
 :root {
   color-scheme: dark;
-  /* slate, and the panels that sit on it */
-  --ink-0: 14 17 16;
-  --ink-1: 21 25 24;
-  --ink-2: 30 35 33;
-  --ink-3: 43 49 47;
-  /* chalk rules, already mixed with the slate */
-  --line: 39 42 40;
-  --line-2: 60 63 60;
-  /* chalk, fresh to nearly rubbed out */
-  --fg: 238 234 224;
-  --fg-2: 190 188 179;
-  --fg-3: 134 135 128;
-  --fg-4: 86 89 84;
+  /* graphite: the page, tiles and sheets, then the tab bar, chips and hairlines inside a tile, then pressed */
+  --ink-0: 16 18 20;
+  --ink-1: 26 29 32;
+  --ink-2: 35 39 43;
+  --ink-3: 44 49 54;
+  /* dashed outlines: a planned game, "+ New" */
+  --line-2: 58 63 68;
+  /* text, from the solid pill down to placeholders */
+  --fg: 235 233 228;
+  --fg-2: 185 188 184;
+  --fg-3: 142 145 143;
+  --fg-4: 93 97 99;
 
-  /* intensity, easy to max */
-  --z1: 136 176 232;
-  --z2: 140 212 168;
-  --z3: 240 212 118;
-  --z4: 240 160 104;
-  --z5: 236 122 122;
+  /*
+    Each tab's set: the colour itself (lines, bars, dots), a tint (the hero tile
+    behind it), a label colour for small text on the tint, and a brighter
+    headline colour for the hero's big text on the tint.
+  */
+  /* sage: football, Today's week, and anything new (a best, the one thing worth a look) */
+  --football: 196 211 155;
+  --football-tint: 37 43 32;
+  --football-label: 169 181 138;
+  --football-head: 213 226 173;
+  /* dusty blue: running, a game to rate, the next game */
+  --run: 138 160 191;
+  --run-tint: 29 35 44;
+  --run-label: 147 166 194;
+  --run-head: 201 214 234;
+  /* mauve: weight */
+  --body: 199 166 184;
+  --body-tint: 38 31 36;
+  --body-label: 184 160 173;
+  --body-head: 230 211 221;
+  /* lilac: lifting */
+  --strength: 169 159 196;
+  --strength-tint: 34 31 42;
+  --strength-label: 179 171 207;
+  --strength-head: 221 214 238;
+  /* the match rating, and the player card's metal */
+  --gold: 199 176 120;
+  --gold-tint: 38 34 23;
+  --gold-label: 199 176 120;
+  --gold-head: 227 210 157;
+  /* the rating's lines on the gold tint, and the quiet ones */
+  --gold-read: 216 208 184;
+  --gold-quiet: 166 156 128;
 
-  /* categorical, for anything that splits by sport */
-  --run: 244 146 112;
-  --football: 176 220 108;
-  --ride: 108 206 194;
-  --swim: 124 164 238;
-  --strength: 186 166 240;
+  /* sleep stages that aren't another colour: deep, and light */
+  --sleep-deep: 111 134 171;
+  --sleep-light: 63 69 80;
+  /* the heatmap's pitch, darker than a tile, and its lines */
+  --pitch: 22 25 28;
+  --pitch-line: 46 51 56;
+  /* the player card: a black body with a figure on it; the tier's metal (.metal-gold and so on) does the edge and the lettering */
+  --card-top: 43 44 49;
+  --card-mid: 22 23 26;
+  --card-end: 12 12 14;
+  --card-figure: 47 48 53;
+
+  /* the other sports */
+  --ride: 127 181 173;
+  --swim: 147 180 201;
   --other: 150 160 166;
 
-  --good: 140 212 168;
-  --warn: 240 178 96;
-  --bad: 236 122 122;
-  /* the chalk that circles things */
-  --mark: 244 216 122;
+  /* heart-rate zones in Garmin's order, muted */
+  --z1: 147 169 201;
+  --z2: 148 184 158;
+  --z3: 216 207 140;
+  --z4: 208 164 106;
+  --z5: 201 131 131;
 
+  /* better or worse, and the Sample data pill */
+  --good: 163 196 169;
+  --bad: 196 140 140;
+  --warn: 208 178 122;
+
+  /* the floating tab bar, and the room under it */
   --tabbar-h: 60px;
+  --tabbar-gap: 26px;
   --mini-h: 0px;
-  --safe-top: env(safe-area-inset-top, 0px);
-  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  /* where a screen's content starts: 58 px down, or just clear of the status bar */
+  --top: max(10px, calc(58px - env(safe-area-inset-top, 0px)));
 }
 
 @layer base {
@@ -72,7 +114,7 @@
     min-height: 100%;
   }
   /* the page sits below the status bar and above the home indicator; fixed
-     bars add their own insets, the sticky header sticks at the top inset */
+     bars add their own insets, sticky ones stick at the top inset */
   :root {
     padding-top: env(safe-area-inset-top, 0px);
     padding-bottom: env(safe-area-inset-bottom, 0px);
@@ -80,12 +122,10 @@
   body {
     margin: 0;
     font-family: theme('fontFamily.sans');
-    font-size: 15.5px;
+    font-size: 15px;
+    font-weight: 500;
     line-height: 1.42;
     overscroll-behavior-y: none;
-    /* where the board was last wiped */
-    background-image: radial-gradient(130% 420px at 12% -120px, rgb(var(--fg) / 0.05), transparent 70%);
-    background-repeat: no-repeat;
   }
   /* paint the band under the status bar so scrolled content never shows through */
   body::before {
@@ -119,10 +159,10 @@
   :focus-visible {
     outline: 2px solid rgb(var(--fg));
     outline-offset: 2px;
-    border-radius: 4px;
+    border-radius: 6px;
   }
   ::selection {
-    background: rgb(var(--mark) / 0.3);
+    background: rgb(var(--football) / 0.3);
   }
 }
 
@@ -133,55 +173,64 @@
     padding-right: max(16px, env(safe-area-inset-right, 0px));
   }
 
-  /* ---- type: Libre Franklin for anything chalked up big, Sofia Sans for reading ---- */
+  /* ---- type: Bricolage Grotesque for anything big, Manrope for everything else ---- */
   .display {
     font-family: theme('fontFamily.display');
-    letter-spacing: 0.01em;
+    letter-spacing: -0.02em;
   }
   /* a screen's title */
   .t-page {
-    @apply display text-[31px] font-bold leading-[1.05];
+    @apply display text-[30px] font-extrabold leading-[1.1];
   }
-  /* a section's title, sat on its rule */
+  /* the small label at the top of a tile */
   .t-section {
-    @apply display text-[18px] font-bold leading-[1.1];
+    @apply text-[12.5px] font-semibold leading-4 text-fg-3;
   }
   /* a back-page headline */
   .t-story {
-    @apply display text-balance text-[30px] font-extrabold leading-[1.05];
+    @apply display text-balance text-[33px] font-extrabold leading-[1.02];
+    letter-spacing: -0.025em;
   }
-  /* names in rows and blocks */
+  /* names in rows and tiles */
   .t-name {
-    @apply display text-[17px] font-bold leading-[1.15];
+    @apply text-[15px] font-bold leading-5;
   }
-  /* small sentence-case caption above a value */
+  /* the label above a value */
   .label {
-    @apply text-[13.5px] font-medium leading-4 text-fg-3;
+    @apply text-[12.5px] font-semibold leading-4 text-fg-3;
   }
   /* secondary line: dates, units, context */
   .meta {
-    @apply text-[13.5px] leading-[18px] text-fg-3;
+    @apply text-[13px] font-medium leading-[18px] text-fg-3;
   }
-  /* numbers in rows and tables */
+  /* a number on a tile */
   .num {
-    @apply display font-semibold leading-none;
+    @apply display font-bold leading-none;
   }
-  /* hero numbers: tall and light, one stroke of chalk */
+  /* the hero number: big and heavy */
   .num-hero {
-    @apply display font-light leading-[0.84];
-    letter-spacing: -0.005em;
+    @apply display font-extrabold leading-[0.9];
+    letter-spacing: -0.04em;
   }
   /* the unit after a number */
   .unit {
-    @apply ml-1 font-sans text-[13.5px] font-medium tracking-normal text-fg-3;
+    @apply ml-1 font-sans text-[13px] font-semibold tracking-normal text-fg-3;
   }
 
-  /* ---- surfaces: nothing is filled in; a box is a chalk outline ---- */
-  .card {
-    @apply rounded-card;
-    box-shadow: inset 0 0 0 1px rgb(var(--fg) / 0.13);
+  /* ---- surfaces: graphite tiles, no borders, no shadows ---- */
+  .tile {
+    @apply rounded-tile bg-ink-1 p-4;
   }
-  /* rows split by chalk rules that start after the icon */
+  /* the one tinted tile a tab leads with; its set gives the colour (bg-run-tint) */
+  .hero {
+    @apply rounded-hero p-[18px];
+  }
+  /* a tile inside a tile, or in a sheet, steps up a shade */
+  .tile .tile,
+  .sheet .tile {
+    @apply bg-ink-2;
+  }
+  /* rows inside one tile, split by hairlines that start after the icon */
   .list > * {
     position: relative;
   }
@@ -192,57 +241,83 @@
     right: 0;
     left: var(--inset, 0px);
     height: 1px;
-    background: rgb(var(--fg) / 0.1);
+    background: rgb(var(--ink-2));
   }
-  /* rows straight on the board, ruled top and bottom */
+  .sheet .list > * + *::before,
+  .tile .tile .list > * + *::before {
+    background: rgb(var(--ink-3));
+  }
+  /* rows on the page get a tile of their own */
   .ruled {
-    border-top: 1px solid rgb(var(--fg) / 0.13);
-    border-bottom: 1px solid rgb(var(--fg) / 0.13);
+    @apply rounded-tile bg-ink-1 px-4;
   }
-  /* a chalk rule across the whole board */
+  .sheet .ruled {
+    @apply bg-ink-2;
+  }
+  /* a hairline */
   .rule {
     height: 1px;
-    background: rgb(var(--fg) / 0.13);
+    background: rgb(var(--ink-2));
   }
-  /* shading: diagonal chalk strokes inside an outline; set --h to colour it */
-  .hatch {
-    background-image: repeating-linear-gradient(-45deg, rgb(var(--h, var(--fg)) / 0.5) 0 1px, transparent 1px 4.5px);
-    box-shadow: inset 0 0 0 1px rgb(var(--h, var(--fg)) / 0.55);
+  /* bars are capsules: faint in their colour, and the one that matters solid; set --h to colour them */
+  .faint {
+    border-radius: 5px;
+    background: rgb(var(--h, var(--fg)) / 0.2);
   }
-  /* filled in solid */
   .solid {
+    border-radius: 5px;
     background: rgb(var(--h, var(--fg)));
   }
 
+  /* ---- pills: anything you press or pick ---- */
   .press {
     @apply transition duration-150 ease-snap active:scale-[0.98] active:opacity-80;
   }
   .btn {
-    @apply press display inline-flex h-[52px] items-center justify-center gap-2 rounded-[5px] px-5 text-[16px] font-bold;
+    @apply press inline-flex h-[50px] items-center justify-center gap-2 rounded-full px-6 text-[15px] font-bold;
   }
   .btn-primary {
     @apply btn bg-fg text-ink-0;
   }
   .btn-ghost {
-    @apply btn text-fg;
-    box-shadow: inset 0 0 0 1px rgb(var(--fg) / 0.32);
+    @apply btn bg-ink-2 text-fg;
   }
   .chip {
-    @apply press inline-flex h-8 items-center gap-1.5 rounded-[5px] px-3 text-[13.5px] font-medium text-fg-2;
-    box-shadow: inset 0 0 0 1px rgb(var(--fg) / 0.2);
+    @apply press inline-flex h-9 items-center gap-1.5 rounded-full bg-ink-1 px-3.5 text-[13px] font-semibold text-fg-2;
   }
-  .chip-on {
+  .sheet .chip,
+  .tile .chip {
+    @apply bg-ink-2;
+  }
+  .chip.chip-on {
     @apply bg-fg text-ink-0;
-    box-shadow: none;
+  }
+  /* a status pill, on its colour at about an eighth; set --p to colour it */
+  .pill {
+    @apply inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-2.5 py-1 text-[12.5px] font-bold leading-4;
+    color: rgb(var(--p, var(--fg-2)));
+    background: rgb(var(--p, var(--fg-2)) / 0.13);
+  }
+  /* a round 40 px button: + and the like are solid, the rest graphite */
+  .round {
+    @apply press grid h-10 w-10 shrink-0 place-items-center rounded-full bg-ink-2 text-fg;
+  }
+  .sheet .round {
+    @apply bg-ink-3;
+  }
+  .round.round-on {
+    @apply bg-fg text-ink-0;
   }
   .link {
-    @apply press inline-flex items-center gap-0.5 text-[14px] font-medium text-fg-3;
+    @apply press inline-flex items-center gap-0.5 text-[13px] font-semibold text-fg-3;
   }
-  /* figures that tick over: every digit the width of the widest (0), since the display face has no tabular set */
-  .digit {
-    display: inline-block;
-    width: 0.7em;
-    text-align: center;
+  /* the track a set of options sits on (Segmented): graphite, the picked one a solid pill */
+  .seg {
+    @apply flex rounded-full bg-ink-1 p-1;
+  }
+  .sheet .seg,
+  .tile .seg {
+    @apply bg-ink-2;
   }
   .no-scrollbar::-webkit-scrollbar {
     display: none;
@@ -252,11 +327,38 @@
   }
 }
 
+/* the player card's metals: gold as drawn, silver and bronze the same way in muted metals */
+.metal-gold {
+  --metal-hi: 236 220 170;
+  --metal-lo: 138 118 70;
+  --metal-line: 217 198 144;
+  --metal-ink: 234 220 174;
+  --metal-name: 241 230 194;
+  --metal-key: 168 153 108;
+}
+.metal-silver {
+  --metal-hi: 226 229 232;
+  --metal-lo: 116 122 128;
+  --metal-line: 196 201 206;
+  --metal-ink: 221 224 227;
+  --metal-name: 238 240 241;
+  --metal-key: 150 156 162;
+}
+.metal-bronze {
+  --metal-hi: 228 190 158;
+  --metal-lo: 132 90 62;
+  --metal-line: 204 158 124;
+  --metal-ink: 226 194 166;
+  --metal-name: 240 220 202;
+  --metal-key: 166 130 102;
+}
+
+/* chart labels; Bricolage numbers take tabular-nums, Manrope has no tabular set */
 .font-mono {
   font-variant-numeric: tabular-nums;
 }
 
-/* the "how did you play" slider: a chalk line that's solid up to the thumb */
+/* the "how did you play" slider: an 8 px track that's solid up to the thumb */
 input[type='range'].feel {
   -webkit-appearance: none;
   appearance: none;
@@ -264,35 +366,36 @@ input[type='range'].feel {
   background: transparent;
 }
 input[type='range'].feel::-webkit-slider-runnable-track {
-  height: 2px;
-  border-radius: 99px;
-  background: linear-gradient(90deg, rgb(var(--fg)) var(--p, 50%), rgb(var(--fg) / 0.22) var(--p, 50%));
+  height: 8px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, rgb(var(--fg)) var(--p, 50%), rgb(var(--fg) / 0.16) var(--p, 50%));
 }
 input[type='range'].feel::-moz-range-track {
-  height: 2px;
-  border-radius: 99px;
-  background: rgb(var(--fg) / 0.22);
+  height: 8px;
+  border-radius: 4px;
+  background: rgb(var(--fg) / 0.16);
 }
 input[type='range'].feel::-moz-range-progress {
-  height: 2px;
-  border-radius: 99px;
+  height: 8px;
+  border-radius: 4px;
   background: rgb(var(--fg));
 }
 input[type='range'].feel::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 24px;
-  height: 24px;
-  margin-top: -11px;
+  width: 26px;
+  height: 26px;
+  margin-top: -9px;
   border-radius: 50%;
-  background: rgb(var(--ink-0));
-  box-shadow: inset 0 0 0 2px rgb(var(--fg));
+  background: rgb(var(--fg));
+  box-shadow: 0 0 0 4px rgb(var(--ink-1));
 }
 input[type='range'].feel::-moz-range-thumb {
-  width: 24px;
-  height: 24px;
-  border: 2px solid rgb(var(--fg));
+  width: 26px;
+  height: 26px;
+  border: 0;
   border-radius: 50%;
-  background: rgb(var(--ink-0));
+  background: rgb(var(--fg));
+  box-shadow: 0 0 0 4px rgb(var(--ink-1));
 }
 
 @keyframes bump {

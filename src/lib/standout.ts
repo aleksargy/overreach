@@ -35,6 +35,8 @@ export interface Standout {
   key: string
   /** "Lowest HRV in 3 weeks", "Heaviest bench press yet" */
   text: string
+  /** the same, said beside a label that already names it: "Lowest in 3 weeks" */
+  short: string
   /** the reading itself, formatted: the number that gets circled */
   value: string
   tone: 'good' | 'bad' | 'plain'
@@ -77,6 +79,7 @@ export function standoutOf(s: Series, now: number): Standout | undefined {
     const candidate: Standout = {
       key: s.key,
       text: `${word} ${s.what} ${span}`,
+      short: `${word} ${span}`,
       value: s.format(last.v),
       tone: !s.good ? 'plain' : s.good === end ? 'good' : 'bad',
       beaten,

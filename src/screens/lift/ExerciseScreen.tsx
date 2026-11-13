@@ -53,18 +53,19 @@ export function ExerciseScreen() {
         </IconButton>
       }
     >
-      <div className="meta pt-2">
+      <div className="label">
         {MUSCLE_LABEL[ex.muscle]} · {EQUIPMENT_LABEL[ex.equipment]}
       </div>
-      <h1 className="t-page mt-2 text-balance">{ex.name}</h1>
+      <h1 className="t-page mt-0.5 text-balance">{ex.name}</h1>
       {ex.notes && <p className="mt-3 text-[15px] leading-snug text-fg-3">{ex.notes}</p>}
 
-      <section className="mt-8">
-        <div className="label flex items-baseline gap-3">
-          Next time <MoveNote t={t} />
+      <section className="hero mt-4 flex flex-col gap-2 bg-strength-tint">
+        <div className="flex items-baseline justify-between gap-3 text-[13px] font-bold text-strength-label">
+          <h2>Next time</h2>
+          <MoveNote t={t} plain className="text-[12.5px] font-semibold" />
         </div>
-        <div className="num-hero mt-4 text-[59px]">{targetText(ex, t)}</div>
-        <p className="meta mt-5">{rule(ex)}</p>
+        <div className="num-hero text-[56px] text-strength-head">{targetText(ex, t)}</div>
+        <p className="text-[13px] text-strength-head/80">{rule(ex)}</p>
       </section>
 
       {history.length > 0 ? (
@@ -74,10 +75,10 @@ export function ExerciseScreen() {
               title="Progress"
               action={<span className="meta">{loaded(ex) ? 'Heaviest set each session' : ex.kind === 'duration' ? 'Longest hold each session' : 'Most reps each session'}</span>}
             >
-              <TrendChart points={points} avg={points} height={150} format={(v) => fmtKg(Math.round(v * 10) / 10)} xLabel={(x) => fmt(new Date(x).toISOString(), 'd MMM')} />
+              <TrendChart points={points} avg={points} height={150} color="rgb(var(--strength))" xLabel={(x) => fmt(new Date(x).toISOString(), 'd MMM')} />
             </Section>
           )}
-          <div className={`grid grid-cols-3 gap-x-3 ${points.length > 1 ? 'mt-7' : 'mt-9'}`}>
+          <div className="tile mt-2.5 grid grid-cols-3 gap-x-3">
             <Stat label={loaded(ex) ? 'Heaviest' : ex.kind === 'duration' ? 'Longest' : 'Most'} value={amount(ex, top).split(' ')[0]} unit={amount(ex, top).split(' ')[1]} />
             {bestSet && loaded(ex) ? <Stat label="Best set" value={setText(ex, bestSet)} /> : <Stat label="Sets" value={String(all.length)} />}
             {points.length > 1 ? (
@@ -87,7 +88,7 @@ export function ExerciseScreen() {
             )}
           </div>
 
-          <Section title="Sessions" action={<span className="meta">{history.length}</span>}>
+          <Section title="Sessions" action={<span className="label">{history.length}</span>}>
             <div className="list">
               {history.slice(0, 12).map((h) => (
                 <Link key={h.workoutId + h.date} to={`/lift/history/${h.workoutId}`} className="flex items-baseline gap-3 py-3 transition-colors duration-150 active:bg-ink-2">

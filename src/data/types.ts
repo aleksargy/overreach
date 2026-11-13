@@ -179,7 +179,7 @@ export interface MatchPoint {
   text: string
   good: boolean
   big?: boolean
-  /** set when it came from one of the old moments, so the headline still knows an own goal when it sees one */
+  /** set when it came from one of the old moments */
   key?: MomentKey
 }
 
@@ -210,7 +210,6 @@ export interface Match {
   flip?: boolean
   rating: number
   breakdown: RatingFactor[]
-  headline: string
   createdAt: string
 }
 

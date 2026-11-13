@@ -3,7 +3,7 @@
 // stays stable as days pass and only new days get added.
 
 import { addDays, addMinutes, differenceInCalendarWeeks, getDay, getDayOfYear, setHours, setMinutes, startOfDay } from 'date-fns'
-import { MOMENTS, analyseFootball, baselineFor, headline, rateMatch, summaryOf, type FootballAnalysis } from '../../lib/football'
+import { MOMENTS, analyseFootball, baselineFor, rateMatch, summaryOf, type FootballAnalysis } from '../../lib/football'
 import { isoDay } from '../../lib/format'
 import { srpeLoad, trimp, zoneBounds, zoneSecondsFromAvg, zoneSecondsFromHr } from '../../lib/load'
 import { liftSummary } from '../../lib/lift'
@@ -251,7 +251,7 @@ function poisson(r: Rng, lambda: number) {
   return k - 1
 }
 
-function sampleMatch(a: Activity, analysis: FootballAnalysis, history: { match: Match; analysis?: FootballAnalysis }[], profile: Profile): Match {
+function sampleMatch(a: Activity, analysis: FootballAnalysis, history: { match: Match; analysis?: FootballAnalysis }[]): Match {
   const r = rng(`match:${a.id}`)
   const format = (Number(a.kind) || 11) as Format
   const eleven = format === 11
@@ -303,10 +303,8 @@ function sampleMatch(a: Activity, analysis: FootballAnalysis, history: { match: 
     notes: r.pick(NOTES) || undefined,
     rating,
     breakdown,
-    headline: '',
     createdAt: a.start,
   }
-  m.headline = headline(m, profile.name, analysis, baseline)
   return m
 }
 
@@ -401,7 +399,7 @@ export function buildSample(now = new Date(), profile: Profile = SAMPLE_PROFILE)
   const history: { match: Match; analysis?: FootballAnalysis }[] = []
   const matches: Match[] = []
   for (const g of games.slice(0, -1)) {
-    const m = sampleMatch(g, analyses.get(g.id)!, history, profile)
+    const m = sampleMatch(g, analyses.get(g.id)!, history)
     history.push({ match: m, analysis: analyses.get(g.id) })
     matches.push(m)
   }

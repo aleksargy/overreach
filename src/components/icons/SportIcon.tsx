@@ -62,13 +62,10 @@ export const SPORT_COLOR: Record<Sport, string> = {
   other: sportColor('other'),
 }
 
-/** The sport's icon in a ring of its colour, like a magnet on the board: the way lists lead. */
+/** The sport's icon on its colour's tint: the way rows lead. */
 export function SportDot({ sport, size = 36 }: { sport: Sport; size?: number }) {
   return (
-    <span
-      className="grid shrink-0 place-items-center rounded-full"
-      style={{ width: size, height: size, boxShadow: `inset 0 0 0 1px ${sportColor(sport, 0.5)}`, color: sportColor(sport) }}
-    >
+    <span className="grid shrink-0 place-items-center rounded-full" style={{ width: size, height: size, background: sportColor(sport, 0.14), color: sportColor(sport) }}>
       <SportIcon sport={sport} size={Math.round(size * 0.5)} strokeWidth={1.6} />
     </span>
   )

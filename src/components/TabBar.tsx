@@ -1,33 +1,35 @@
+import { motion } from 'motion/react'
 import { NavLink } from 'react-router'
 import { Ball } from './icons/SportIcon'
 import { BarMark, PulseMark, TodayMark, TrackMark } from './icons/tabs'
-import { Underline } from './ui/chalk'
+
+const ICON = { size: 20, strokeWidth: 2.1 }
 
 const TABS = [
-  { to: '/', label: 'Today', icon: <TodayMark />, end: true },
-  { to: '/run', label: 'Run', icon: <TrackMark /> },
-  { to: '/football', label: 'Football', icon: <Ball size={24} strokeWidth={1.6} /> },
-  { to: '/lift', label: 'Lift', icon: <BarMark /> },
-  { to: '/body', label: 'Body', icon: <PulseMark /> },
+  { to: '/', label: 'Today', icon: <TodayMark {...ICON} />, end: true },
+  { to: '/run', label: 'Run', icon: <TrackMark {...ICON} /> },
+  { to: '/football', label: 'Football', icon: <Ball {...ICON} /> },
+  { to: '/lift', label: 'Lift', icon: <BarMark {...ICON} /> },
+  { to: '/body', label: 'Body', icon: <PulseMark {...ICON} /> },
 ]
 
+const SPRING = { type: 'spring', stiffness: 480, damping: 40 } as const
+
+/** A pill floating over the foot of the screen: each tab a round icon, the one you're on a solid pill with its name that slides across. */
 export function TabBar() {
   return (
-    <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-40 bg-ink-0 pb-[env(safe-area-inset-bottom,0px)] shadow-[0_-1px_0_rgb(var(--fg)/0.13)]">
-      <div className="gutter mx-auto grid h-[var(--tabbar-h)] max-w-app grid-cols-5">
-        {TABS.map((t, i) => (
-          <NavLink
-            key={t.to}
-            to={t.to}
-            end={t.end}
-            className={({ isActive }) => `relative flex flex-col items-center justify-center gap-[3px] pt-1 transition-colors duration-150 ${isActive ? 'text-fg' : 'text-fg-4'}`}
-          >
+    <nav aria-label="Main" className="pointer-events-none fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom,0px)+var(--tabbar-gap))] z-40 flex justify-center">
+      <div className="pointer-events-auto flex h-[var(--tabbar-h)] items-center gap-1 rounded-[30px] bg-ink-2 px-2">
+        {TABS.map((t) => (
+          <NavLink key={t.to} to={t.to} end={t.end} aria-label={t.label} className="relative block rounded-full">
             {({ isActive }) => (
-              <>
-                {t.icon}
-                <span className="text-[11px] font-semibold">{t.label}</span>
-                {isActive && <Underline seed={i + 5} className="bottom-[3px] mx-auto max-w-[30px]" />}
-              </>
+              <motion.span layout transition={SPRING} className={`relative flex h-11 min-w-11 items-center justify-center gap-2 ${isActive ? 'px-4 text-ink-0' : 'text-fg-3'}`}>
+                {isActive && <motion.span layoutId="tab" transition={SPRING} className="absolute inset-0 rounded-full bg-fg" />}
+                <motion.span layout="position" transition={SPRING} className="relative">
+                  {t.icon}
+                </motion.span>
+                {isActive && <span className="relative text-[14px] font-bold">{t.label}</span>}
+              </motion.span>
             )}
           </NavLink>
         ))}

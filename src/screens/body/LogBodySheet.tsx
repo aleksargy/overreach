@@ -40,14 +40,20 @@ function Form() {
       <div className="ruled py-7">
         <div className="label mb-4 text-center">This morning</div>
         <div className="flex items-center justify-center gap-3">
-          <button aria-label="Minus 0.1 kg" onClick={() => step(-0.1)} className="press grid h-11 w-11 place-items-center rounded-full text-fg-2 ring-1 ring-inset ring-fg/25">
+          <button aria-label="Minus 0.1 kg" onClick={() => step(-0.1)} className="round h-11 w-11 text-fg-2">
             <Minus size={18} />
           </button>
           <div className="flex items-baseline">
-            <NumInput label="Weight in kg" decimal value={kg} onChange={setKg} className="num-hero w-[3.4ch] bg-transparent text-center text-[69px] focus:outline-none" />
+            <NumInput
+              label="Weight in kg"
+              decimal
+              value={kg}
+              onChange={setKg}
+              className="num-hero w-[3.4ch] bg-transparent text-center text-[64px] tabular-nums focus:outline-none"
+            />
             <span className="unit">kg</span>
           </div>
-          <button aria-label="Plus 0.1 kg" onClick={() => step(0.1)} className="press grid h-11 w-11 place-items-center rounded-full bg-fg text-ink-0">
+          <button aria-label="Plus 0.1 kg" onClick={() => step(0.1)} className="round round-on h-11 w-11">
             <Plus size={18} />
           </button>
         </div>

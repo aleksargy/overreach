@@ -12,7 +12,7 @@ interface Props {
   footer?: ReactNode
 }
 
-/** Bottom sheet: drag the handle down or tap outside to close. */
+/** Bottom sheet: graphite with 26 px top corners, a handle and pills inside. Drag the handle down or tap outside to close; the page behind only dims. */
 export function Sheet({ open, onClose, title, kicker, children, footer }: Props) {
   const controls = useDragControls()
   useEffect(() => {
@@ -32,7 +32,7 @@ export function Sheet({ open, onClose, title, kicker, children, footer }: Props)
       {open && (
         <div className="fixed inset-0 z-50">
           <motion.div
-            className="absolute inset-0 bg-ink-0/80"
+            className="absolute inset-0 bg-ink-0/75"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -43,7 +43,7 @@ export function Sheet({ open, onClose, title, kicker, children, footer }: Props)
             role="dialog"
             aria-modal="true"
             aria-label={title}
-            className="absolute inset-x-0 bottom-0 mx-auto flex max-h-[min(92%,860px)] max-w-app flex-col rounded-t-sheet bg-ink-1 shadow-[0_-24px_64px_rgb(0_0_0/0.55),inset_0_1px_0_rgb(var(--fg)/0.16)]"
+            className="sheet absolute inset-x-0 bottom-0 mx-auto flex max-h-[min(92%,860px)] max-w-app flex-col rounded-t-sheet bg-ink-1"
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
@@ -58,15 +58,15 @@ export function Sheet({ open, onClose, title, kicker, children, footer }: Props)
             }}
           >
             <div className="cursor-grab touch-none pb-1 pt-2.5 active:cursor-grabbing" onPointerDown={(e) => controls.start(e)}>
-              <div className="mx-auto h-[3px] w-9 rounded-full bg-fg/30" />
+              <div className="mx-auto h-[5px] w-10 rounded-full bg-fg/20" />
               {(title || kicker) && (
                 <div className="gutter flex items-center justify-between gap-3 pt-3">
                   <div className="min-w-0">
                     {kicker && <div className="label mb-1">{kicker}</div>}
-                    {title && <h2 className="display text-[23px] font-bold leading-none">{title}</h2>}
+                    {title && <h2 className="display text-[24px] font-extrabold leading-none">{title}</h2>}
                   </div>
-                  <button onClick={onClose} aria-label="Close" className="press grid h-8 w-8 shrink-0 place-items-center rounded-full text-fg-2 ring-1 ring-inset ring-fg/25">
-                    <X size={16} strokeWidth={2} />
+                  <button onClick={onClose} aria-label="Close" className="round h-9 w-9 text-fg-2">
+                    <X size={17} strokeWidth={2.2} />
                   </button>
                 </div>
               )}
@@ -76,7 +76,7 @@ export function Sheet({ open, onClose, title, kicker, children, footer }: Props)
             >
               {children}
             </div>
-            {footer && <div className="gutter pb-[max(16px,env(safe-area-inset-bottom,0px))] pt-3 shadow-[0_-1px_0_rgb(var(--fg)/0.13)]">{footer}</div>}
+            {footer && <div className="gutter pb-[max(16px,env(safe-area-inset-bottom,0px))] pt-3">{footer}</div>}
           </motion.div>
         </div>
       )}

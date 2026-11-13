@@ -2,7 +2,6 @@ import { differenceInCalendarDays, format, parseISO } from 'date-fns'
 import { ChevronRight, Plus, Search } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
-import { Sparkline } from '../../components/charts/primitives'
 import { IconButton, Screen } from '../../components/ui/Screen'
 import { StandoutLine } from '../../components/ui/Standout'
 import { Empty, SampleBadge, Section, inputCls } from '../../components/ui/bits'
@@ -53,8 +52,8 @@ export function LiftScreen() {
         </span>
       }
       actions={
-        <IconButton label="New workout" onClick={create}>
-          <Plus size={18} />
+        <IconButton label="New workout" onClick={create} active>
+          <Plus size={18} strokeWidth={2.2} />
         </IconButton>
       }
     >
@@ -63,24 +62,24 @@ export function LiftScreen() {
       ) : next ? (
         <NextUp w={w} routine={next} />
       ) : (
-        <section>
-          <div className="label">Start here</div>
-          <h2 className="display mt-3 text-balance text-[48px] font-extrabold leading-[0.9]">Make your first workout</h2>
-          <p className="mt-5 text-[17px] leading-snug text-fg-2">Your exercises, in the order you do them. From the second session it tells you what to lift.</p>
-          <button onClick={create} className="btn-primary mt-6 w-full">
+        <section className="hero flex flex-col gap-1 bg-strength-tint">
+          <h2 className="text-[13px] font-bold text-strength-label">Start here</h2>
+          <p className="display mt-1 text-balance text-[44px] font-extrabold leading-none tracking-[-0.035em] text-strength-head">Make your first workout</p>
+          <p className="mt-2 text-[14px] leading-snug text-strength-head/80">Your exercises, in the order you do them. From the second session it tells you what to lift.</p>
+          <button onClick={create} className="btn mt-3 w-full bg-strength-head font-extrabold text-ink-0">
             New workout
           </button>
         </section>
       )}
-      {w.news.lift && !active && <StandoutLine s={w.news.lift} className="mt-9" />}
-      <Workouts w={w} skip={active ? undefined : next?.id} onNew={create} />
+      {w.news.lift && !active && <StandoutLine s={w.news.lift} className="mt-2.5" />}
+      <Workouts w={w} next={active ? undefined : next?.id} onNew={create} />
       <ProgressList w={w} />
       {w.workouts.length > 0 && (
         <Section
           title="Recent"
           action={
             <Link to="/lift/history" className="link">
-              History <ChevronRight size={15} strokeWidth={2} />
+              History <ChevronRight size={14} strokeWidth={2.2} />
             </Link>
           }
         >
@@ -95,42 +94,50 @@ export function LiftScreen() {
   )
 }
 
-/** The workout that's waited longest, with what to lift on every exercise. */
+/** The workout that's waited longest, on the lilac tint, with what to lift on every exercise. */
 function NextUp({ w, routine }: { w: World; routine: Routine }) {
   const begin = useBegin()
   const since = sinceDone(routine, w)
+  const focus = focusOf(routine, w.exerciseById)
   return (
-    <section>
-      <div className="label">Next up</div>
-      <Link to={`/lift/workout/${routine.id}`} className="press mt-3 block">
-        <h2 className="display text-balance text-[48px] font-extrabold leading-[0.9]">{routine.name}</h2>
+    <section className="hero flex flex-col gap-1 bg-strength-tint">
+      <div className="flex items-center justify-between gap-3 text-strength-label">
+        <h2 className="text-[13px] font-bold">Next up</h2>
+        <span className="text-[12.5px] font-semibold">{since === undefined ? 'Not done yet' : `Last done ${daysAgo(since).toLowerCase()}`}</span>
+      </div>
+      <Link to={`/lift/workout/${routine.id}`} className="press mt-1 block">
+        <h3 className="display text-balance text-[44px] font-extrabold leading-none tracking-[-0.035em] text-strength-head">{routine.name}</h3>
       </Link>
-      <div className="meta mt-3">{[focusOf(routine, w.exerciseById), daysAgo(since)].filter(Boolean).join(' · ')}</div>
-      <Targets w={w} routine={routine} className="mt-5" />
-      <button onClick={() => begin(routine)} className="btn-primary mt-6 w-full">
-        Start
+      {focus && <span className="mb-2.5 text-[13px] text-strength-head/80">{focus}</span>}
+      <Targets w={w} routine={routine} tinted />
+      <button onClick={() => begin(routine)} className="btn mt-2.5 w-full bg-strength-head font-extrabold text-ink-0">
+        Start workout
       </button>
     </section>
   )
 }
 
-/** A workout's exercises, each with the weight and reps to go for and what's changed since last time. */
-export function Targets({ w, routine, className = '' }: { w: World; routine: Routine; className?: string }) {
+/** A workout's exercises, each with its sets, the rule in play and the weight and reps to go for. `tinted` sets it on the lilac hero. */
+export function Targets({ w, routine, className = '', tinted }: { w: World; routine: Routine; className?: string; tinted?: boolean }) {
   return (
-    <div className={`list ruled ${className}`}>
+    <div className={`${tinted ? '' : 'list ruled'} ${className}`}>
       {routine.items.map((it, i) => {
         const ex = w.exerciseById.get(it.exerciseId)
         if (!ex) return null
         const t = targetFor(ex, historyFor(ex.id, w.workouts))
         return (
-          <Link key={`${it.exerciseId}-${i}`} to={`/lift/exercise/${ex.id}`} className="flex items-center gap-3 py-[10px] transition-colors duration-150 active:bg-ink-2">
+          <Link
+            key={`${it.exerciseId}-${i}`}
+            to={`/lift/exercise/${ex.id}`}
+            className={`flex items-center gap-3 transition-colors duration-150 ${tinted ? 'border-t border-strength/[0.14] py-[9px]' : 'py-[10px] active:bg-ink-2'}`}
+          >
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-[16px] font-semibold leading-5">{ex.name}</span>
-              <span className="meta block">
-                {it.sets} {it.sets === 1 ? 'set' : 'sets'} · <MoveNote t={t} />
+              <span className="block truncate text-[15px] font-bold leading-5">{ex.name}</span>
+              <span className={`block text-[12px] ${tinted ? 'text-strength-head/80' : 'text-fg-3'}`}>
+                {it.sets} {it.sets === 1 ? 'set' : 'sets'} · <MoveNote t={t} plain={tinted} />
               </span>
             </span>
-            <span className="num shrink-0 text-right text-[21px]">{targetText(ex, t)}</span>
+            <span className={`num shrink-0 text-right text-[18px] ${tinted ? 'text-strength-head' : ''}`}>{targetText(ex, t)}</span>
           </Link>
         )
       })}
@@ -144,83 +151,85 @@ function InProgress() {
   const done = active.exercises.reduce((a, we) => a + we.sets.filter((s) => s.done).length, 0)
   const total = active.exercises.reduce((a, we) => a + we.sets.length, 0)
   return (
-    <section>
-      <div className="label flex items-center gap-2">
+    <section className="hero flex flex-col gap-1 bg-strength-tint">
+      <h2 className="flex items-center gap-2 text-[13px] font-bold text-strength-label">
         <span className="h-2 w-2 animate-pulse rounded-full bg-bad" /> In progress
-      </div>
-      <h2 className="display mt-3 text-balance text-[48px] font-extrabold leading-[0.9]">{active.name}</h2>
-      <div className="meta mt-3">
+      </h2>
+      <p className="display mt-1 text-balance text-[44px] font-extrabold leading-none tracking-[-0.035em] text-strength-head">{active.name}</p>
+      <span className="text-[13px] text-strength-head/80">
         {done} of {total} sets · started {format(parseISO(active.start), 'HH:mm')}
-      </div>
-      <button onClick={() => setOpen(true)} className="btn-primary mt-6 w-full">
+      </span>
+      <button onClick={() => setOpen(true)} className="btn mt-3 w-full bg-strength-head font-extrabold text-ink-0">
         Carry on
       </button>
     </section>
   )
 }
 
-function Workouts({ w, skip, onNew }: { w: World; skip?: string; onNew: () => void }) {
-  const list = w.routines.filter((r) => r.id !== skip)
+/** Your workouts as chips that scroll sideways: the next one up tinted, and a dashed one to make another. */
+function Workouts({ w, next, onNew }: { w: World; next?: string; onNew: () => void }) {
   if (!w.routines.length) return null
   return (
-    <Section
-      title="Workouts"
-      action={
-        <button onClick={onNew} className="link">
-          <Plus size={15} strokeWidth={2} /> New
-        </button>
-      }
-    >
-      <div className="list">
-        {list.map((r) => (
-          <Link key={r.id} to={`/lift/workout/${r.id}`} className="flex items-center gap-3 py-3 transition-colors duration-150 active:bg-ink-2">
-            <span className="min-w-0 flex-1">
-              <span className="t-name block truncate">{r.name}</span>
-              <span className="meta mt-0.5 block truncate">
-                {r.items.length} {r.items.length === 1 ? 'exercise' : 'exercises'} · {daysAgo(sinceDone(r, w)).toLowerCase()}
-              </span>
-            </span>
-            <ChevronRight size={16} strokeWidth={2} className="shrink-0 text-fg-4" />
-          </Link>
-        ))}
-        {!list.length && <p className="meta py-3">That’s your only one. Add another and they’ll take turns.</p>}
-      </div>
-    </Section>
+    <div className="no-scrollbar -mx-4 mt-2.5 flex gap-2 overflow-x-auto px-4">
+      {w.routines.map((r) => (
+        <Link key={r.id} to={`/lift/workout/${r.id}`} className={`chip shrink-0 px-3.5 text-[14px] ${r.id === next ? 'bg-strength-tint text-strength-head' : 'text-fg'}`}>
+          {r.name}
+        </Link>
+      ))}
+      <button onClick={onNew} className="chip shrink-0 border-[1.5px] border-dashed border-line-2 bg-transparent px-3.5 text-[14px] text-fg-3">
+        <Plus size={14} strokeWidth={2.2} /> New
+      </button>
+    </div>
   )
 }
 
-/** The lifts you do most, and where each has got to over the last eight weeks. */
+/** The lifts you do most, each with a step line, where it's got to and what it's gained over eight weeks. */
 function ProgressList({ w }: { w: World }) {
   const list = useMemo(() => progressOf(w.workouts, w.exerciseById, w.now).slice(0, 5), [w])
   if (!list.length) return null
   return (
     <Section
-      title="Progress"
+      title="Progress · last 8 weeks"
       action={
         <Link to="/lift/exercises" className="link">
-          All lifts <ChevronRight size={15} strokeWidth={2} />
+          All lifts <ChevronRight size={14} strokeWidth={2.2} />
         </Link>
       }
     >
-      <div className="list">
+      <div className="list -mb-1">
         {list.map((p) => (
           <Link
             key={p.ex.id}
             to={`/lift/exercise/${p.ex.id}`}
-            className="grid grid-cols-[minmax(0,1fr)_72px_auto] items-center gap-3 py-3 transition-colors duration-150 active:bg-ink-2"
+            className="grid grid-cols-[minmax(0,1fr)_70px_92px] items-center gap-2.5 py-2 transition-colors duration-150 active:bg-ink-2"
           >
-            <span className="min-w-0">
-              <span className="block truncate text-[16px] font-semibold leading-5">{p.ex.name}</span>
-              <span className={`block text-[13px] font-semibold ${p.change > 0 ? 'text-good' : p.change < 0 ? 'text-warn' : 'text-fg-3'}`}>
-                {p.change ? `${amount(p.ex, p.change, true)} in 8 weeks` : 'Holding'}
+            <span className="truncate text-[14.5px] font-bold">{p.ex.name}</span>
+            <Steps values={p.points.filter((x) => x.t >= w.now.getTime() - 56 * 86_400_000).map((x) => x.v)} />
+            <span className="flex flex-col items-end">
+              <span className="num text-[17px] leading-[1.25]">{amount(p.ex, p.now)}</span>
+              <span className={`text-[11.5px] font-bold ${p.change > 0 ? 'text-good' : p.change < 0 ? 'text-bad' : 'text-fg-3'}`}>
+                {p.change ? amount(p.ex, p.change, true) : 'Holding'}
               </span>
             </span>
-            <Sparkline values={p.points.map((x) => x.v)} height={30} color="rgb(var(--fg-2))" />
-            <span className="num min-w-[84px] text-right text-[19px]">{amount(p.ex, p.now)}</span>
           </Link>
         ))}
       </div>
     </Section>
+  )
+}
+
+/** Each session's top set as a step: flat until it moves. */
+function Steps({ values }: { values: number[] }) {
+  if (values.length < 2) return <span />
+  const lo = Math.min(...values)
+  const hi = Math.max(...values)
+  const X = (i: number) => 1 + (i / (values.length - 1)) * 68
+  const Y = (v: number) => (hi === lo ? 11 : 19 - ((v - lo) / (hi - lo)) * 16)
+  const d = values.map((v, i) => (i ? `H${X(i).toFixed(1)}V${Y(v).toFixed(1)}` : `M${X(0)},${Y(v).toFixed(1)}`)).join('') + `H69`
+  return (
+    <svg width={70} height={22} viewBox="0 0 70 22" aria-hidden="true">
+      <path d={d} fill="none" stroke="rgb(var(--strength))" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   )
 }
 
@@ -274,8 +283,8 @@ export function ExercisesScreen() {
       title="Lifts"
       back
       actions={
-        <IconButton label="New exercise" onClick={() => open({ type: 'exercise' })}>
-          <Plus size={18} />
+        <IconButton label="New exercise" onClick={() => open({ type: 'exercise' })} active>
+          <Plus size={18} strokeWidth={2.2} />
         </IconButton>
       }
     >

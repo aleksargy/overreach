@@ -59,7 +59,7 @@ function RaceSettings() {
           <Toggle label="Training for a race" on={!!race} onChange={(on) => set({ race: on ? { date: '', distanceM: 42_195 } : undefined })} />
         </div>
         {race && (
-          <div className="flex flex-col gap-4 border-t border-fg/[0.13] py-4">
+          <div className="flex flex-col gap-4 border-t border-ink-2 py-4">
             <Segmented
               size="sm"
               value={race.distanceM}
@@ -164,7 +164,7 @@ function Garmin() {
         </div>
         {/* how to connect, until it's connected, and again if a sync fails (a key that's run out, say) */}
         {setUp && (
-          <ol className="border-t border-fg/[0.13] py-3 text-[14.5px] leading-snug text-fg-2">
+          <ol className="border-t border-ink-2 py-3 text-[14.5px] leading-snug text-fg-2">
             {[
               <>
                 Make a Personal API key in{' '}
@@ -191,7 +191,7 @@ function Garmin() {
             ))}
           </ol>
         )}
-        <div className="flex flex-col gap-3 border-t border-fg/[0.13] pt-4">
+        <div className="flex flex-col gap-3 border-t border-ink-2 pt-4">
           <Field label="Passphrase">
             <input
               type="password"
@@ -206,7 +206,7 @@ function Garmin() {
             <RefreshCw size={16} className={busy ? 'animate-spin' : ''} /> {busy ? 'Syncing…' : 'Sync now'}
           </button>
           {progress && <p className="meta">{progress}</p>}
-          {sync.status === 'error' && sync.message && !busy && <p className="text-[13px] leading-snug text-warn">{sync.message}</p>}
+          {sync.status === 'error' && sync.message && !busy && <p className="text-[13px] leading-snug text-bad">{sync.message}</p>}
           {PREVIEW && <p className="text-[12.5px] leading-snug text-fg-3">This preview runs on sample data. Sync works once the app is on Netlify.</p>}
           {server && !busy && <ServerLine st={server} />}
         </div>
@@ -226,9 +226,9 @@ const WARN_LABEL: Record<string, string> = {
 }
 
 function ServerLine({ st }: { st: { ok?: ServerStatus; error?: string } }) {
-  if (st.error) return <p className="text-[13px] leading-snug text-warn">{st.error}</p>
+  if (st.error) return <p className="text-[13px] leading-snug text-bad">{st.error}</p>
   const s = st.ok!
-  if (!s.hasKey) return <p className="text-[13px] leading-snug text-warn">The passphrase works. Now add GARMIN_PERSONAL_API_KEY in Netlify and redeploy.</p>
+  if (!s.hasKey) return <p className="text-[13px] leading-snug text-bad">The passphrase works. Now add GARMIN_PERSONAL_API_KEY in Netlify and redeploy.</p>
   const warn = Object.keys(s.warnings ?? {})
   return (
     <div className="flex flex-col gap-1 text-[13px] leading-snug text-fg-3">
@@ -237,8 +237,8 @@ function ServerLine({ st }: { st: { ok?: ServerStatus; error?: string } }) {
         Server ready · {s.activities} activities · {s.days} days
       </span>
       {!s.backfillDone && s.activities > 0 && <span>History is still coming in. It carries on whenever the app is open and every morning on its own, so you can close it.</span>}
-      {s.message && <span className="text-warn">{s.message}</span>}
-      {warn.length > 0 && <span className="text-warn">Garmin didn’t send {warn.map((k) => WARN_LABEL[k] ?? k).join(', ')}. The rest synced fine.</span>}
+      {s.message && <span className="text-bad">{s.message}</span>}
+      {warn.length > 0 && <span className="text-bad">Garmin didn’t send {warn.map((k) => WARN_LABEL[k] ?? k).join(', ')}. The rest synced fine.</span>}
     </div>
   )
 }
@@ -252,9 +252,9 @@ const when = (iso: string) => {
 function Row({ icon, title, sub, onClick }: { icon: ReactNode; title: string; sub: string; onClick?: () => void }) {
   const inner = (
     <>
-      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-fg-2 ring-1 ring-inset ring-fg/25">{icon}</span>
+      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-ink-2 text-fg-2">{icon}</span>
       <span className="min-w-0 flex-1">
-        <span className="block text-[16px] font-semibold leading-5">{title}</span>
+        <span className="block text-[15px] font-bold leading-5">{title}</span>
         <span className="meta block">{sub}</span>
       </span>
     </>
@@ -336,7 +336,7 @@ function YourData() {
         </div>
         <input ref={backupFile} type="file" accept=".json,application/json" className="hidden" onChange={(e) => e.target.files?.[0] && void onBackup(e.target.files[0])} />
         {result && (
-          <p className={`card flex gap-2 p-3.5 text-[13px] leading-snug ${result.ok ? 'text-fg-2' : 'text-warn'}`}>
+          <p className={`tile flex gap-2 p-3.5 text-[13px] leading-snug ${result.ok ? 'text-fg-2' : 'text-bad'}`}>
             {result.ok && <Check size={16} className="mt-0.5 shrink-0 text-z2" />}
             {result.text}
           </p>
@@ -348,7 +348,7 @@ function YourData() {
             setSure(false)
             say('Everything reset')
           }}
-          className={`press mt-2 h-12 rounded-[5px] text-[14.5px] font-semibold ${sure ? 'bg-bad text-ink-0' : 'text-bad/80 ring-1 ring-inset ring-bad/30'}`}
+          className={`press mt-2 h-12 rounded-full text-[14.5px] font-semibold ${sure ? 'bg-bad text-ink-0' : 'bg-bad/[0.13] text-bad'}`}
         >
           {sure ? 'Tap again to wipe everything on this phone' : 'Reset all data'}
         </button>

@@ -1,7 +1,6 @@
-import { Plus, Search } from 'lucide-react'
+import { Check, Plus, Search } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Sheet } from '../../components/ui/Sheet'
-import { Tick } from '../../components/ui/chalk'
 import { Field, Stepper, inputCls } from '../../components/ui/bits'
 import { EQUIPMENT, KINDS, MUSCLES } from '../../data/exercises'
 import { useStore } from '../../data/store'
@@ -106,7 +105,7 @@ function ExerciseForm({ exerciseId, initialName, onSaved }: { exerciseId?: strin
       <Field label="Name">
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Landmine press" className={inputCls} autoFocus={!base} />
       </Field>
-      {clash && <p className="-mt-4 text-[13px] text-warn">You already have an exercise with that name.</p>}
+      {clash && <p className="-mt-4 text-[13px] text-bad">You already have an exercise with that name.</p>}
 
       <div>
         <div className="label mb-2">Tracked as</div>
@@ -135,10 +134,10 @@ function ExerciseForm({ exerciseId, initialName, onSaved }: { exerciseId?: strin
           {timed ? 'The target grows 5 seconds a time.' : weighted ? 'Get the top of the range on every set and the weight goes up.' : 'The target grows a rep at a time.'}
         </p>
         <div className="grid grid-cols-2 gap-2">
-          <div className="card py-3">
+          <div className="tile py-3">
             <Stepper label="From" value={lo} onChange={setLo} min={1} max={timed ? 600 : 50} />
           </div>
-          <div className="card py-3">
+          <div className="tile py-3">
             <Stepper label="To" value={hi} onChange={setHi} min={1} max={timed ? 600 : 50} />
           </div>
         </div>
@@ -231,7 +230,7 @@ function Picker({ onPick, many }: { onPick: (id: string) => void; many: boolean 
                 if (many) setAdded((x) => [...x, e.id])
                 else close()
               }}
-              className="press flex w-full items-center gap-3 border-b border-fg/[0.1] py-3 text-left"
+              className="press flex w-full items-center gap-3 border-b border-ink-3 py-3 text-left"
             >
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-[16px] font-semibold">{e.name}</span>
@@ -239,7 +238,13 @@ function Picker({ onPick, many }: { onPick: (id: string) => void; many: boolean 
                   {MUSCLE_LABEL[e.muscle]} · {EQUIPMENT_LABEL[e.equipment]}
                 </span>
               </span>
-              {done ? <Tick size={19} className="text-good" /> : <Plus size={18} className="text-fg-3" />}
+              {done ? (
+                <span className="grid h-7 w-7 place-items-center rounded-full bg-strength text-ink-0">
+                  <Check size={15} strokeWidth={2.75} />
+                </span>
+              ) : (
+                <Plus size={18} className="text-fg-3" />
+              )}
             </button>
           )
         })}

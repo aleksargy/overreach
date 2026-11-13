@@ -125,7 +125,7 @@ export function RoutineScreen() {
                       aria-label={`One set fewer of ${ex.name}`}
                       disabled={it.sets <= 1}
                       onClick={() => setItems((items) => items.map((x, k) => (k === i ? { ...x, sets: x.sets - 1 } : x)))}
-                      className="press grid h-9 w-9 place-items-center rounded-full text-fg-2 ring-1 ring-inset ring-fg/25 disabled:opacity-30"
+                      className="round h-9 w-9 text-fg-2 disabled:opacity-30"
                     >
                       <Minus size={15} />
                     </button>
@@ -134,7 +134,7 @@ export function RoutineScreen() {
                       aria-label={`One more set of ${ex.name}`}
                       disabled={it.sets >= 10}
                       onClick={() => setItems((items) => items.map((x, k) => (k === i ? { ...x, sets: x.sets + 1 } : x)))}
-                      className="press grid h-9 w-9 place-items-center rounded-full text-fg-2 ring-1 ring-inset ring-fg/25 disabled:opacity-30"
+                      className="round h-9 w-9 text-fg-2 disabled:opacity-30"
                     >
                       <Plus size={15} />
                     </button>
@@ -159,7 +159,7 @@ export function RoutineScreen() {
                 say(`${r.name || 'Workout'} deleted`)
                 nav('/lift', { replace: true })
               }}
-              className={`mt-3 h-12 w-full rounded-[5px] text-[14.5px] font-semibold ${sure ? 'bg-bad text-ink-0' : 'text-fg-3'}`}
+              className={`press mt-3 h-12 w-full rounded-full text-[14.5px] font-semibold ${sure ? 'bg-bad text-ink-0' : 'text-fg-3'}`}
             >
               {sure ? 'Tap again to delete it' : 'Delete workout'}
             </button>
@@ -167,8 +167,8 @@ export function RoutineScreen() {
         </>
       ) : (
         <>
-          <div className="meta pt-2">{[focusOf(r, w.exerciseById), daysAgo(since)].filter(Boolean).join(' · ')}</div>
-          <h1 className="t-page mt-2 text-balance">{r.name}</h1>
+          <div className="label">{[focusOf(r, w.exerciseById), daysAgo(since)].filter(Boolean).join(' · ')}</div>
+          <h1 className="t-page mt-0.5 text-balance">{r.name}</h1>
           {r.items.length ? (
             <>
               <Targets w={w} routine={r} className="mt-6" />

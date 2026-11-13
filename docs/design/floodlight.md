@@ -67,7 +67,7 @@ Match ratings keep their bands from the board, read through these colours. `mark
 
 ## Type
 
-- **Bricolage Grotesque** for anything big: titles, hero numbers and words, numbers on tiles, the match headline and the card. `@fontsource-variable/bricolage-grotesque/wdth.css` (width and weight: the narrower hero words and the card use the width axis).
+- **Bricolage Grotesque** for anything big: titles, hero numbers and words, numbers on tiles and the card. `@fontsource-variable/bricolage-grotesque/standard.css`: optical size, width and weight. The mockups were drawn with optical sizes on, and `wdth.css` alone sets everything about 5% wider.
 - **Manrope** for everything else: labels, reading, buttons, pills. `@fontsource-variable/manrope/wght.css`.
 - Remove `@fontsource-variable/libre-franklin` and `@fontsource-variable/sofia-sans-semi-condensed`.
 
@@ -77,7 +77,6 @@ Match ratings keep their bands from the board, read through these colours. `mark
 | Hero number                 | Bricolage | 58 to 64 px, 800, −0.04em, line height 0.9; its unit 18 px, 600 |
 | Hero words (Today's week)   | Bricolage | 44 px, 800, −0.035em, width 85%                                 |
 | A number on a tile          | Bricolage | 20 to 40 px, 700, −0.02em to −0.03em                            |
-| Match headline              | Bricolage | 33 px, 800, −0.025em, line height 1.02                          |
 | The card's numbers and name | Bricolage | 800, width 75%                                                  |
 | Label above a value         | Manrope   | 12.5 px, 600, `fg-3` (on a tint, the set's label colour)        |
 | Reading                     | Manrope   | 13 to 15 px, 500, `fg-2`                                        |
@@ -171,11 +170,11 @@ Sentence case. The only capitals are the card's six stat names and the position.
 
 ### Match report (`match-report.png`)
 
-1. Round Back and Edit buttons; the date, kick-off and format; the back-page headline and two sentences.
+1. Round Back and Edit buttons; the date, kick-off, format and which meeting it was. No headline and no summary: Alex dropped them on 13 Nov ("i dont want any cringe one liners or fake summaries"), so the score comes straight after.
 2. **The score**: both teams as initials in circles (yours in the football tint), the score huge, a Win, Draw or Loss pill, then goals, assists and how it felt.
 3. **The rating** (gold tint): the rating huge with its word, the median for that format as a pill, then every line that moved it from 6.00. Points from the log carry a ring or a cross, and a big point is quoted.
 4. **From the watch**: distance, top speed, sprints and metres a minute.
-5. **Where you played**: the heatmap, "Attacking →", and one line on where.
+5. **Where you played**: the heatmap and "Attacking →" (tap it to turn the pitch round).
 
 ### Not drawn
 

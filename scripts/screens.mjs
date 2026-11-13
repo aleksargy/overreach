@@ -136,45 +136,49 @@ const SCREENS = [
   ['lift-exercise', { from: '/lift', link: 'a[href^="/lift/exercise/"]' }],
   ['lift-session', { from: '/lift', link: 'a[href^="/lift/history/"]' }],
   ['lift-history', '/lift/history'],
+  // the + on Today, the weigh-in, and a new exercise of your own
+  [
+    'log-sheet',
+    {
+      from: '/',
+      async sheet(page) {
+        await page.getByRole('button', { name: 'Log something' }).click()
+      },
+    },
+  ],
+  [
+    'weigh-in',
+    {
+      from: '/body',
+      async sheet(page) {
+        await page.getByRole('button', { name: 'Weigh in' }).first().click()
+      },
+    },
+  ],
+  [
+    'exercise-sheet',
+    {
+      from: '/lift/exercises',
+      async sheet(page) {
+        await page.getByRole('button', { name: 'New exercise' }).click()
+      },
+    },
+  ],
+  // a match logged from scratch and rated: the number counting up on the gold tile. Last, since it saves a match.
+  [
+    'reveal',
+    {
+      from: '/football',
+      async sheet(page) {
+        await page.getByRole('button', { name: 'Log a match' }).click()
+        await page.waitForTimeout(500)
+        await page.getByLabel('Opponent').fill('Ajax Trays')
+        await page.getByRole('button', { name: 'Rate my game' }).click()
+        await page.waitForTimeout(2600)
+      },
+    },
+  ],
 ].filter(([name]) => !only.length || only.includes(name))
-
-/**
- * What's wrong with the circles on screen: the words a loop runs over (anything but the number it goes round)
- * and a loop that runs out past the gutter. Every few pixels along each loop is checked against the text's boxes.
- */
-async function circleTrouble(page) {
-  return page.evaluate(() => {
-    const seen = (el) => {
-      for (let e = el; e; e = e.parentElement) {
-        const s = getComputedStyle(e)
-        if (s.opacity === '0' || s.visibility === 'hidden' || s.display === 'none') return false
-      }
-      return true
-    }
-    // a sheet or a full-screen overlay is a layer of its own: a circle only answers for the words on its layer
-    const layer = (el) => {
-      for (let e = el; e; e = e.parentElement) if (getComputedStyle(e).position === 'fixed') return e
-      return document.body
-    }
-    const trouble = []
-    for (const svg of document.querySelectorAll('svg[data-mark="circle"]')) {
-      const path = svg.querySelector('path')
-      const m = path.getScreenCTM()
-      const pts = []
-      for (let s = 0, len = path.getTotalLength(); s <= len; s += 3) pts.push(new DOMPoint(path.getPointAtLength(s).x, path.getPointAtLength(s).y).matrixTransform(m))
-      const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT)
-      for (let n = walk.nextNode(); n; n = walk.nextNode()) {
-        if (!n.textContent.trim() || svg.parentElement.contains(n) || layer(n.parentElement) !== layer(svg) || !seen(n.parentElement)) continue
-        const r = document.createRange()
-        r.selectNodeContents(n)
-        if ([...r.getClientRects()].some((b) => pts.some((p) => p.x > b.left && p.x < b.right && p.y > b.top && p.y < b.bottom)))
-          trouble.push(`runs over “${n.textContent.trim().slice(0, 40)}”`)
-      }
-      if (pts.some((p) => p.x < 12 || p.x > innerWidth - 12)) trouble.push('runs out past the gutter')
-    }
-    return trouble
-  })
-}
 
 /** A workout of your own, made the way you would: named, with two exercises. Leaves you on its editor. */
 async function makeWorkout(page) {
@@ -205,7 +209,7 @@ async function openWorkout(page) {
     await page.waitForTimeout(500)
     return
   }
-  const start = page.getByRole('button', { name: 'Start', exact: true })
+  const start = page.getByRole('button', { name: 'Start workout', exact: true })
   // nothing to start yet: a first visit begins with making a workout
   if (!(await start.count())) {
     await makeWorkout(page)
@@ -280,7 +284,6 @@ try {
         const file = join(dirOf(mode), `${name}.png`)
         await page.screenshot({ path: file })
         console.log(file)
-        for (const t of await circleTrouble(page)) console.log(`  the circle ${t}`)
         continue
       }
       if (typeof where === 'object') {
@@ -311,7 +314,6 @@ try {
       const file = join(dirOf(mode), `${name}.png`)
       await page.screenshot({ path: file, fullPage: !bar })
       console.log(file)
-      for (const t of await circleTrouble(page)) console.log(`  the circle ${t}`)
     }
     await context.close()
   }

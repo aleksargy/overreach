@@ -21,12 +21,12 @@ export function useBegin() {
   }
 }
 
-/** The change against last time, in the chalk it deserves: green for more weight, amber for backing off, plain for another rep. */
-export function MoveNote({ t, className = '' }: { t: Target; className?: string }) {
-  const cls = t.move === 'up' ? 'text-good' : t.move === 'back' ? 'text-warn' : 'text-fg-3'
+/** The rule in play against last time: green for more weight, red for backing off, plain for another rep. `plain` drops the colour, on a tinted tile. */
+export function MoveNote({ t, className = '', plain }: { t: Target; className?: string; plain?: boolean }) {
+  const cls = plain ? '' : t.move === 'up' ? 'font-semibold text-good' : t.move === 'back' ? 'font-semibold text-bad' : 'font-semibold text-fg-3'
   return (
-    <span className={`whitespace-nowrap text-[13px] font-semibold ${cls} ${className}`}>
-      {t.move === 'first' ? 'New' : `${t.move === 'up' ? '↑ ' : t.move === 'back' ? '↓ ' : ''}${t.note}`}
+    <span className={`whitespace-nowrap ${cls} ${className}`}>
+      {t.move === 'first' ? 'New' : `${!plain && t.move === 'up' ? '↑ ' : !plain && t.move === 'back' ? '↓ ' : ''}${t.note}`}
     </span>
   )
 }
@@ -40,8 +40,8 @@ export function WorkoutRow({ w, records }: { w: Workout; records?: number }) {
     <Link to={`/lift/history/${w.id}`} className="flex items-center gap-3 py-3 transition-colors duration-150 active:bg-ink-2">
       <span className="min-w-0 flex-1">
         <span className="flex items-baseline gap-2">
-          <span className="truncate text-[16px] font-semibold leading-5">{w.name}</span>
-          {!!records && <span className="shrink-0 text-[12.5px] font-semibold text-mark">{records === 1 ? '1 best' : `${records} bests`}</span>}
+          <span className="truncate text-[15px] font-bold leading-5">{w.name}</span>
+          {!!records && <span className="shrink-0 text-[12.5px] font-semibold text-football">{records === 1 ? '1 best' : `${records} bests`}</span>}
         </span>
         <span className="meta block truncate">
           {fmt(w.start, 'EEE d MMM')} · {dur(secs)}
