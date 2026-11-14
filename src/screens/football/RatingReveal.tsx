@@ -39,7 +39,7 @@ export function RatingReveal() {
           transition={{ duration: 0.25 }}
           onClick={() => setDone(true)}
         >
-          <div className="gutter relative mx-auto flex w-full max-w-app flex-1 flex-col pb-[max(24px,env(safe-area-inset-bottom,0px))] pt-[max(58px,calc(env(safe-area-inset-top,0px)+10px))]">
+          <div className="gutter relative mx-auto flex w-full max-w-app flex-1 flex-col pb-[max(24px,var(--safe-bottom))] pt-[calc(var(--edge)+4px)]">
             <div className="label">
               {m.team} {m.scoreFor}–{m.scoreAgainst} {m.opponent} · {RESULT_WORD[result(m)]}
             </div>

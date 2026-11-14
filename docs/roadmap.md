@@ -2,7 +2,7 @@
 
 ## Next
 
-1. Floodlight on the iPhone: the floating tab bar over the home indicator and the 58 px top around the notch. The screenshots are 390 × 844 with no safe areas.
+1. Floodlight on the iPhone: check that the tab bar stays 26 px off the foot on every screen, that each screen's first line is clear of the frost under the status bar, and that sheets and the logger reach the bottom. `npm run screens -- --phone` draws the insets and the frost, but the 62 px layout bug only happens on the phone itself.
 2. Alex's first weeks on the Lift tab: does double progression suit how he trains, and are each exercise's rep range and weight step right for him? He can change them per exercise, but the defaults should be close.
 3. Whether the readings picked out as worth a look are the ones he'd have picked, and whether it's the right amount. The bars are `min` on each series in `src/lib/series.ts` (three weeks for a morning's reading) and `headline` in `src/lib/standout.ts` for Today (twice that, and no more than a day and a half old). Replayed over 60 mornings of his data, Today picked something out on 17 and each tab on 11 to 15.
 4. Check that run weather gets filled in from Netlify (it does from the Mac).
