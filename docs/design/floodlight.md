@@ -87,12 +87,12 @@ Sentence case. The only capitals are the card's six stat names and the position.
 
 ## Shape and space
 
-- 16 px gutters. Content starts 58 px down (respecting safe areas) and is at most 520 px wide.
+- 16 px gutters. Content starts 58 px down and is at most 520 px wide. On a phone it starts at least 32 px under the status bar: iOS 26 and later frost about 30 px under it, so the page paints over that band and nothing sits in it.
 - **Tiles**: `ink-1`, 22 px corners, 16 px padding, no border, no shadow. **Hero tiles**: 26 px corners, 18 px padding, in the tab's tint. 10 px between tiles, 8 to 10 px inside a grid.
 - **Pills** for anything you press or pick. Chips are 36 px tall on `ink-1`. The format switch is a pill track (`ink-1`, 4 px padding) with the picked option as a solid `fg` pill. A status pill (12.5 px, 700) sits on its colour at about 12 to 14%.
 - **Icon buttons** are 40 px circles: the + is solid `fg` with an `ink-0` glyph, the rest are `ink-2`.
 - **The primary button** is a 50 px pill: `fg` with `ink-0` text, or on a hero tile its headline colour with near-black text (Lift's Start workout).
-- **The tab bar** is a floating pill: centred, 26 px above the bottom safe area, 60 px tall, `ink-2`, 30 px corners, no blur. Idle tabs are 44 px circles with the icon in `fg-3`; the current tab grows into a solid `fg` pill with its icon and name. Today, Run, Football, Lift, Body, with the drawn icons kept. Content scrolls under it, so leave room at the foot of every screen.
+- **The tab bar** is a floating pill: centred, 26 px off the foot of the screen (just over the home indicator), 60 px tall, `ink-2`, 30 px corners, no blur. Idle tabs are 44 px circles with the icon in `fg-3`; the current tab grows into a solid `fg` pill with its icon and name. Today, Run, Football, Lift, Body, with the drawn icons kept. Content scrolls under it, so leave room at the foot of every screen.
 - **Sheets**: `ink-1`, 26 px top corners, a handle, pills inside. The page behind dims; nothing is blurred.
 - **Lists** are rows inside one tile, split by `ink-2` hairlines.
 - **Pushed screens** (a match report, an activity, a workout) get round 40 px Back and action buttons at the top instead of "‹ Back" in text.

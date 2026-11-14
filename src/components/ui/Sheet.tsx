@@ -43,7 +43,7 @@ export function Sheet({ open, onClose, title, kicker, children, footer }: Props)
             role="dialog"
             aria-modal="true"
             aria-label={title}
-            className="sheet absolute inset-x-0 bottom-0 mx-auto flex max-h-[min(92%,860px)] max-w-app flex-col rounded-t-sheet bg-ink-1"
+            className="sheet absolute inset-x-0 bottom-0 mx-auto flex max-h-[min(calc(100%-var(--edge)-8px),860px)] max-w-app flex-col rounded-t-sheet bg-ink-1"
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
@@ -72,11 +72,11 @@ export function Sheet({ open, onClose, title, kicker, children, footer }: Props)
               )}
             </div>
             <div
-              className={`gutter overflow-y-auto overscroll-contain pt-3 [mask-image:linear-gradient(to_bottom,transparent,black_14px)] ${footer ? 'pb-4' : 'pb-[max(16px,env(safe-area-inset-bottom,0px))]'}`}
+              className={`gutter overflow-y-auto overscroll-contain pt-3 [mask-image:linear-gradient(to_bottom,transparent,black_14px)] ${footer ? 'pb-4' : 'pb-[max(16px,var(--safe-bottom))]'}`}
             >
               {children}
             </div>
-            {footer && <div className="gutter pb-[max(16px,env(safe-area-inset-bottom,0px))] pt-3">{footer}</div>}
+            {footer && <div className="gutter pb-[max(16px,var(--safe-bottom))] pt-3">{footer}</div>}
           </motion.div>
         </div>
       )}
