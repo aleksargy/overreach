@@ -16,9 +16,10 @@ interface Props {
 }
 
 /**
- * A screen: its title 58 px down beside its round buttons, then its tiles. A
- * pushed screen keeps Back and its actions floating at the top, with its title
- * in a pill once it scrolls; nothing is docked and nothing is blurred.
+ * A screen: its title where content starts (`--top`) beside its round buttons,
+ * then its tiles. A pushed screen keeps Back and its actions floating just under
+ * the top edge, with its title in a pill once it scrolls; nothing is docked and
+ * nothing is blurred.
  */
 export function Screen({ title, kicker, actions, back, bare, hero, children, bottomPad = true }: Props) {
   const [scrolled, setScrolled] = useState(false)
@@ -35,8 +36,8 @@ export function Screen({ title, kicker, actions, back, bare, hero, children, bot
     <div className={bottomPad ? 'pb-[calc(var(--tabbar-h)+var(--tabbar-gap)+var(--mini-h)+28px)]' : 'pb-10'}>
       {back && (
         <>
-          <div className="h-[max(4px,calc(var(--top)-4px))]" />
-          <div className="pointer-events-none sticky top-[calc(env(safe-area-inset-top,0px)+8px)] z-30">
+          <div className="h-[calc(var(--top)-4px)]" />
+          <div className="pointer-events-none sticky top-[var(--edge)] z-30">
             <div className="gutter mx-auto grid max-w-app grid-cols-[1fr_auto_1fr] items-center gap-2">
               <div className="flex">
                 <RoundButton label="Back" onClick={() => (window.history.length > 1 ? nav(-1) : nav('/'))}>

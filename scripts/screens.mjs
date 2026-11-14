@@ -7,6 +7,8 @@
 //   npm run screens -- --race            with "Training for a race" on: a marathon two weeks out, goal 3:30
 //   npm run screens -- --bar             the first screenful only, with the tab bar left in
 //   npm run screens -- --webkit          in Safari's engine, into screens/<mode>-webkit (once: npx playwright install webkit)
+//   npm run screens -- --phone           as Alex's iPhone 16 Pro shows it, into screens/<mode>-phone: 402 × 874, a screenful
+//                                        with the tab bar, the status bar, the frost iOS puts under it and the home indicator
 // Writes screens/<mode>/<screen>.png. Needs Chromium once: npx playwright install chromium
 import { spawn } from 'node:child_process'
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
@@ -22,10 +24,12 @@ const args = process.argv.slice(2)
 const picked = ['sample', 'live'].filter((m) => args.includes(`--${m}`))
 const modes = picked.length ? picked : ['sample', 'live']
 const race = args.includes('--race')
-const bar = args.includes('--bar')
+// Alex's phone: its screen, its status bar and home indicator, and the band under the status bar that iOS frosts
+const phone = args.includes('--phone') && { width: 402, height: 874, top: 62, bottom: 34, frost: 30 }
+const bar = args.includes('--bar') || !!phone
 // the app lives on an iPhone home screen, so Safari's engine is the one that counts when something looks off
 const safari = args.includes('--webkit')
-const dirOf = (mode) => join('screens', safari ? `${mode}-webkit` : mode)
+const dirOf = (mode) => join('screens', [mode, safari && 'webkit', phone && 'phone'].filter(Boolean).join('-'))
 const only = args.filter((a) => !a.startsWith('--'))
 
 const SCREENS = [
@@ -243,8 +247,32 @@ const browser = await (safari ? webkit : chromium).launch()
 try {
   for (const mode of modes) {
     // a fresh profile each time: sample data until it syncs
-    const context = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, colorScheme: 'dark' })
+    const viewport = phone ? { width: phone.width, height: phone.height } : { width: 390, height: 844 }
+    const context = await browser.newContext({ viewport, deviceScaleFactor: phone ? 3 : 2, isMobile: true, hasTouch: true, colorScheme: 'dark' })
     const page = await context.newPage()
+    // the phone's insets stand in for env(), and over the page go the frost iOS draws under the status bar
+    // (anything in it comes out blurred, as on the phone), the status bar and the home indicator
+    if (phone)
+      await page.addInitScript((p) => {
+        addEventListener('DOMContentLoaded', () => {
+          document.head.append(
+            Object.assign(document.createElement('style'), { textContent: `:root { --safe-top: ${p.top}px !important; --safe-bottom: ${p.bottom}px !important }` }),
+          )
+          const over = 'position: fixed; z-index: 2147483647; pointer-events: none;'
+          const frost = document.createElement('div')
+          const mask = `linear-gradient(#000 ${p.top}px, transparent ${p.top + p.frost}px)`
+          frost.style.cssText = `${over} inset: 0 0 auto; height: ${p.top + p.frost}px; -webkit-backdrop-filter: blur(5px); backdrop-filter: blur(5px); -webkit-mask-image: ${mask}; mask-image: ${mask}`
+          const status = document.createElement('div')
+          status.style.cssText = `${over} inset: 0 0 auto; height: 59px; display: flex; align-items: center; justify-content: space-between; padding: 0 30px 0 50px; font: 600 17px system-ui, sans-serif; color: #fff`
+          status.innerHTML =
+            '<span>9:41</span><span style="width: 27px; height: 13px; padding: 2px; border: 1px solid #fff8; border-radius: 4px; box-sizing: border-box"><span style="display: block; height: 100%; border-radius: 2px; background: #fff"></span></span>'
+          const island = document.createElement('div')
+          island.style.cssText = `${over} top: 11px; left: calc(50% - 63px); width: 126px; height: 37px; border-radius: 19px; background: #000`
+          const home = document.createElement('div')
+          home.style.cssText = `${over} left: calc(50% - 67px); bottom: 8px; width: 134px; height: 5px; border-radius: 3px; background: #fff`
+          document.body.append(frost, status, island, home)
+        })
+      }, phone)
     // a full-page capture pins fixed bars mid-page, over the content; the tab bar is the same everywhere
     if (!bar)
       await page.addInitScript(() => {

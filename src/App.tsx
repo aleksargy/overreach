@@ -130,7 +130,7 @@ function Splash() {
 function Toast() {
   const toast = useUi((s) => s.toast)
   return (
-    <div className="pointer-events-none fixed inset-x-0 top-[calc(env(safe-area-inset-top,0px)+10px)] z-[70] flex justify-center px-4">
+    <div className="pointer-events-none fixed inset-x-0 top-[var(--edge)] z-[70] flex justify-center px-4">
       <AnimatePresence>
         {toast && (
           <motion.div

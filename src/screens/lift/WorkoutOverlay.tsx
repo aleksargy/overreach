@@ -87,7 +87,7 @@ function Live() {
 
   return (
     <div className="flex h-full flex-col">
-      <header className="bg-ink-0 pt-[max(12px,env(safe-area-inset-top,0px))]">
+      <header className="bg-ink-0 pt-[var(--edge)]">
         <div className="gutter mx-auto flex max-w-app items-center gap-3 pb-3 pt-1">
           <button aria-label="Minimise workout" onClick={() => setOpen(false)} className="round text-fg-2">
             <ChevronDown size={20} strokeWidth={2.2} />
@@ -314,7 +314,7 @@ function RestBar() {
       {rest && (
         <motion.div
           key="rest"
-          className="gutter absolute inset-x-0 bottom-0 pb-[max(12px,env(safe-area-inset-bottom,0px))]"
+          className="gutter absolute inset-x-0 bottom-0 pb-[var(--tabbar-gap)]"
           initial={{ y: '120%' }}
           animate={{ y: 0 }}
           exit={{ y: '120%' }}
@@ -444,7 +444,7 @@ export function MiniWorkoutBar() {
   const total = active.exercises.reduce((a, we) => a + working(we).length, 0)
   const left = rest ? Math.max(0, Math.ceil((rest.until - now) / 1000)) : 0
   return (
-    <div className="gutter pointer-events-none fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom,0px)+var(--tabbar-gap)+var(--tabbar-h)+8px)] z-40">
+    <div className="gutter pointer-events-none fixed inset-x-0 bottom-[calc(var(--tabbar-gap)+var(--tabbar-h)+8px)] z-40">
       <button onClick={() => setOpen(true)} className="press pointer-events-auto relative mx-auto block w-full max-w-app overflow-hidden rounded-[22px] bg-ink-2 text-left">
         <span className="absolute inset-x-4 bottom-1.5 h-[3px] overflow-hidden rounded-full bg-fg/10">
           <span className="block h-full rounded-full bg-strength transition-[width] duration-500" style={{ width: `${total ? (done / total) * 100 : 0}%` }} />

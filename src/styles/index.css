@@ -90,12 +90,19 @@
   --bad: 196 140 140;
   --warn: 208 178 122;
 
-  /* the floating tab bar, and the room under it */
+  /* the status bar and the home indicator, as variables so the screenshots can stand in for an iPhone */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  /* the floating tab bar, 26 px off the foot of the screen, and the room under it */
   --tabbar-h: 60px;
   --tabbar-gap: 26px;
   --mini-h: 0px;
-  /* where a screen's content starts: 58 px down, or just clear of the status bar */
-  --top: max(10px, calc(58px - env(safe-area-inset-top, 0px)));
+  /* where a screen's content starts under the status bar: 58 px down the screen, and at least 32 px
+     below the status bar, because iOS frosts the band just under it */
+  --top: max(32px, calc(58px - var(--safe-top)));
+  /* the top edge: the status bar and that band, painted over, so nothing sits in them and content
+     scrolls away under them */
+  --edge: calc(var(--safe-top) + var(--top) - 4px);
 }
 
 @layer base {
@@ -108,16 +115,18 @@
     -webkit-tap-highlight-color: transparent;
     text-rendering: optimizeLegibility;
   }
-  html,
   body,
   #root {
     min-height: 100%;
   }
-  /* the page sits below the status bar and above the home indicator; fixed
-     bars add their own insets, sticky ones stick at the top inset */
-  :root {
-    padding-top: env(safe-area-inset-top, 0px);
-    padding-bottom: env(safe-area-inset-bottom, 0px);
+  /* The page starts under the status bar; floating bars keep clear of the home indicator themselves.
+     iOS lays a home-screen app out a status bar short of the screen (812 of 874 points on an iPhone
+     16 Pro) but draws it full screen, so on a page shorter than that, everything fixed to the foot
+     sat a status bar too high. A page at least a screen tall puts it back: main.tsx gives the
+     screen's height in a home-screen app, and where iOS gets this right that's all it comes to. */
+  html {
+    min-height: min(calc(100% + var(--safe-top)), var(--screen-h, 100%));
+    padding-top: var(--safe-top);
   }
   body {
     margin: 0;
@@ -127,12 +136,12 @@
     line-height: 1.42;
     overscroll-behavior-y: none;
   }
-  /* paint the band under the status bar so scrolled content never shows through */
+  /* paint over the top edge, so content scrolls away under it rather than through the frost */
   body::before {
     content: '';
     position: fixed;
     inset: 0 0 auto;
-    height: env(safe-area-inset-top, 0px);
+    height: var(--edge);
     background: rgb(var(--ink-0));
     z-index: 40;
   }
