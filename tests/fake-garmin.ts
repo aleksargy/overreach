@@ -54,8 +54,12 @@ function jwt(exp: number) {
   return `${b64({ alg: 'none' })}.${b64({ exp })}.sig`
 }
 
-/** A FIT file for a 5-a-side game: jogging with three clear sprints and a half-time pause. */
-export function footballFit(start: Date, sprintsPerHalf = 3): Uint8Array {
+/**
+ * A FIT file for a 5-a-side game: jogging with three clear sprints a half and a five-minute half time. Paused,
+ * the watch's timer stops for half time and it keeps no samples, as a Garmin does; otherwise it records you
+ * standing about.
+ */
+export function footballFit(start: Date, sprintsPerHalf = 3, paused = true): Uint8Array {
   const r = rng(start.getTime())
   const enc = new Encoder()
   put(enc, { mesgNum: Profile.MesgNum.FILE_ID, type: 'activity', manufacturer: 'garmin', product: 1, timeCreated: start, serialNumber: 1 })
@@ -63,17 +67,25 @@ export function footballFit(start: Date, sprintsPerHalf = 3): Uint8Array {
   const base = { lat: 51.5, lon: -0.12 }
   const half = 25 * 60
   const t0 = start.getTime()
-  // records every second, except a five-minute half-time gap with none
+  const timer = (s: number, eventType: 'start' | 'stopAll') =>
+    put(enc, { mesgNum: Profile.MesgNum.EVENT, timestamp: new Date(t0 + s * 1000), event: 'timer', eventType, timerTrigger: 'manual', eventGroup: 0 })
+  timer(0, 'start')
+  // records every second, and at half time either none (paused) or standing about
   for (let s = 0; s < half * 2 + 300; s++) {
-    if (s >= half && s < half + 300) continue
+    const resting = s >= half && s < half + 300
+    if (resting && paused) {
+      if (s === half) timer(s, 'stopAll')
+      if (s === half + 299) timer(s + 1, 'start')
+      continue
+    }
     const inHalf = s < half ? s : s - half - 300
-    const sprint = Array.from({ length: sprintsPerHalf }, (_, i) => 240 + i * 420).some((k) => inHalf >= k && inHalf < k + 4)
-    const v = sprint ? 6.4 : 1.6 + r() * 1.2
+    const sprint = !resting && Array.from({ length: sprintsPerHalf }, (_, i) => 240 + i * 420).some((k) => inHalf >= k && inHalf < k + 4)
+    const v = resting ? 0.1 + r() * 0.2 : sprint ? 6.4 : 1.6 + r() * 1.2
     dist += v
     put(enc, {
       mesgNum: Profile.MesgNum.RECORD,
       timestamp: new Date(t0 + s * 1000),
-      heartRate: Math.round(sprint ? 182 : 150 + r() * 12),
+      heartRate: Math.round(resting ? 105 + r() * 6 : sprint ? 182 : 150 + r() * 12),
       distance: dist,
       enhancedSpeed: v,
       positionLat: Math.round(((base.lat + Math.sin(s / 60) * 0.0002) * 2 ** 31) / 180),
@@ -81,6 +93,7 @@ export function footballFit(start: Date, sprintsPerHalf = 3): Uint8Array {
       enhancedAltitude: 20,
     })
   }
+  timer(half * 2 + 300, 'stopAll')
   put(enc, {
     mesgNum: Profile.MesgNum.LAP,
     timestamp: new Date(t0 + (half * 2 + 300) * 1000),
