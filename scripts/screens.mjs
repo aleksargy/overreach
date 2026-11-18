@@ -285,6 +285,22 @@ const SCREENS = [
       },
     },
   ],
+  // someone who only lifts: Run and Football hidden in Settings, then Today as it leaves it (put back afterwards)
+  [
+    'tabs',
+    {
+      from: '/settings',
+      async sheet(page) {
+        for (const name of ['Run', 'Football']) await page.getByRole('switch', { name, exact: true }).click()
+        await page.goto(`${base}/`)
+        await page.waitForTimeout(700)
+      },
+      async after(page) {
+        await page.goto(`${base}/settings`)
+        for (const name of ['Run', 'Football']) await page.getByRole('switch', { name, exact: true }).click()
+      },
+    },
+  ],
   // how it works, from the ⓘ in Settings, and with what to lift and the match numbers open
   ['help', '/help'],
   ['help-lift', '/help#lift'],

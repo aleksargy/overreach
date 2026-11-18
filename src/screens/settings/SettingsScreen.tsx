@@ -2,11 +2,12 @@ import { ArchiveRestore, Check, CloudCheck, CloudUpload, Download, ExternalLink,
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router'
 import { IconButton, Screen } from '../../components/ui/Screen'
+import { TABS } from '../../components/TabBar'
 import { Field, Section, Segmented, Toggle, inputCls } from '../../components/ui/bits'
 import { APP_NAME } from '../../config'
 import { ApiError, getStatus, syncAll, type ServerStatus } from '../../data/api'
 import { useStore } from '../../data/store'
-import type { Race } from '../../data/types'
+import type { Race, TabKey } from '../../data/types'
 import { useUi } from '../../data/ui'
 import { backupOf, counts, describe, readBackup } from '../../lib/backup'
 import { ago, fmt } from '../../lib/format'
@@ -26,6 +27,7 @@ export function SettingsScreen() {
       }
     >
       <Profile />
+      <Tabs />
       <RaceSettings />
       <Garmin />
       <Demo />
@@ -46,6 +48,30 @@ function Profile() {
       <Field label="Name">
         <input value={name} onChange={(e) => set({ name: e.target.value })} className={inputCls} />
       </Field>
+    </Section>
+  )
+}
+
+/** Which tabs show. Today always does, being home and the way in here; a hidden tab leaves Today and the + sheet too. */
+function Tabs() {
+  const hidden = useStore((s) => s.profile.hiddenTabs) ?? []
+  const set = useStore((s) => s.setProfile)
+  const show = (key: TabKey, on: boolean) => set({ hiddenTabs: on ? hidden.filter((k) => k !== key) : [...hidden, key] })
+  return (
+    <Section title="Tabs">
+      <div className="list -my-1">
+        {TABS.flatMap(({ key, label, icon }) =>
+          key
+            ? [
+                <div key={key} className="flex items-center gap-3 py-2.5">
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-ink-2 text-fg-2">{icon}</span>
+                  <span className="min-w-0 flex-1 text-[16px] font-semibold leading-5">{label}</span>
+                  <Toggle label={label} on={!hidden.includes(key)} onChange={(on) => show(key, on)} />
+                </div>,
+              ]
+            : [],
+        )}
+      </div>
     </Section>
   )
 }

@@ -4,7 +4,7 @@ import { fetchStream } from './api'
 import { BUILTIN_EXERCISES, SAMPLE_ROUTINES } from './exercises'
 import { SAMPLE_PROFILE, buildSample, sampleStreamFor, type SampleData } from './sample'
 import { useStore } from './store'
-import type { Activity, BodyEntry, Daily, Exercise, GarminActivity, Match, Profile, Routine, Stream, Workout } from './types'
+import type { Activity, BodyEntry, Daily, Exercise, GarminActivity, Match, Profile, Routine, Stream, TabKey, Workout } from './types'
 import { analyseFootball, gamesToRate, usualFormatAt, withWatchLines, type FootballAnalysis } from '../lib/football'
 import { liftSummary } from '../lib/lift'
 import { isoDay } from '../lib/format'
@@ -32,7 +32,9 @@ export interface World {
   body: BodyEntry[]
   analyses: Map<string, FootballAnalysis>
   load: LoadModel
-  /** the one thing worth a look in each part of the app, when there is one; `today` is the rarest of them all */
+  /** whether a tab is on the tab bar (Settings, Tabs): a hidden one stays out of Today and the + sheet too */
+  shows: (tab: TabKey) => boolean
+  /** the one thing worth a look in each part of the app, when there is one; `today` is the rarest of them all, from the tabs you show */
   news: { today?: Standout; recovery?: Standout; run?: Standout; lift?: Standout; football?: Standout; body?: Standout }
   slots: Slot[]
   next: Upcoming | null
@@ -185,11 +187,21 @@ export function useWorld(): World {
       ),
       body: standout(weightSeries(body), t),
     }
-    news.today = headline(Object.values(news), t)
+    const hidden = new Set(s.profile.hiddenTabs ?? [])
+    const shows = (tab: TabKey) => !hidden.has(tab)
+    // Today only picks from the tabs you show: sleep and heart rate live on Body
+    const tabOf: Record<string, TabKey> = { recovery: 'body', body: 'body', run: 'run', lift: 'lift', football: 'football' }
+    news.today = headline(
+      Object.entries(news)
+        .filter(([k]) => shows(tabOf[k]))
+        .map(([, v]) => v),
+      t,
+    )
 
     const world: World = {
       now,
       mode: demo ? 'sample' : live ? 'live' : 'own',
+      shows,
       // the sample athlete goes by their own name when you haven't given yours
       profile: demo && !s.profile.name.trim() ? { ...s.profile, name: SAMPLE_PROFILE.name } : s.profile,
       activities,
