@@ -14,13 +14,23 @@
 // Writes screens/<mode>/<screen>.png. Needs Chromium once: npx playwright install chromium
 import { spawn } from 'node:child_process'
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
+import { createServer as listen } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { chromium, webkit } from 'playwright'
 import { createServer } from 'vite'
 
-const API = 8799
-const WEB = 5199
+/** A port nothing is using, so two runs (or a run next to `npm run dev`) never collide. */
+const sparePort = () =>
+  new Promise((resolve, reject) => {
+    const s = listen().once('error', reject)
+    s.listen(0, '127.0.0.1', () => {
+      const { port } = s.address()
+      s.close(() => resolve(port))
+    })
+  })
+const API = await sparePort()
+const WEB = await sparePort()
 const base = `http://127.0.0.1:${WEB}`
 const args = process.argv.slice(2)
 const picked = ['sample', 'live'].filter((m) => args.includes(`--${m}`))
