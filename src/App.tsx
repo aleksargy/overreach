@@ -23,6 +23,7 @@ import { ExercisesScreen, LiftHistoryScreen, LiftScreen } from './screens/lift/L
 import { RoutineScreen } from './screens/lift/RoutineScreen'
 import { MiniWorkoutBar, WorkoutOverlay } from './screens/lift/WorkoutOverlay'
 import { WorkoutScreen } from './screens/lift/WorkoutScreen'
+import { HelpScreen } from './screens/settings/HelpScreen'
 import { SettingsScreen } from './screens/settings/SettingsScreen'
 import { LogSheet } from './screens/today/LogSheet'
 import { TodayScreen } from './screens/today/TodayScreen'
@@ -47,6 +48,7 @@ const routes: RouteObject[] = [
       { path: '/lift/history/:id', element: <WorkoutScreen /> },
       { path: '/body', element: <BodyScreen /> },
       { path: '/settings', element: <SettingsScreen /> },
+      { path: '/help', element: <HelpScreen /> },
       { path: '*', element: <Navigate to="/" replace /> },
     ],
   },
@@ -54,8 +56,8 @@ const routes: RouteObject[] = [
 
 // The preview build lives in a sandboxed frame with no real URL to route on,
 // so it keeps history in memory. Only a bare #token survives the frame, so
-// #run, #football, #body, #feed, #lift or #prefs picks the first screen.
-const PREVIEW_START: Record<string, string> = { run: '/run', feed: '/feed', football: '/football', lift: '/lift', body: '/body', prefs: '/settings' }
+// #run, #football, #body, #feed, #lift, #prefs or #help picks the first screen.
+const PREVIEW_START: Record<string, string> = { run: '/run', feed: '/feed', football: '/football', lift: '/lift', body: '/body', prefs: '/settings', help: '/help' }
 const router = import.meta.env.VITE_PREVIEW === '1' ? createMemoryRouter(routes, { initialEntries: [PREVIEW_START[location.hash.slice(1)] ?? '/'] }) : createBrowserRouter(routes)
 
 export function App() {

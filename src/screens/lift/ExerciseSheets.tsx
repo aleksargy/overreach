@@ -1,7 +1,7 @@
-import { Check, Plus, Search } from 'lucide-react'
+import { Check, Plus } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Sheet } from '../../components/ui/Sheet'
-import { Field, Stepper, inputCls } from '../../components/ui/bits'
+import { Field, SearchField, Stepper, inputCls, plainText, useAutoFocus } from '../../components/ui/bits'
 import { EQUIPMENT, KINDS, MUSCLES } from '../../data/exercises'
 import { useStore } from '../../data/store'
 import type { Equipment, Exercise, ExerciseKind, Muscle } from '../../data/types'
@@ -11,9 +11,9 @@ import { fmtKg, historyFor } from '../../lib/lift'
 import { uid } from '../../lib/rng'
 import { EQUIPMENT_LABEL, MUSCLE_LABEL } from './parts'
 
-const INCREMENTS = [1, 1.25, 2, 2.5, 5, 10]
-const RESTS = [60, 90, 120, 150, 180, 240]
-const restLabel = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+const INCREMENTS = [1, 1.25, 2, 2.5, 4, 5, 10]
+/** the step a new exercise goes up by until you pick one: what that kit usually comes in */
+const STEP: Record<Equipment, number> = { barbell: 2.5, dumbbell: 2, machine: 5, cable: 2.5, kettlebell: 4, band: 2.5, bodyweight: 2.5, other: 2.5 }
 
 /** Create a custom exercise, or tune any exercise's targets. */
 export function ExerciseSheet() {
@@ -64,12 +64,18 @@ function ExerciseForm({ exerciseId, initialName, onSaved }: { exerciseId?: strin
   const [kind, setKind] = useState<ExerciseKind>(base?.kind ?? 'weight')
   const [lo, setLo] = useState(base?.repRange[0] ?? 8)
   const [hi, setHi] = useState(base?.repRange[1] ?? 12)
-  const [increment, setInc] = useState(base?.increment ?? 2.5)
-  const [restS, setRest] = useState(base?.restS ?? 90)
+  const [increment, setInc] = useState(base?.increment || STEP[base?.equipment ?? 'dumbbell'])
+  // a new exercise's step follows its kit until you pick one
+  const [stepPicked, setStepPicked] = useState(!!base)
   const [notes, setNotes] = useState(base?.notes ?? '')
+  const nameRef = useAutoFocus<HTMLInputElement>(!base)
   const timed = kind === 'duration'
   const weighted = kind === 'weight' || kind === 'weighted-bodyweight'
   const clash = !base && w.exercises.some((e) => e.name.toLowerCase() === name.trim().toLowerCase())
+  const pickEquipment = (e: Equipment) => {
+    setEquipment(e)
+    if (!stepPicked) setInc(STEP[e])
+  }
 
   const save = () => {
     const patch: Partial<Exercise> = {
@@ -80,7 +86,6 @@ function ExerciseForm({ exerciseId, initialName, onSaved }: { exerciseId?: strin
       repRange: [Math.min(lo, hi), Math.max(lo, hi)],
       targetRpe: base?.targetRpe ?? 8,
       increment: weighted ? increment : 0,
-      restS,
       notes: notes.trim() || undefined,
     }
     if (base) {
@@ -102,10 +107,20 @@ function ExerciseForm({ exerciseId, initialName, onSaved }: { exerciseId?: strin
 
   return (
     <div className="flex flex-col gap-6 pb-2">
-      <Field label="Name">
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Landmine press" className={inputCls} autoFocus={!base} />
-      </Field>
-      {clash && <p className="-mt-4 text-[13px] text-bad">You already have an exercise with that name.</p>}
+      {/* no "Name" label: iOS offers your contact card to anything called that */}
+      <input
+        ref={nameRef}
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+        aria-label="Exercise"
+        placeholder="Landmine press"
+        enterKeyHint="done"
+        autoCapitalize="sentences"
+        {...plainText}
+        className={inputCls}
+      />
+      {clash && <p className="-mt-4 text-[13px] text-bad">Already in your list</p>}
 
       <div>
         <div className="label mb-2">Tracked as</div>
@@ -125,14 +140,11 @@ function ExerciseForm({ exerciseId, initialName, onSaved }: { exerciseId?: strin
 
       <div>
         <div className="label mb-2">Equipment</div>
-        <Chips value={equipment} options={EQUIPMENT} onChange={setEquipment} />
+        <Chips value={equipment} options={EQUIPMENT} onChange={pickEquipment} />
       </div>
 
       <div>
-        <div className="label mb-1">{timed ? 'Hold for, seconds' : 'Rep range'}</div>
-        <p className="meta mb-3">
-          {timed ? 'The target grows 5 seconds a time.' : weighted ? 'Get the top of the range on every set and the weight goes up.' : 'The target grows a rep at a time.'}
-        </p>
+        <div className="label mb-2">{timed ? 'Hold for, seconds' : 'Rep range'}</div>
         <div className="grid grid-cols-2 gap-2">
           <div className="tile py-3">
             <Stepper label="From" value={lo} onChange={setLo} min={1} max={timed ? 600 : 50} />
@@ -146,17 +158,27 @@ function ExerciseForm({ exerciseId, initialName, onSaved }: { exerciseId?: strin
       {weighted && (
         <div>
           <div className="label mb-2">Go up by</div>
-          <Chips value={increment} options={INCREMENTS} onChange={setInc} format={(v) => `${fmtKg(v)} kg`} />
+          <Chips
+            value={increment}
+            options={INCREMENTS}
+            onChange={(v) => {
+              setInc(v)
+              setStepPicked(true)
+            }}
+            format={(v) => `${fmtKg(v)} kg`}
+          />
         </div>
       )}
 
-      <div>
-        <div className="label mb-2">Rest between sets</div>
-        <Chips value={restS} options={RESTS} onChange={setRest} format={restLabel} />
-      </div>
-
       <Field label="Notes">
-        <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Seat on 4, neutral grip…" className={`${inputCls} h-auto py-3`} />
+        <textarea
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          rows={2}
+          placeholder="Seat on 4, neutral grip…"
+          autoComplete="off"
+          className={`${inputCls} h-auto py-3`}
+        />
       </Field>
 
       <button onClick={save} disabled={!name.trim() || clash} className="btn-primary w-full disabled:opacity-40">
@@ -177,6 +199,7 @@ export function PickExerciseSheet() {
       open={open}
       onClose={close}
       title={many ? 'Add exercises' : 'Add exercise'}
+      full
       footer={
         many ? (
           <button onClick={close} className="btn-primary w-full">
@@ -204,10 +227,7 @@ function Picker({ onPick, many }: { onPick: (id: string) => void; many: boolean 
     .sort((a, b) => (last.get(b.id) ?? '').localeCompare(last.get(a.id) ?? '') || a.name.localeCompare(b.name))
   return (
     <div>
-      <div className="relative">
-        <Search size={17} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-fg-3" />
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search" className={`${inputCls} pl-10`} />
-      </div>
+      <SearchField value={q} onChange={setQ} label="Search exercises" />
       <div className="no-scrollbar -mx-4 mt-3 flex gap-2 overflow-x-auto px-4">
         {[{ key: 'all' as const, label: 'All' }, ...MUSCLES].map((m) => (
           <button key={m.key} onClick={() => setMuscle(m.key)} className={`chip shrink-0 ${muscle === m.key ? 'chip-on' : ''}`}>

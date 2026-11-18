@@ -29,7 +29,7 @@ export function WorkoutScreen() {
   if (!wk) {
     return (
       <Screen title="Workout" back>
-        <Empty title="Not found">This session may have been deleted.</Empty>
+        <Empty title="Not found" />
       </Screen>
     )
   }

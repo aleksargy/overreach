@@ -9,24 +9,14 @@ import { useStore } from '../../data/store'
 import type { SetEntry, WorkoutExercise } from '../../data/types'
 import { useUi } from '../../data/ui'
 import { useWorld, type World } from '../../data/world'
-import { clock, dur } from '../../lib/format'
-import { fmtKg, historyFor, loaded, plates, setText, targetFor, targetText } from '../../lib/lift'
+import { fmtKg, historyFor, loaded, plates, setText, targetText } from '../../lib/lift'
 import { uid } from '../../lib/rng'
-import { MoveNote } from './parts'
-
-function useNow(ms = 1000) {
-  const [n, setN] = useState(() => Date.now())
-  useEffect(() => {
-    const t = setInterval(() => setN(Date.now()), ms)
-    return () => clearInterval(t)
-  }, [ms])
-  return n
-}
+import { MoveNote, nextFor } from './parts'
 
 const blankSet = (): SetEntry => ({ id: uid(), kind: 'working', done: false })
 const working = (we: WorkoutExercise) => we.sets.filter((s) => s.kind !== 'warmup')
 
-/** Full-screen logger. Minimise it and it lives on as a bar above the tabs. */
+/** Full-screen logger. Minimise it and it lives on as a bar above the tabs. It's a layer, so while you type it ends where the keyboard starts. */
 export function WorkoutOverlay() {
   const open = useUi((s) => s.workoutOpen)
   const setOpen = useUi((s) => s.setWorkoutOpen)
@@ -52,7 +42,7 @@ export function WorkoutOverlay() {
           key="workout"
           role="dialog"
           aria-label="Workout in progress"
-          className="fixed inset-0 z-[45] bg-ink-0"
+          className="layer z-[45] bg-ink-0"
           initial={{ y: '100%' }}
           animate={{ y: 0 }}
           exit={{ y: '100%' }}
@@ -73,9 +63,7 @@ function Live() {
   const setOpen = useUi((s) => s.setWorkoutOpen)
   const open = useUi((s) => s.open)
   const [finishing, setFinishing] = useState(false)
-  const now = useNow()
   if (!active) return null
-  const elapsed = (now - Date.parse(active.start)) / 1000
   const done = active.exercises.reduce((a, we) => a + working(we).filter((s) => s.done).length, 0)
   const total = active.exercises.reduce((a, we) => a + working(we).length, 0)
 
@@ -98,7 +86,6 @@ function Live() {
               {done} of {total} sets
             </div>
           </div>
-          <span className="num text-[20px] tabular-nums text-fg-2">{clock(elapsed)}</span>
           <button onClick={() => setFinishing(true)} className="btn-primary h-10 px-4 text-[14px]">
             Finish
           </button>
@@ -111,18 +98,16 @@ function Live() {
       </header>
 
       <div className="flex-1 overflow-y-auto overscroll-contain">
-        <div className="gutter mx-auto max-w-app pb-44">
+        <div className="gutter mx-auto max-w-app pb-[calc(var(--safe-bottom)+40px)]">
           {active.exercises.map((we, i) => (
             <ExerciseBlock key={we.id} w={w} we={we} index={i} count={active.exercises.length} />
           ))}
-          {!active.exercises.length && <p className="meta py-10 text-center">Nothing in it yet. Add your first exercise.</p>}
           <button onClick={addExercise} className="btn-ghost mt-5 w-full">
             <Plus size={18} /> Add exercise
           </button>
         </div>
       </div>
 
-      <RestBar />
       <FinishSheet open={finishing} onClose={() => setFinishing(false)} />
     </div>
   )
@@ -130,11 +115,12 @@ function Live() {
 
 function ExerciseBlock({ w, we, index, count }: { w: World; we: WorkoutExercise; index: number; count: number }) {
   const update = useStore((s) => s.updateActive)
-  const startRest = useUi((s) => s.startRest)
   const say = useUi((s) => s.say)
   const ex = w.exerciseById.get(we.exerciseId)
   const history = useMemo(() => (ex ? historyFor(ex.id, w.workouts) : []), [ex, w.workouts])
-  const target = useMemo(() => (ex ? targetFor(ex, history) : null), [ex, history])
+  // the sets it has today: fewer last time and the weight waits for them
+  const sets = working(we).length
+  const target = useMemo(() => (ex ? nextFor(w, ex, sets) : null), [w, ex, sets])
   const [menu, setMenu] = useState(false)
   if (!ex || !target) return null
 
@@ -169,9 +155,9 @@ function ExerciseBlock({ w, we, index, count }: { w: World; we: WorkoutExercise;
       s,
       label: warm ? 'W' : String(k + 1),
       previous,
-      // what ticking the set writes down if you leave it as it is: the target, or for a warm-up what you did last time
+      // what ticking the set writes down if you leave it as it is: this set's target, or for a warm-up what you did last time
       phKg: warm ? previous?.kg : (typed ?? target.kg ?? previous?.kg),
-      phCount: warm ? before : target.count,
+      phCount: warm ? before : (target.perSet[k] ?? target.count),
     }
     if (!warm && s.kg !== undefined) typed = s.kg
     return row
@@ -190,7 +176,6 @@ function ExerciseBlock({ w, we, index, count }: { w: World; we: WorkoutExercise;
     if (!(timed ? (p.secs ?? s.secs) : (p.reps ?? s.reps))) return say(timed ? 'Add the seconds first' : 'Add your reps first')
     if (ex.kind === 'weight' && !(p.kg ?? s.kg)) return say('Add the weight first')
     patchSet(s.id, p)
-    startRest(s.kind === 'warmup' ? Math.round(ex.restS / 2) : ex.restS, ex.name)
   }
 
   // the bar for the next set you'll lift, for the plates
@@ -293,63 +278,6 @@ function ExerciseBlock({ w, we, index, count }: { w: World; we: WorkoutExercise;
   )
 }
 
-/** The rest timer: a graphite tile floating at the foot of the logger, its track filling as the rest runs down. */
-function RestBar() {
-  const rest = useUi((s) => s.rest)
-  const nudge = useUi((s) => s.nudgeRest)
-  const stop = useUi((s) => s.stopRest)
-  const now = useNow(250)
-  const left = rest ? Math.max(0, Math.ceil((rest.until - now) / 1000)) : 0
-  const over = !!rest && left === 0
-
-  useEffect(() => {
-    if (!over) return
-    navigator.vibrate?.([120, 80, 120])
-    const t = setTimeout(stop, 6000)
-    return () => clearTimeout(t)
-  }, [over, stop])
-
-  return (
-    <AnimatePresence>
-      {rest && (
-        <motion.div
-          key="rest"
-          className="gutter absolute inset-x-0 bottom-0 pb-[var(--tabbar-gap)]"
-          initial={{ y: '120%' }}
-          animate={{ y: 0 }}
-          exit={{ y: '120%' }}
-          transition={{ type: 'spring', stiffness: 420, damping: 38 }}
-        >
-          <div className="relative mx-auto flex max-w-app items-center gap-3 overflow-hidden rounded-[22px] bg-ink-2 px-4 pb-3.5 pt-3">
-            <div className="absolute inset-x-4 bottom-1.5 h-[3px] overflow-hidden rounded-full bg-fg/10">
-              <div
-                className={`h-full rounded-full transition-[width] duration-300 ease-linear ${over ? 'bg-good' : 'bg-strength'}`}
-                style={{ width: `${Math.min(1, 1 - left / rest.total) * 100}%` }}
-              />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className={`label ${over ? 'text-good' : ''}`}>{over ? 'Go' : 'Rest'}</div>
-              <div className="meta truncate">{over ? 'Next set' : rest.label}</div>
-            </div>
-            <span className={`num text-[36px] tabular-nums ${over ? 'text-good' : ''}`}>{clock(left)}</span>
-            <div className="flex gap-1.5">
-              <button onClick={() => nudge(-15)} className="chip h-10 bg-ink-3 px-2.5">
-                −15
-              </button>
-              <button onClick={() => nudge(15)} className="chip h-10 bg-ink-3 px-2.5">
-                +15
-              </button>
-              <button onClick={stop} className="chip chip-on h-10 px-3 font-bold">
-                {over ? 'OK' : 'Skip'}
-              </button>
-            </div>
-          </div>
-        </motion.div>
-      )}
-    </AnimatePresence>
-  )
-}
-
 /** How the session felt, in four words. It's stored on the 1–10 scale training load is worked out from. */
 const EFFORT = [
   { srpe: 4, label: 'Easy' },
@@ -363,27 +291,23 @@ function FinishSheet({ open, onClose }: { open: boolean; onClose: () => void }) 
   const finish = useStore((s) => s.finishWorkout)
   const discard = useStore((s) => s.discardWorkout)
   const setOpen = useUi((s) => s.setWorkoutOpen)
-  const stopRest = useUi((s) => s.stopRest)
   const say = useUi((s) => s.say)
   const nav = useNavigate()
   const [srpe, setSrpe] = useState(6)
   const [sure, setSure] = useState(false)
   if (!active) return null
-  const mins = Math.max(1, (Date.now() - Date.parse(active.start)) / 60000)
   const done = active.exercises.reduce((a, we) => a + working(we).filter((s) => s.done).length, 0)
-  const left = active.exercises.reduce((a, we) => a + we.sets.filter((s) => !s.done).length, 0)
+  const total = active.exercises.reduce((a, we) => a + working(we).length, 0)
 
   const save = () => {
     const wk = finish(srpe)
     onClose()
-    stopRest()
     setOpen(false)
     if (wk) nav(`/lift/history/${wk.id}?fresh=1`)
   }
   const bin = () => {
     if (!sure) return setSure(true)
     discard()
-    stopRest()
     onClose()
     setOpen(false)
     say('Workout discarded')
@@ -391,21 +315,12 @@ function FinishSheet({ open, onClose }: { open: boolean; onClose: () => void }) 
 
   return (
     <Sheet open={open} onClose={onClose} title="Finish" kicker={active.name}>
-      <div className="flex items-baseline gap-8">
-        <div>
-          <div className="label mb-2">Time</div>
-          <div className="num text-[27px]">{dur(mins * 60)}</div>
-        </div>
-        <div>
-          <div className="label mb-2">Sets</div>
-          <div className="num text-[27px]">{done}</div>
-        </div>
+      {/* the sets that will be saved: unticked ones are left out */}
+      <div className="label mb-2">Sets</div>
+      <div className="num text-[27px]">
+        {done}
+        {done < total && <span className="unit">of {total}</span>}
       </div>
-      {left > 0 && done > 0 && (
-        <p className="meta mt-3">
-          {left} unticked {left === 1 ? 'set' : 'sets'} will be dropped.
-        </p>
-      )}
 
       <div className="label mb-2.5 mt-7">How was it?</div>
       <div className="grid grid-cols-4 gap-2">
@@ -424,7 +339,6 @@ function FinishSheet({ open, onClose }: { open: boolean; onClose: () => void }) 
       <button onClick={save} disabled={!done} className="btn-primary mt-7 w-full disabled:opacity-40">
         Save workout
       </button>
-      {!done && <p className="meta mt-2 text-center">Tick off at least one set to save.</p>}
       <button onClick={bin} className={`press mt-3 h-11 w-full rounded-full text-[14.5px] font-semibold ${sure ? 'bg-bad text-ink-0' : 'text-fg-3'}`}>
         {sure ? 'Tap again to discard' : 'Discard workout'}
       </button>
@@ -437,14 +351,11 @@ export function MiniWorkoutBar() {
   const active = useStore((s) => s.active)
   const open = useUi((s) => s.workoutOpen)
   const setOpen = useUi((s) => s.setWorkoutOpen)
-  const rest = useUi((s) => s.rest)
-  const now = useNow()
   if (!active || open) return null
   const done = active.exercises.reduce((a, we) => a + working(we).filter((s) => s.done).length, 0)
   const total = active.exercises.reduce((a, we) => a + working(we).length, 0)
-  const left = rest ? Math.max(0, Math.ceil((rest.until - now) / 1000)) : 0
   return (
-    <div className="gutter pointer-events-none fixed inset-x-0 bottom-[calc(var(--tabbar-gap)+var(--tabbar-h)+8px)] z-40">
+    <div className="kb-hide gutter pointer-events-none fixed inset-x-0 bottom-[calc(var(--tabbar-gap)+var(--tabbar-h)+8px)] z-40">
       <button onClick={() => setOpen(true)} className="press pointer-events-auto relative mx-auto block w-full max-w-app overflow-hidden rounded-[22px] bg-ink-2 text-left">
         <span className="absolute inset-x-4 bottom-1.5 h-[3px] overflow-hidden rounded-full bg-fg/10">
           <span className="block h-full rounded-full bg-strength transition-[width] duration-500" style={{ width: `${total ? (done / total) * 100 : 0}%` }} />
@@ -454,10 +365,9 @@ export function MiniWorkoutBar() {
           <span className="min-w-0 flex-1">
             <span className="block truncate text-[15px] font-bold leading-tight">{active.name}</span>
             <span className="meta mt-0.5 block">
-              {done} of {total} sets{rest ? (left ? ` · rest ${clock(left)}` : ' · go') : ''}
+              {done} of {total} sets
             </span>
           </span>
-          <span className="num text-[19px] tabular-nums">{clock((now - Date.parse(active.start)) / 1000)}</span>
           <ChevronUp size={18} className="text-fg-3" />
         </span>
       </button>

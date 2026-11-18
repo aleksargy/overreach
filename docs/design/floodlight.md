@@ -148,7 +148,7 @@ Sentence case. The only capitals are the card's six stat names and the position.
    - A black body: a gradient from `#2b2c31` through `#16171a` to `#0c0c0e`, top left to bottom right, faint diagonal stripes (white at 3.5%), a 2.5 px metal edge (`#ecdcaa` to `#8a7646`) and a 1 px inner line at 30%.
    - Top left: the overall (50 px), the position, a short rule, the ball icon, and "In form" when the form stat is high. A silhouette fills the top right.
    - Then the name, a hairline, and the six stats in two columns split by a hairline: the value 19 px, 800, width 75%; the stat's name 11.5 px, 700, in the darker metal (`#a8996c`). Lettering `#eadcae`, the name `#f1e6c2`.
-   - The tier sets the metal: gold as drawn, silver and bronze done the same way in muted metals. Keep the tiers, the stats and "How the card is built" from `football.ts`. The rating reveal can turn this card over.
+   - The tier sets the metal: gold as drawn, silver and bronze done the same way in muted metals. Keep the tiers and the stats from `football.ts`; how the card is built is told in How it works, behind the ⓘ in Settings. The rating reveal can turn this card over.
 3. **A game to rate** (run tint) with a Rate pill. A swipe left still skips it.
 4. **Form**: the last eight as rounded chips, W in `#94b89e`, L in `bad`, D in `ink-2` with light text, each with its rating. "Keeps coming up" goes underneath (not drawn), as rows with a ring or a cross.
 5. Not drawn: records, where you play (the season heatmap, drawn like the match report's), head to head, and the matches. A tile each.
@@ -178,7 +178,7 @@ Sentence case. The only capitals are the card's six stat names and the position.
 
 ### Not drawn
 
-The sheets (the log sheet, the match log and its points editor, the weigh-in, the exercise sheets), the workout logger with its minimised bar and rest timer, the rating reveal, All activity, an activity, the race report, ghosts and Settings. Build them from the same pieces, and show Alex a screenshot of each before polishing.
+The sheets (the log sheet, the match log and its points editor, the weigh-in, the exercise sheets), the workout logger with its minimised bar, the rating reveal, All activity, an activity, the race report, ghosts and Settings. Build them from the same pieces, and show Alex a screenshot of each before polishing.
 
 ## Motion
 

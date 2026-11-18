@@ -1,18 +1,18 @@
 import { differenceInCalendarDays, format, parseISO } from 'date-fns'
-import { ChevronRight, Plus, Search } from 'lucide-react'
+import { ChevronRight, Plus } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { IconButton, Screen } from '../../components/ui/Screen'
 import { StandoutLine } from '../../components/ui/Standout'
-import { Empty, SampleBadge, Section, inputCls } from '../../components/ui/bits'
+import { Empty, SampleBadge, SearchField, Section } from '../../components/ui/bits'
 import { MUSCLES } from '../../data/exercises'
 import { useStore } from '../../data/store'
 import type { Muscle, Routine } from '../../data/types'
 import { useUi } from '../../data/ui'
 import { useWorld, type World } from '../../data/world'
-import { amount, focusOf, historyFor, lastDone, nextRoutine, progressOf, recordsIn, targetFor, targetText, topOf } from '../../lib/lift'
+import { amount, focusOf, historyFor, lastDone, nextRoutine, progressOf, recordsIn, targetText, topOf } from '../../lib/lift'
 import { uid } from '../../lib/rng'
-import { EQUIPMENT_LABEL, MUSCLE_LABEL, MoveNote, WorkoutRow, daysAgo, useBegin } from './parts'
+import { EQUIPMENT_LABEL, MUSCLE_LABEL, MoveNote, WorkoutRow, daysAgo, nextFor, useBegin } from './parts'
 
 /** How long ago a workout was last done, in days; undefined if never. */
 const sinceDone = (r: Routine, w: World) => {
@@ -47,9 +47,11 @@ export function LiftScreen() {
     <Screen
       title="Lift"
       kicker={
-        <span className="flex items-center gap-2">
-          {w.workouts.length ? `${month} ${month === 1 ? 'session' : 'sessions'} in 4 weeks` : 'Your workouts, and what to lift'} {w.mode === 'sample' && <SampleBadge />}
-        </span>
+        (w.workouts.length > 0 || w.mode === 'sample') && (
+          <span className="flex items-center gap-2">
+            {w.workouts.length > 0 && `${month} ${month === 1 ? 'session' : 'sessions'} in 4 weeks`} {w.mode === 'sample' && <SampleBadge />}
+          </span>
+        )
       }
       actions={
         <IconButton label="New workout" onClick={create} active>
@@ -65,8 +67,7 @@ export function LiftScreen() {
         <section className="hero flex flex-col gap-1 bg-strength-tint">
           <h2 className="text-[13px] font-bold text-strength-label">Start here</h2>
           <p className="display mt-1 text-balance text-[44px] font-extrabold leading-none tracking-[-0.035em] text-strength-head">Make your first workout</p>
-          <p className="mt-2 text-[14px] leading-snug text-strength-head/80">Your exercises, in the order you do them. From the second session it tells you what to lift.</p>
-          <button onClick={create} className="btn mt-3 w-full bg-strength-head font-extrabold text-ink-0">
+          <button onClick={create} className="btn mt-4 w-full bg-strength-head font-extrabold text-ink-0">
             New workout
           </button>
         </section>
@@ -124,7 +125,7 @@ export function Targets({ w, routine, className = '', tinted }: { w: World; rout
       {routine.items.map((it, i) => {
         const ex = w.exerciseById.get(it.exerciseId)
         if (!ex) return null
-        const t = targetFor(ex, historyFor(ex.id, w.workouts))
+        const t = nextFor(w, ex, it.sets)
         return (
           <Link
             key={`${it.exerciseId}-${i}`}
@@ -247,7 +248,7 @@ export function LiftHistoryScreen() {
   const records = useMemo(() => new Map(w.workouts.map((x) => [x.id, recordsIn(x, w.workouts, w.exerciseById).length])), [w])
   return (
     <Screen title="History" back>
-      {!w.workouts.length && <Empty title="Nothing yet">Finish a workout and it shows up here.</Empty>}
+      {!w.workouts.length && <Empty title="Nothing yet" />}
       {groups.map(([k, list], i) => (
         <Section key={k} title={k} action={<span className="meta">{`${list.length} ${list.length === 1 ? 'session' : 'sessions'}`}</span>} className={i ? '' : '!mt-0'}>
           <div className="list">
@@ -283,15 +284,12 @@ export function ExercisesScreen() {
       title="Lifts"
       back
       actions={
-        <IconButton label="New exercise" onClick={() => open({ type: 'exercise' })} active>
+        <IconButton label="New exercise" onClick={() => open({ type: 'exercise', name: q.trim() || undefined })} active>
           <Plus size={18} strokeWidth={2.2} />
         </IconButton>
       }
     >
-      <div className="relative">
-        <Search size={17} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-fg-3" />
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search" className={`${inputCls} pl-10`} />
-      </div>
+      <SearchField value={q} onChange={setQ} label="Search exercises" />
       <div className="no-scrollbar -mx-4 mt-3 flex gap-2 overflow-x-auto px-4">
         {[{ key: 'all' as const, label: 'All' }, ...MUSCLES].map((m) => (
           <button key={m.key} onClick={() => setMuscle(m.key)} className={`chip shrink-0 ${muscle === m.key ? 'chip-on' : ''}`}>
@@ -316,7 +314,11 @@ export function ExercisesScreen() {
             </Link>
           )
         })}
-        {!list.length && <p className="meta py-6 text-center">Nothing matches. Tap + to make it your own.</p>}
+        {!list.length && q.trim() && (
+          <button onClick={() => open({ type: 'exercise', name: q.trim() })} className="chip mt-1 h-11 w-full justify-center">
+            <Plus size={16} /> New exercise: {q.trim()}
+          </button>
+        )}
       </div>
     </Screen>
   )

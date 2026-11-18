@@ -2,8 +2,8 @@
 
 ## Next
 
-1. Floodlight on the iPhone: check that the tab bar stays 26 px off the foot on every screen, that each screen's first line is clear of the frost under the status bar, and that sheets and the logger reach the bottom. `npm run screens -- --phone` draws the insets and the frost, but the 62 px layout bug only happens on the phone itself.
-2. Alex's first weeks on the Lift tab: does double progression suit how he trains, and are each exercise's rep range and weight step right for him? He can change them per exercise, but the defaults should be close.
+1. Floodlight on the iPhone: check that the tab bar stays 26 px off the foot on every screen, that each screen's first line is clear of the frost under the status bar, that sheets and the logger reach the bottom, and that while typing they sit on the keyboard (the picker's search, a new exercise's name, reps in the logger) without the page sliding away. The stand-in keyboard in `npm run screens` shows the layout, but not what iOS itself does. `npm run screens -- --phone` draws the insets and the frost, but the 62 px layout bug only happens on the phone itself.
+2. Alex's first weeks on the Lift tab: do the targets suit how he trains (when the weight goes up, when it waits, when a tenth comes off), and are each exercise's rep range and weight step right for him? He can change them per exercise, but the defaults should be close.
 3. Whether the readings picked out as worth a look are the ones he'd have picked, and whether it's the right amount. The bars are `min` on each series in `src/lib/series.ts` (three weeks for a morning's reading) and `headline` in `src/lib/standout.ts` for Today (twice that, and no more than a day and a half old). Replayed over 60 mornings of his data, Today picked something out on 17 and each tab on 11 to 15.
 4. Check that run weather gets filled in from Netlify (it does from the Mac).
 5. Once there are ten or so rated games in each format, revisit `PAR`, `ENGINE_RANGE` and `BIG_MARGIN` in `src/lib/football.ts`. They're judgement calls, not fitted to data.

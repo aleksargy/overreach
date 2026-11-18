@@ -1,6 +1,7 @@
 import { Plus, X } from 'lucide-react'
-import { useState } from 'react'
+import { useState, type InputHTMLAttributes } from 'react'
 import { Mark } from '../../components/ui/Mark'
+import { useAutoFocus } from '../../components/ui/bits'
 import type { MatchPoint } from '../../data/types'
 import { pointValue } from '../../lib/football'
 import { signed } from '../../lib/format'
@@ -23,7 +24,6 @@ export function PointsEditor({ points, onChange, suggestions }: { points: MatchP
           <Column key={String(good)} good={good} points={points} onChange={onChange} add={add} />
         ))}
       </div>
-      <p className="meta mt-3">Tap a point to make it a big one.</p>
       {offer.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-2">
           {offer.map((s) => (
@@ -77,8 +77,7 @@ function Column({ good, points, onChange, add }: { good: boolean; points: MatchP
         ))}
       </div>
       {typing ? (
-        <input
-          autoFocus
+        <PointInput
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && commit(true)}
@@ -86,7 +85,6 @@ function Column({ good, points, onChange, add }: { good: boolean; points: MatchP
           enterKeyHint="done"
           maxLength={60}
           aria-label={good ? 'Something that went well' : 'Something that went badly'}
-          className="mt-1.5 h-10 w-full rounded-[12px] bg-ink-2 px-3 text-[15px] text-fg placeholder:text-fg-4 focus:outline-none focus:ring-2 focus:ring-fg/30"
         />
       ) : (
         <button onClick={() => setTyping(true)} className="press -ml-0.5 flex h-9 items-center gap-1 px-0.5 text-[13px] font-semibold text-fg-3">
@@ -94,5 +92,18 @@ function Column({ good, points, onChange, add }: { good: boolean; points: MatchP
         </button>
       )}
     </div>
+  )
+}
+
+/** The box a new point is typed into: it opens focused, without iOS sliding the sheet away to show it. */
+function PointInput(props: InputHTMLAttributes<HTMLInputElement>) {
+  const ref = useAutoFocus<HTMLInputElement>()
+  return (
+    <input
+      ref={ref}
+      autoComplete="off"
+      {...props}
+      className="mt-1.5 h-10 w-full rounded-[12px] bg-ink-2 px-3 text-[15px] text-fg placeholder:text-fg-4 focus:outline-none focus:ring-2 focus:ring-fg/30"
+    />
   )
 }

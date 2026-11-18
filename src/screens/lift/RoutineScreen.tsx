@@ -3,7 +3,7 @@ import { ArrowDown, ArrowUp, Check, Minus, Pencil, Plus, X } from 'lucide-react'
 import { useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router'
 import { IconButton, Screen } from '../../components/ui/Screen'
-import { Empty, inputCls } from '../../components/ui/bits'
+import { Empty, inputCls, plainText, useAutoFocus } from '../../components/ui/bits'
 import { useStore } from '../../data/store'
 import type { RoutineItem } from '../../data/types'
 import { useUi } from '../../data/ui'
@@ -29,10 +29,12 @@ export function RoutineScreen() {
   const begin = useBegin()
   const [sure, setSure] = useState(false)
   const r = w.routines.find((x) => x.id === id)
+  // a new workout opens on its name, ready to type over
+  const nameRef = useAutoFocus<HTMLInputElement>(params.get('edit') === '1' && !!r && !r.items.length)
   if (!r) {
     return (
       <Screen title="Workout" back>
-        <Empty title="Not found">This workout isn’t on your list any more.</Empty>
+        <Empty title="Not found" />
       </Screen>
     )
   }
@@ -75,19 +77,22 @@ export function RoutineScreen() {
     >
       {editing ? (
         <>
-          <label className="block pt-2">
-            <span className="label mb-2 block">Name</span>
-            <input
-              value={r.name}
-              onChange={(e) => save({ ...r, name: e.target.value })}
-              placeholder="Push, Upper A, Saturday…"
-              maxLength={32}
-              className={inputCls}
-              // a new workout's stand-in name is selected, so typing replaces it
-              autoFocus={!r.items.length}
-              onFocus={(e) => !r.items.length && e.currentTarget.select()}
-            />
-          </label>
+          {/* no "Name" label: iOS offers your contact card to anything called that */}
+          <input
+            ref={nameRef}
+            value={r.name}
+            onChange={(e) => save({ ...r, name: e.target.value })}
+            onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+            aria-label="Workout"
+            placeholder="Push, Upper A, Saturday…"
+            maxLength={32}
+            enterKeyHint="done"
+            autoCapitalize="sentences"
+            {...plainText}
+            className={`${inputCls} mt-2`}
+            // a new workout's stand-in name is selected, so typing replaces it
+            onFocus={(e) => !r.items.length && e.currentTarget.select()}
+          />
           <div className="list mt-6">
             {r.items.map((it, i) => {
               const ex = w.exerciseById.get(it.exerciseId)
@@ -185,9 +190,7 @@ export function RoutineScreen() {
                     Add exercises
                   </button>
                 }
-              >
-                Pick the exercises and how many sets of each. The weights sort themselves out after your first session.
-              </Empty>
+              />
             </div>
           )}
         </>

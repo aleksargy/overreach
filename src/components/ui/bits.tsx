@@ -1,6 +1,6 @@
 import { motion } from 'motion/react'
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
-import { Minus, Plus } from 'lucide-react'
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { Minus, Plus, Search } from 'lucide-react'
 
 /** A section is a tile with a small label at its top. `bare` leaves the tile off, for a section that's a row of tiles of its own. */
 export function Section({ title, action, children, className = '', bare }: { title?: ReactNode; action?: ReactNode; children: ReactNode; className?: string; bare?: boolean }) {
@@ -206,6 +206,42 @@ export function Field({ label, children, hint }: { label: string; children: Reac
 }
 
 export const inputCls = 'h-12 w-full rounded-[14px] bg-ink-2 px-4 text-[16px] text-fg transition-shadow placeholder:text-fg-4 focus:outline-none focus:ring-2 focus:ring-fg/30'
+
+/** What a field for names and searches wants from the phone: no contact autofill and no autocorrect. */
+export const plainText = { autoComplete: 'off', autoCorrect: 'off', spellCheck: false } as const
+
+/**
+ * Focus a field as it appears, without iOS sliding the page to it (as `autoFocus` does, even while a sheet is
+ * still sliding up): the keyboard watcher brings it into view inside its sheet (data/keyboard.ts).
+ */
+export function useAutoFocus<T extends HTMLElement>(on = true) {
+  const ref = useRef<T>(null)
+  const first = useRef(on)
+  useLayoutEffect(() => {
+    if (first.current) ref.current?.focus({ preventScroll: true })
+  }, [])
+  return ref
+}
+
+/** A search box: the phone's return key says Search and puts the keyboard away, so the list shows in full. */
+export function SearchField({ value, onChange, label = 'Search' }: { value: string; onChange: (v: string) => void; label?: string }) {
+  return (
+    <div className="relative">
+      <Search size={17} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-fg-3" />
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+        placeholder="Search"
+        aria-label={label}
+        enterKeyHint="search"
+        autoCapitalize="none"
+        {...plainText}
+        className={`${inputCls} pl-10`}
+      />
+    </div>
+  )
+}
 
 /** Numeric field that lets you type "72." on the way to "72.5". */
 export function NumInput({

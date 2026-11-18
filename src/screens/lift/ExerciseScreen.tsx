@@ -4,20 +4,12 @@ import { Link, useParams } from 'react-router'
 import { TrendChart } from '../../components/charts/charts'
 import { IconButton, Screen } from '../../components/ui/Screen'
 import { Empty, Section, Stat } from '../../components/ui/bits'
-import type { Exercise, SetEntry } from '../../data/types'
+import type { SetEntry } from '../../data/types'
 import { useUi } from '../../data/ui'
 import { useWorld } from '../../data/world'
 import { fmt } from '../../lib/format'
-import { amount, fmtKg, historyFor, loaded, setText, setsLine, targetFor, targetText, topOf } from '../../lib/lift'
-import { EQUIPMENT_LABEL, MUSCLE_LABEL, MoveNote } from './parts'
-
-/** The rule the next target comes from, in one line. */
-function rule(ex: Exercise): string {
-  const [lo, hi] = ex.repRange
-  if (ex.kind === 'duration') return `${lo}–${hi} s holds, a little longer each time.`
-  if (ex.kind === 'bodyweight') return `${lo}–${hi} reps, one more each time.`
-  return `${lo}–${hi} reps. Get ${hi} on every set and it goes up ${fmtKg(ex.increment || 2.5)} kg.`
-}
+import { amount, historyFor, loaded, setText, setsLine, targetText, topOf } from '../../lib/lift'
+import { EQUIPMENT_LABEL, MUSCLE_LABEL, MoveNote, nextFor, plannedSets } from './parts'
 
 /** One lift: what to do next time, how it's moved, and every session you've logged. */
 export function ExerciseScreen() {
@@ -29,11 +21,11 @@ export function ExerciseScreen() {
   if (!ex) {
     return (
       <Screen title="Exercise" back>
-        <Empty title="Not found">This exercise isn’t in your library.</Empty>
+        <Empty title="Not found" />
       </Screen>
     )
   }
-  const t = targetFor(ex, history)
+  const t = nextFor(w, ex, plannedSets(w, ex.id))
   const points = [...history].reverse().map((h) => ({ t: Date.parse(h.date), v: topOf(ex, h.sets) }))
   const all = history.flatMap((h) => h.sets.filter((x) => x.kind !== 'warmup'))
   const top = points.length ? Math.max(...points.map((p) => p.v)) : 0
@@ -64,17 +56,14 @@ export function ExerciseScreen() {
           <h2>Next time</h2>
           <MoveNote t={t} plain className="text-[12.5px] font-semibold" />
         </div>
-        <div className="num-hero text-[56px] text-strength-head">{targetText(ex, t)}</div>
-        <p className="text-[13px] text-strength-head/80">{rule(ex)}</p>
+        {/* a long one ("Bodyweight × 8") steps down a size to stay on one line */}
+        <div className={`num-hero whitespace-nowrap text-strength-head ${targetText(ex, t).length > 11 ? 'text-[42px]' : 'text-[56px]'}`}>{targetText(ex, t)}</div>
       </section>
 
       {history.length > 0 ? (
         <>
           {points.length > 1 && (
-            <Section
-              title="Progress"
-              action={<span className="meta">{loaded(ex) ? 'Heaviest set each session' : ex.kind === 'duration' ? 'Longest hold each session' : 'Most reps each session'}</span>}
-            >
+            <Section title="Progress">
               <TrendChart points={points} avg={points} height={150} color="rgb(var(--strength))" xLabel={(x) => fmt(new Date(x).toISOString(), 'd MMM')} />
             </Section>
           )}
@@ -101,7 +90,7 @@ export function ExerciseScreen() {
         </>
       ) : (
         <div className="mt-9">
-          <Empty title="No sets yet">Log it once and next time gets a target.</Empty>
+          <Empty title="No sets yet" />
         </div>
       )}
     </Screen>

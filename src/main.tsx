@@ -2,10 +2,14 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { App } from './App'
 import './data/backup'
+import { watchKeyboard } from './data/keyboard'
 import { useStore } from './data/store'
 import './styles/index.css'
 
 void useStore.getState().hydrate()
+
+// sheets and the logger keep above the keyboard while you type
+watchKeyboard()
 
 // In a home-screen app, the page is at least the screen's height (see html in index.css): iOS lays it
 // out a status bar short, and fixed bars at the foot would sit that much too high on a short page.

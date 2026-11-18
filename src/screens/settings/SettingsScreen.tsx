@@ -1,6 +1,7 @@
-import { ArchiveRestore, Check, CloudCheck, CloudUpload, Download, ExternalLink, RefreshCw } from 'lucide-react'
+import { ArchiveRestore, Check, CloudCheck, CloudUpload, Download, ExternalLink, Info, RefreshCw } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { Screen } from '../../components/ui/Screen'
+import { useNavigate } from 'react-router'
+import { IconButton, Screen } from '../../components/ui/Screen'
 import { Field, Section, Segmented, Toggle, inputCls } from '../../components/ui/bits'
 import { APP_NAME, APP_TAGLINE } from '../../config'
 import { ApiError, getStatus, syncAll, type ServerStatus } from '../../data/api'
@@ -13,8 +14,18 @@ import { ago, fmt } from '../../lib/format'
 import { DISTANCES, formatGoal, parseGoal, typeGoal } from '../../lib/race'
 
 export function SettingsScreen() {
+  const nav = useNavigate()
   return (
-    <Screen title="Settings" back>
+    <Screen
+      title="Settings"
+      back
+      actions={
+        // how everything is worked out lives behind this, so the screens don't have to say
+        <IconButton label="How it works" onClick={() => nav('/help')}>
+          <Info size={19} strokeWidth={2} />
+        </IconButton>
+      }
+    >
       <Profile />
       <RaceSettings />
       <Garmin />
@@ -52,10 +63,7 @@ function RaceSettings() {
     <Section title="Race">
       <div>
         <div className="flex items-center gap-3 pb-4">
-          <span className="min-w-0 flex-1">
-            <span className="block text-[16px] font-semibold leading-5">Training for a race</span>
-            <span className="meta block">Run opens with a countdown and your goal pace, then the result.</span>
-          </span>
+          <span className="min-w-0 flex-1 text-[16px] font-semibold leading-5">Training for a race</span>
           <Toggle label="Training for a race" on={!!race} onChange={(on) => set({ race: on ? { date: '', distanceM: 42_195 } : undefined })} />
         </div>
         {race && (
@@ -236,7 +244,7 @@ function ServerLine({ st }: { st: { ok?: ServerStatus; error?: string } }) {
         <span className="h-1.5 w-1.5 rounded-full bg-z2" />
         Server ready · {s.activities} activities · {s.days} days
       </span>
-      {!s.backfillDone && s.activities > 0 && <span>History is still coming in. It carries on whenever the app is open and every morning on its own, so you can close it.</span>}
+      {!s.backfillDone && s.activities > 0 && <span>History still coming in</span>}
       {s.message && <span className="text-bad">{s.message}</span>}
       {warn.length > 0 && <span className="text-bad">Garmin didn’t send {warn.map((k) => WARN_LABEL[k] ?? k).join(', ')}. The rest synced fine.</span>}
     </div>
@@ -249,13 +257,13 @@ const when = (iso: string) => {
   return a === 'today' || a === 'yesterday' ? `${a} at ${fmt(iso, 'HH:mm')}` : a
 }
 
-function Row({ icon, title, sub, onClick }: { icon: ReactNode; title: string; sub: string; onClick?: () => void }) {
+function Row({ icon, title, sub, onClick }: { icon: ReactNode; title: string; sub?: string; onClick?: () => void }) {
   const inner = (
     <>
       <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-ink-2 text-fg-2">{icon}</span>
       <span className="min-w-0 flex-1">
         <span className="block text-[15px] font-bold leading-5">{title}</span>
-        <span className="meta block">{sub}</span>
+        {sub && <span className="meta block">{sub}</span>}
       </span>
     </>
   )
@@ -323,16 +331,11 @@ function YourData() {
             <Row
               icon={sync.copyPending ? <CloudUpload {...icon} /> : <CloudCheck {...icon} />}
               title="Copy on your server"
-              sub={sync.copyPending ? 'Your latest changes are waiting to go up' : sync.copyAt ? `Up to date · ${when(sync.copyAt)}` : 'Updates a few seconds after each change'}
+              sub={sync.copyPending ? 'Waiting to go up' : sync.copyAt ? `Up to date · ${when(sync.copyAt)}` : undefined}
             />
           )}
-          <Row icon={<Download {...icon} />} title="Export a backup" sub="Matches, workouts, exercises and weigh-ins as a file" onClick={() => void exportData()} />
-          <Row
-            icon={<ArchiveRestore {...icon} />}
-            title="Restore from a backup"
-            sub="Adds what’s in the file. Nothing here is replaced."
-            onClick={() => backupFile.current?.click()}
-          />
+          <Row icon={<Download {...icon} />} title="Export a backup" onClick={() => void exportData()} />
+          <Row icon={<ArchiveRestore {...icon} />} title="Restore from a backup" onClick={() => backupFile.current?.click()} />
         </div>
         <input ref={backupFile} type="file" accept=".json,application/json" className="hidden" onChange={(e) => e.target.files?.[0] && void onBackup(e.target.files[0])} />
         {result && (

@@ -9,6 +9,8 @@
 //   npm run screens -- --webkit          in Safari's engine, into screens/<mode>-webkit (once: npx playwright install webkit)
 //   npm run screens -- --phone           as Alex's iPhone 16 Pro shows it, into screens/<mode>-phone: 402 × 874, a screenful
 //                                        with the tab bar, the status bar, the frost iOS puts under it and the home indicator
+// A stand-in keyboard comes up whenever a field has focus, the way iOS reports it: the visual viewport
+// ends where it starts (the …-typing and lift-search shots).
 // Writes screens/<mode>/<screen>.png. Needs Chromium once: npx playwright install chromium
 import { spawn } from 'node:child_process'
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
@@ -95,6 +97,18 @@ const SCREENS = [
       async sheet(page) {
         await makeWorkout(page)
         await page.getByPlaceholder('Search').fill('')
+        await blur(page)
+      },
+    },
+  ],
+  // searching the picker with the keyboard up: the sheet sits on the keyboard, the search where it was
+  [
+    'lift-search',
+    {
+      from: '/lift',
+      async sheet(page) {
+        await makeWorkout(page)
+        await page.getByPlaceholder('Search').fill('Incline')
         await page.waitForTimeout(300)
       },
     },
@@ -111,8 +125,20 @@ const SCREENS = [
       },
     },
   ],
-  // the logger a few sets in, with the rest timer running
+  // the logger a few sets in
   ['lift-log', { from: '/lift', sheet: openWorkout }],
+  // typing reps into the third set: the logger ends at the keyboard and the set stays in view
+  [
+    'lift-log-typing',
+    {
+      from: '/lift',
+      async sheet(page) {
+        await openWorkout(page)
+        await page.getByLabel('Reps').nth(2).click()
+        await page.waitForTimeout(500)
+      },
+    },
+  ],
   [
     'lift-finish',
     {
@@ -165,9 +191,26 @@ const SCREENS = [
       from: '/lift/exercises',
       async sheet(page) {
         await page.getByRole('button', { name: 'New exercise' }).click()
+        await page.waitForTimeout(500)
+        await blur(page)
       },
     },
   ],
+  // the same as it opens, with its name ready to type and the keyboard up
+  [
+    'exercise-typing',
+    {
+      from: '/lift/exercises',
+      async sheet(page) {
+        await page.getByRole('button', { name: 'New exercise' }).click()
+        await page.waitForTimeout(500)
+        await page.keyboard.type('Landmine press')
+      },
+    },
+  ],
+  // how it works, from the ⓘ in Settings, and with what to lift open
+  ['help', '/help'],
+  ['help-lift', '/help#lift'],
   // a match logged from scratch and rated: the number counting up on the gold tile. Last, since it saves a match.
   [
     'reveal',
@@ -183,6 +226,12 @@ const SCREENS = [
     },
   ],
 ].filter(([name]) => !only.length || only.includes(name))
+
+/** Put the keyboard away. */
+async function blur(page) {
+  await page.evaluate(() => document.activeElement instanceof HTMLElement && document.activeElement.blur())
+  await page.waitForTimeout(300)
+}
 
 /** A workout of your own, made the way you would: named, with two exercises. Leaves you on its editor. */
 async function makeWorkout(page) {
@@ -250,6 +299,39 @@ try {
     const viewport = phone ? { width: phone.width, height: phone.height } : { width: 390, height: 844 }
     const context = await browser.newContext({ viewport, deviceScaleFactor: phone ? 3 : 2, isMobile: true, hasTouch: true, colorScheme: 'dark' })
     const page = await context.newPage()
+    // a stand-in for the iPhone's keyboard: while a field you type into has focus, the visual viewport ends
+    // where the keyboard starts, as iOS reports it, and a keyboard sits over the foot of the screen
+    await page.addInitScript((kb) => {
+      const real = window.visualViewport
+      if (!real) return
+      let up = false
+      const fake = new EventTarget()
+      for (const k of ['width', 'scale', 'offsetLeft', 'pageLeft', 'pageTop']) Object.defineProperty(fake, k, { get: () => real[k] })
+      Object.defineProperty(fake, 'offsetTop', { get: () => 0 })
+      Object.defineProperty(fake, 'height', { get: () => real.height - (up ? kb : 0) })
+      Object.defineProperty(window, 'visualViewport', { value: fake, configurable: true })
+      const typing = (el) => el instanceof HTMLTextAreaElement || (el instanceof HTMLInputElement && !['checkbox', 'radio', 'range', 'date', 'file', 'button'].includes(el.type))
+      const key = (style) => `<span style="height: 42px; border-radius: 8px; background: #4b4b50; ${style}"></span>`
+      const row = (keys, pad = 3) => `<div style="display: flex; gap: 6px; padding: 0 ${pad}px; margin-top: 11px">${keys.join('')}</div>`
+      const board = document.createElement('div')
+      board.style.cssText = `position: fixed; inset: auto 0 0; height: ${kb}px; z-index: 2147483646; pointer-events: none; display: none; border-radius: 28px 28px 0 0; background: #232326`
+      board.innerHTML =
+        '<div style="height: 46px; margin: 8px 10px 0; border-radius: 23px; background: #38383c"></div>' +
+        row(Array(10).fill(key('flex: 1'))) +
+        row(Array(9).fill(key('flex: 1')), 20) +
+        row([key('width: 44px; background: #38383c'), ...Array(7).fill(key('flex: 1')), key('width: 44px; background: #38383c')]) +
+        row([key('width: 92px; background: #38383c'), key('flex: 1'), key('width: 92px; background: #38383c')])
+      const sync = () => {
+        const next = typing(document.activeElement)
+        if (next === up) return
+        up = next
+        board.style.display = up ? 'block' : 'none'
+        fake.dispatchEvent(new Event('resize'))
+      }
+      document.addEventListener('focusin', () => setTimeout(sync))
+      document.addEventListener('focusout', () => setTimeout(sync))
+      addEventListener('DOMContentLoaded', () => document.body.append(board))
+    }, 390)
     // the phone's insets stand in for env(), and over the page go the frost iOS draws under the status bar
     // (anything in it comes out blurred, as on the phone), the status bar and the home indicator
     if (phone)

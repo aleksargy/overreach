@@ -103,6 +103,12 @@
   /* the top edge: the status bar and that band, painted over, so nothing sits in them and content
      scrolls away under them */
   --edge: calc(var(--safe-top) + var(--top) - 4px);
+  /* the room under a sheet's last pill: clear of the home indicator, or just a little over the keyboard */
+  --sheet-foot: max(16px, var(--safe-bottom));
+}
+/* the keyboard is up (src/data/keyboard.ts) */
+:root[data-kb] {
+  --sheet-foot: 12px;
 }
 
 @layer base {
@@ -145,6 +151,10 @@
     background: rgb(var(--ink-0));
     z-index: 40;
   }
+  /* while you type it keeps to the top of what you can see, should iOS slide the page to show the field */
+  :root[data-kb] body::before {
+    top: var(--vv-top, 0px);
+  }
   button,
   input,
   textarea,
@@ -180,6 +190,22 @@
   .gutter {
     padding-left: max(16px, env(safe-area-inset-left, 0px));
     padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+
+  /* a layer over the whole screen (a sheet, the logger) that keeps to what you can see: while the keyboard
+     is up it ends where the keyboard starts, and it follows the page if iOS slides it to show a field */
+  .layer {
+    position: fixed;
+    inset: 0;
+  }
+  :root[data-kb] .layer {
+    top: var(--vv-top, 0px);
+    bottom: auto;
+    height: var(--vv-h, 100%);
+  }
+  /* while you type, the tab bar and the minimised workout get out of the way */
+  :root[data-kb] .kb-hide {
+    visibility: hidden;
   }
 
   /* ---- type: Bricolage Grotesque for anything big, Manrope for everything else ---- */

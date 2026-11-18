@@ -1,14 +1,18 @@
 // Lifting: what to do next session, what you've done, and how it's moving.
 //
-// The plan is double progression, the plainest rule that works: every exercise
-// has a rep range. Get the top of the range on every set and the weight goes
-// up next time, starting again from the bottom of the range. Until then the
-// weight stays and the target is one more rep. Miss the bottom of the range two
-// sessions running and a tenth comes off, to build back up.
+// The plan is double progression, worked out from what you lifted: every
+// exercise has a rep range and one working weight. The weakest set aims for one
+// more rep each session and the others for what they did last time; every set at
+// the top of the range earns the next weight, starting again from the bottom.
+// Around that: a step too big to make the bottom of the range waits for more reps
+// (an estimated one-rep max says when it's in reach); a session far over or under
+// the range sets the weight again from the weakest set; under the range twice, or
+// no reps gained in two sessions, takes a tenth off to build back from; so does a
+// long break. Weight added to you counts with your body weight.
 
 import { MUSCLES } from '../data/exercises'
 import type { Exercise, LiftSummary, Routine, SetEntry, Workout } from '../data/types'
-import { round } from './math'
+import { median, round } from './math'
 
 export const isWorking = (s: SetEntry) => s.done && s.kind !== 'warmup'
 
@@ -58,51 +62,162 @@ export function topOf(ex: Pick<Exercise, 'kind'>, sets: SetEntry[]): number {
 }
 
 export interface Target {
-  /** the plan against last time: your first go, more weight, more reps, or backing off */
+  /** the plan against last time: your first go, more weight, more reps (or sets), or backing off */
   move: 'first' | 'up' | 'more' | 'back'
   /** kg on the bar, or added to you; missing until there's a session to go on, or while it's bodyweight alone */
   kg?: number
-  /** reps (or seconds) to get on every set */
+  /** reps (or seconds) to get on every set, at least */
   count: number
-  /** the change, in a few characters: "+2.5 kg", "+1 rep"; empty the first time */
+  /** what each set aims for, in order: never under `count`, nor under what that set did last time at this weight; sets past the end aim for `count` */
+  perSet: number[]
+  /** the change, in a few characters: "+2.5 kg", "+1 rep", "+1 set"; empty the first time */
   note: string
 }
 
-const roundTo = (x: number, step: number) => Math.round(x / step) * step
-export const fmtKg = (x: number) => (Number.isInteger(x) ? String(x) : x.toFixed(x * 10 === Math.round(x * 10) ? 1 : 2))
-
-/** What to do on every set next time, from the last session's working sets. */
-export function targetFor(ex: Exercise, history: ExerciseSession[]): Target {
-  const [lo, hi] = ex.repRange
-  const timed = ex.kind === 'duration'
-  const sets = work(history[0]?.sets ?? [])
-  if (!sets.length) return { move: 'first', count: lo, note: '' }
-  const least = Math.min(...sets.map((s) => countOf(ex, s)))
-  const more = (count: number): Target => {
-    const d = count - least
-    return { move: 'more', count, note: timed ? `+${d} s` : `+${d} ${d === 1 ? 'rep' : 'reps'}` }
-  }
-  // nothing to load: another rep, or a longer hold
-  if (!loaded(ex)) return more(Math.max(lo, least + (timed ? 5 : 1)))
-  const kg = topOf(ex, sets)
-  const step = ex.increment || 2.5
-  // the top of the range on every set: more weight, back to the bottom of the range
-  if (least >= hi) return { move: 'up', kg: round(kg + step, 2), count: lo, note: `+${fmtKg(step)} kg` }
-  // under the range twice running at this weight: a tenth off, and build back
-  if (kg > 0 && stuck(ex, history, kg)) {
-    const next = Math.min(kg - step, roundTo(kg * 0.9, step))
-    if (next > 0) return { move: 'back', kg: next, count: Math.round((lo + hi) / 2), note: `−${fmtKg(round(kg - next, 2))} kg` }
-  }
-  return { ...more(Math.min(hi, Math.max(lo, least + 1))), kg: kg || undefined }
+export interface TargetOptions {
+  /** working sets the workout has: when last time had fewer, the weight waits until they're all done */
+  sets?: number
+  /** today, to spot a long break */
+  now?: Date
+  /** your body weight, for lifts that add weight to you */
+  bodyKg?: number
 }
 
-/** The last two sessions were both at this weight and both fell short of the range. */
-function stuck(ex: Exercise, history: ExerciseSession[], kg: number): boolean {
-  const short = (h?: ExerciseSession) => {
-    const sets = work(h?.sets ?? [])
-    return sets.length > 0 && topOf(ex, sets) === kg && Math.min(...sets.map((s) => countOf(ex, s))) < ex.repRange[0]
+const DAY = 86_400_000
+/** reps over or under the range that say the weight was wrong rather than the day */
+const FAR = 3
+/** what's left after backing off: a tenth comes off */
+const BACK_OFF = 0.9
+/** the shortest break that takes a tenth off; three times your usual gap if that's longer */
+const BREAK_DAYS = 28
+
+const roundTo = (x: number, step: number) => round(Math.round(x / step) * step, 2)
+const floorTo = (x: number, step: number) => round(Math.floor(x / step + 1e-9) * step, 2)
+export const fmtKg = (x: number) => (Number.isInteger(x) ? String(x) : x.toFixed(x * 10 === Math.round(x * 10) ? 1 : 2))
+const plural = (n: number, one: string) => `${n} ${n === 1 ? one : `${one}s`}`
+
+/** Reps a set of `reps` at `from` kg says you'd get at `kg`, by its estimated one-rep max (Epley). */
+export const repsAt = (from: number, reps: number, kg: number) => 30 * ((from * (1 + reps / 30)) / kg - 1)
+/** The weight a set of `reps0` at `from` kg says you'd lift for `reps`. */
+export const kgFor = (from: number, reps0: number, reps: number) => (from * (1 + reps0 / 30)) / (1 + reps / 30)
+
+/** How long off before a tenth comes off: four weeks, or three times your usual gap between sessions if that's longer. */
+export function breakDays(history: ExerciseSession[]): number {
+  const gaps = history.slice(0, 9).flatMap((h, i, a) => (i ? [(Date.parse(a[i - 1].date) - Date.parse(h.date)) / DAY] : []))
+  return Math.max(BREAK_DAYS, gaps.length >= 2 ? 3 * median(gaps) : 0)
+}
+
+/** The latest sessions at `kg`, newest first, as long as they stayed at that weight: the weakest set there, and the average. */
+function atWeight(history: ExerciseSession[], kg: number, n: number): { least: number; mean: number }[] {
+  const out: { least: number; mean: number }[] = []
+  for (const h of history.slice(0, n)) {
+    const sets = work(h.sets)
+    if (!sets.length || Math.max(...sets.map((s) => s.kg ?? 0)) !== kg) break
+    const reps = sets.filter((s) => (s.kg ?? 0) === kg).map((s) => s.reps ?? 0)
+    out.push({ least: Math.min(...reps), mean: reps.reduce((a, b) => a + b, 0) / reps.length })
   }
-  return short(history[0]) && short(history[1])
+  return out
+}
+
+/**
+ * What to do next time, from the sessions before (newest first). Nothing to
+ * load: one more rep on the weakest set, or five more seconds. Loaded, in order:
+ * a long break takes a tenth off; a session far over or under the range sets the
+ * weight again from the weakest set, to land mid-range; under the range twice, or
+ * no reps gained in two sessions, takes a tenth off; every set at the top
+ * earns the next weight, once the workout's sets are all done and the step is in
+ * reach; otherwise the weakest set aims for one more rep.
+ */
+export function targetFor(ex: Exercise, history: ExerciseSession[], o: TargetOptions = {}): Target {
+  const [lo, hi] = ex.repRange
+  const mid = Math.round((lo + hi) / 2)
+  const timed = ex.kind === 'duration'
+  const last = work(history[0]?.sets ?? [])
+  if (!last.length) return { move: 'first', count: lo, perSet: [], note: '' }
+
+  // nothing to load: another rep on the weakest set, or a longer hold
+  if (!loaded(ex)) {
+    const counts = last.map((s) => countOf(ex, s))
+    const least = Math.min(...counts)
+    const count = Math.max(lo, least + (timed ? 5 : 1))
+    return { move: 'more', count, perSet: counts.map((c) => Math.max(c, count)), note: timed ? `+${count - least} s` : `+${plural(count - least, 'rep')}` }
+  }
+
+  const step = ex.increment || 2.5
+  // the working weight is your heaviest working set
+  const kg = topOf(ex, last)
+  // estimates need the whole load: a lift that adds weight to you needs your body weight to go on
+  const body = ex.kind === 'weighted-bodyweight' ? o.bodyKg : 0
+  const known = body !== undefined && kg + body > 0
+  const load = (x: number) => x + (body ?? 0)
+  // what each set comes to at that weight: its reps, or for a lighter set what it says you'd get, short of the top
+  // (a set done lighter doesn't count as done at the top)
+  const counts = last.map((s) =>
+    (s.kg ?? 0) === kg ? (s.reps ?? 0) : Math.min(hi - 1, known ? Math.max(0, Math.floor(repsAt(load(s.kg ?? 0), s.reps ?? 0, load(kg)))) : (s.reps ?? 0)),
+  )
+  const least = Math.min(...counts)
+  const at = (next: number, move: 'up' | 'back', count: number): Target => ({
+    move,
+    kg: next || undefined,
+    count,
+    perSet: [],
+    note: `${move === 'up' ? '+' : '−'}${fmtKg(round(Math.abs(next - kg), 2))} kg`,
+  })
+  const more = (count: number, note = `+${plural(count - least, 'rep')}`): Target => ({
+    move: 'more',
+    kg: kg || undefined,
+    count,
+    perSet: counts.map((c) => Math.max(c, count)),
+    note,
+  })
+  // a tenth off the whole load, on the weight's own steps; at least a step, and never under nothing added
+  const lighter = () => {
+    const next = Math.max(0, Math.min(kg - step, roundTo(load(kg) * BACK_OFF - (body ?? 0), step)))
+    return ex.kind === 'weight' ? (next > 0 ? next : undefined) : next < kg ? next : undefined
+  }
+
+  // a long break: a tenth off
+  const off = o.now ? (o.now.getTime() - Date.parse(history[0].date)) / DAY : 0
+  if (off >= breakDays(history)) {
+    const next = lighter()
+    if (next !== undefined) return at(next, 'back', mid)
+  }
+
+  // far over or under the range: the weight was wrong, so set it again from the weakest set, aiming mid-range
+  if (known && (least >= hi + FAR || least <= lo - FAR)) {
+    const fit = floorTo(kgFor(load(kg), least, mid) - (body ?? 0), step)
+    // more than a step up goes straight there, a quarter more at most; a single step goes the usual way, below
+    if (least >= hi + FAR) {
+      if (fit >= kg + 2 * step) return at(Math.min(fit, floorTo(load(kg) * 1.25 - (body ?? 0), step)), 'up', mid)
+    } else {
+      // the bar can't go under a step, though weight added to you can go back to none
+      const minKg = ex.kind === 'weight' ? step : 0
+      const next = Math.min(kg - step, Math.max(minKg, fit))
+      if (next >= minKg && next < kg) return at(next, 'back', mid)
+    }
+  }
+
+  // under the range two sessions running, or no reps gained in either of the last two (on average a set): a tenth off
+  const recent = atWeight(history, kg, 3)
+  const under = recent.length >= 2 && recent[0].least < lo && recent[1].least < lo
+  const stalled = recent.length === 3 && Math.max(recent[0].mean, recent[1].mean) <= recent[2].mean
+  if (under || (stalled && least < hi)) {
+    const next = lighter()
+    if (next !== undefined) return at(next, 'back', mid)
+  }
+
+  // every set at the top of the range
+  if (least >= hi) {
+    // the workout has more sets than you did: they all get to the top first
+    const missing = (o.sets ?? 0) - last.length
+    if (missing > 0) return more(hi, `+${plural(missing, 'set')}`)
+    // a step too big to make the bottom of the range waits for more reps, unless they've stopped coming
+    const next = round(kg + step, 2)
+    if (known && repsAt(load(kg), least, load(next)) < lo && least < 2 * hi && !stalled) return more(least + 1)
+    return at(next, 'up', lo)
+  }
+
+  return more(Math.min(hi, Math.max(lo, least + 1)))
 }
 
 /** The target in a glance: "62.5 kg × 8", "+10 kg × 6", "12 reps", "45 s"; the range when it's your first go. */

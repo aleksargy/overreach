@@ -2,13 +2,26 @@ import { ChevronRight } from 'lucide-react'
 import { Link } from 'react-router'
 import { EQUIPMENT, MUSCLES } from '../../data/exercises'
 import { useStore } from '../../data/store'
-import type { Routine, Workout } from '../../data/types'
+import type { Exercise, Routine, Workout } from '../../data/types'
 import { useUi } from '../../data/ui'
+import type { World } from '../../data/world'
 import { dur, fmt } from '../../lib/format'
-import { workingSets, type Target } from '../../lib/lift'
+import { historyFor, targetFor, workingSets, type Target } from '../../lib/lift'
 
 export const MUSCLE_LABEL = Object.fromEntries(MUSCLES.map((m) => [m.key, m.label])) as Record<string, string>
 export const EQUIPMENT_LABEL = Object.fromEntries(EQUIPMENT.map((m) => [m.key, m.label])) as Record<string, string>
+
+/**
+ * What to lift on an exercise next time, from every session of it, today's date (for a long break) and your
+ * latest weigh-in (for weight added to you). `sets` is how many working sets the workout has, when that's known.
+ */
+export function nextFor(w: World, ex: Exercise, sets?: number): Target {
+  return targetFor(ex, historyFor(ex.id, w.workouts), { sets, now: w.now, bodyKg: w.body.find((b) => b.weightKg)?.weightKg })
+}
+
+/** How many working sets your workouts give an exercise: the most any of them does. */
+export const plannedSets = (w: World, exerciseId: string) =>
+  Math.max(0, ...w.routines.flatMap((r) => r.items.filter((i) => i.exerciseId === exerciseId).map((i) => i.sets))) || undefined
 
 /** Start a workout, or go back to the one that's running. */
 export function useBegin() {
