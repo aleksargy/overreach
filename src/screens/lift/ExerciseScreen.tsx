@@ -8,7 +8,7 @@ import type { SetEntry } from '../../data/types'
 import { useUi } from '../../data/ui'
 import { useWorld } from '../../data/world'
 import { fmt } from '../../lib/format'
-import { amount, historyFor, loaded, setText, setsLine, targetText, topOf } from '../../lib/lift'
+import { amount, historyFor, loaded, mainSets, setText, setsLine, targetText, topOf } from '../../lib/lift'
 import { EQUIPMENT_LABEL, MUSCLE_LABEL, MoveNote, nextFor, plannedSets } from './parts'
 
 /** One lift: what to do next time, how it's moved, and every session you've logged. */
@@ -27,7 +27,7 @@ export function ExerciseScreen() {
   }
   const t = nextFor(w, ex, plannedSets(w, ex.id))
   const points = [...history].reverse().map((h) => ({ t: Date.parse(h.date), v: topOf(ex, h.sets) }))
-  const all = history.flatMap((h) => h.sets.filter((x) => x.kind !== 'warmup'))
+  const all = history.flatMap((h) => mainSets(h.sets))
   const top = points.length ? Math.max(...points.map((p) => p.v)) : 0
   // the set that moved the most: weight times reps for a loaded lift, the count for the rest
   const worth = (s: SetEntry) => (loaded(ex) ? (s.kg || 1) * (s.reps ?? 0) : (s.reps ?? s.secs ?? 0))
@@ -82,7 +82,7 @@ export function ExerciseScreen() {
               {history.slice(0, 12).map((h) => (
                 <Link key={h.workoutId + h.date} to={`/lift/history/${h.workoutId}`} className="flex items-baseline gap-3 py-3 transition-colors duration-150 active:bg-ink-2">
                   <span className="meta w-[76px] shrink-0">{fmt(h.date, 'd MMM yy')}</span>
-                  <span className="num min-w-0 flex-1 truncate text-right text-[17px]">{setsLine(ex, h.sets)}</span>
+                  <span className="num min-w-0 flex-1 text-right text-[17px] leading-[1.25]">{setsLine(ex, h.sets)}</span>
                 </Link>
               ))}
             </div>

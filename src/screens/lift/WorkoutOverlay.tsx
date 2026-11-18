@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, Check, ChevronDown, ChevronUp, Minus, MoreHorizontal, Plus, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, Check, ChevronDown, ChevronUp, Link2, Minus, MoreHorizontal, Plus, Trash2 } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -9,12 +9,31 @@ import { useStore } from '../../data/store'
 import type { SetEntry, WorkoutExercise } from '../../data/types'
 import { useUi } from '../../data/ui'
 import { useWorld, type World } from '../../data/world'
-import { fmtKg, historyFor, loaded, plates, setText, targetText } from '../../lib/lift'
+import {
+  dropFor,
+  dropsBySet,
+  fmtKg,
+  historyFor,
+  loaded,
+  mainSets,
+  plates,
+  pyramidRange,
+  pyramidStep,
+  setText,
+  supersetTags,
+  targetText,
+  tidySupersets,
+  toggleSuperset,
+} from '../../lib/lift'
 import { uid } from '../../lib/rng'
 import { MoveNote, nextFor } from './parts'
 
-const blankSet = (): SetEntry => ({ id: uid(), kind: 'working', done: false })
-const working = (we: WorkoutExercise) => we.sets.filter((s) => s.kind !== 'warmup')
+const blankSet = (kind: SetEntry['kind'] = 'working'): SetEntry => ({ id: uid(), kind, done: false })
+/** the sets that count towards the workout: not warm-ups or drop sets */
+const working = (we: WorkoutExercise) => mainSets(we.sets)
+/** what a tap on a set's number turns it into: a warm-up, then a drop set, then back */
+const NEXT_KIND: Record<SetEntry['kind'], SetEntry['kind']> = { working: 'warmup', failure: 'warmup', warmup: 'drop', drop: 'working' }
+const KIND_WORD: Record<SetEntry['kind'], string> = { working: 'Set', failure: 'Set', warmup: 'Warm-up', drop: 'Drop set' }
 
 /** Full-screen logger. Minimise it and it lives on as a bar above the tabs. It's a layer, so while you type it ends where the keyboard starts. */
 export function WorkoutOverlay() {
@@ -72,6 +91,8 @@ function Live() {
       type: 'pickExercise',
       onPick: (id) => update((x) => ({ ...x, exercises: [...x.exercises, { id: uid(), exerciseId: id, sets: [blankSet(), blankSet(), blankSet()] }] })),
     })
+  // a superset's exercises are tagged A1, A2 and sit close together
+  const tags = supersetTags(active.exercises)
 
   return (
     <div className="flex h-full flex-col">
@@ -100,7 +121,15 @@ function Live() {
       <div className="flex-1 overflow-y-auto overscroll-contain">
         <div className="gutter mx-auto max-w-app pb-[calc(var(--safe-bottom)+40px)]">
           {active.exercises.map((we, i) => (
-            <ExerciseBlock key={we.id} w={w} we={we} index={i} count={active.exercises.length} />
+            <ExerciseBlock
+              key={we.id}
+              w={w}
+              we={we}
+              index={i}
+              count={active.exercises.length}
+              tag={tags[i]}
+              linked={!!we.superset && we.superset === active.exercises[i + 1]?.superset}
+            />
           ))}
           <button onClick={addExercise} className="btn-ghost mt-5 w-full">
             <Plus size={18} /> Add exercise
@@ -113,7 +142,7 @@ function Live() {
   )
 }
 
-function ExerciseBlock({ w, we, index, count }: { w: World; we: WorkoutExercise; index: number; count: number }) {
+function ExerciseBlock({ w, we, index, count, tag, linked }: { w: World; we: WorkoutExercise; index: number; count: number; tag?: string; linked: boolean }) {
   const update = useStore((s) => s.updateActive)
   const say = useUi((s) => s.say)
   const ex = w.exerciseById.get(we.exerciseId)
@@ -127,8 +156,9 @@ function ExerciseBlock({ w, we, index, count }: { w: World; we: WorkoutExercise;
   const weighted = loaded(ex)
   const timed = ex.kind === 'duration'
   const prev = history[0]
-  const prevWork = prev?.sets.filter((s) => s.kind !== 'warmup') ?? []
+  const prevWork = prev ? mainSets(prev.sets) : []
   const prevWarm = prev?.sets.filter((s) => s.kind === 'warmup') ?? []
+  const prevDrops = prev ? dropsBySet(prev.sets) : new Map<number, SetEntry[]>()
 
   const patchEx = (fn: (x: WorkoutExercise) => WorkoutExercise) => update((x) => ({ ...x, exercises: x.exercises.map((e) => (e.id === we.id ? fn(e) : e)) }))
   const patchSet = (id: string, p: Partial<SetEntry>) => patchEx((e) => ({ ...e, sets: e.sets.map((s) => (s.id === id ? { ...s, ...p } : s)) }))
@@ -138,29 +168,43 @@ function ExerciseBlock({ w, we, index, count }: { w: World; we: WorkoutExercise;
       const j = index + d
       if (j < 0 || j >= list.length) return x
       ;[list[index], list[j]] = [list[j], list[index]]
-      return { ...x, exercises: list }
+      return { ...x, exercises: tidySupersets(list) }
     })
-  const remove = () => update((x) => ({ ...x, exercises: x.exercises.filter((e) => e.id !== we.id) }))
+  const remove = () => update((x) => ({ ...x, exercises: tidySupersets(x.exercises.filter((e) => e.id !== we.id)) }))
+  const superset = () => update((x) => ({ ...x, exercises: toggleSuperset(x.exercises, index, uid) }))
 
+  const countOf = (x?: SetEntry) => (timed ? x?.secs : x?.reps)
   let nWork = 0
   let nWarm = 0
-  // the weight you last put in on a working set today: the sets after it follow it, whatever the plan said
+  let nDrop = 0
+  // straight sets: the weight you last put in on a set today carries down the sets after it, whatever the plan said
   let typed: number | undefined
+  // the set above, as it stands: a drop set goes down from it, and a pyramid set with nothing to go on a tenth below it
+  let above: { kg?: number; count?: number } = {}
+  let main: { kg?: number; count?: number } = {}
+  // what ticking a set writes down if you leave it as it is: its target, or for a warm-up what you did last time
   const rows = we.sets.map((s) => {
-    const warm = s.kind === 'warmup'
-    const k = warm ? nWarm++ : nWork++
-    const previous = warm ? prevWarm[k] : prevWork[k]
-    const before = timed ? previous?.secs : previous?.reps
-    const row = {
-      s,
-      label: warm ? 'W' : String(k + 1),
-      previous,
-      // what ticking the set writes down if you leave it as it is: this set's target, or for a warm-up what you did last time
-      phKg: warm ? previous?.kg : (typed ?? target.kg ?? previous?.kg),
-      phCount: warm ? before : (target.perSet[k] ?? target.count),
+    if (s.kind === 'warmup') {
+      const previous = prevWarm[nWarm++]
+      return { s, label: 'W', previous, phKg: previous?.kg, phCount: countOf(previous) }
     }
-    if (!warm && s.kg !== undefined) typed = s.kg
-    return row
+    if (s.kind === 'drop') {
+      const k = nWork - 1
+      const previous = prevDrops.get(k)?.[nDrop]
+      const from = nDrop ? prevDrops.get(k)?.[nDrop - 1]?.kg : prevWork[k]?.kg
+      nDrop++
+      const t = dropFor(ex, above, previous && { from, kg: previous.kg, reps: countOf(previous) })
+      above = { kg: s.kg ?? t.kg, count: countOf(s) ?? t.count }
+      return { s, label: 'D', previous, phKg: t.kg, phCount: t.count }
+    }
+    const k = nWork++
+    nDrop = 0
+    const slot = target.perSet[k]
+    const phKg = ex.pyramid ? (slot?.kg ?? (k && main.kg ? pyramidStep(ex, main.kg) : undefined)) : (typed ?? target.kg ?? prevWork[k]?.kg)
+    const phCount = slot?.count ?? (ex.pyramid ? pyramidRange(ex, k)[0] : target.count)
+    if (s.kg !== undefined) typed = s.kg
+    main = above = { kg: s.kg ?? phKg, count: countOf(s) ?? phCount }
+    return { s, label: String(k + 1), previous: prevWork[k], phKg, phCount }
   })
 
   const tick = (r: (typeof rows)[number]) => {
@@ -185,10 +229,13 @@ function ExerciseBlock({ w, we, index, count }: { w: World; we: WorkoutExercise;
   const cols = weighted ? 'grid-cols-[24px_minmax(0,1fr)_70px_56px_40px]' : 'grid-cols-[24px_minmax(0,1fr)_84px_40px]'
 
   return (
-    <section className="tile mt-2.5">
+    <section className={`tile ${tag && !tag.endsWith('1') ? 'mt-1' : 'mt-2.5'}`}>
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
-          <h3 className="display text-[20px] font-extrabold leading-tight">{ex.name}</h3>
+          <h3 className="display flex items-baseline gap-2 text-[20px] font-extrabold leading-tight">
+            {tag && <span className="pill shrink-0 self-center font-sans [--p:var(--strength)]">{tag}</span>}
+            <span className="min-w-0">{ex.name}</span>
+          </h3>
           <div className="mt-2.5 flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <span className="num text-[17px] text-fg-2">{targetText(ex, target)}</span>
             <MoveNote t={target} />
@@ -202,12 +249,16 @@ function ExerciseBlock({ w, we, index, count }: { w: World; we: WorkoutExercise;
       <AnimatePresence initial={false}>
         {menu && (
           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-            <div className="mt-3 grid grid-cols-3 gap-2">
+            <div className="mt-3 grid grid-cols-2 gap-2">
               <button disabled={index === 0} onClick={() => move(-1)} className="chip h-9 justify-center disabled:opacity-30">
                 <ArrowUp size={14} /> Up
               </button>
               <button disabled={index === count - 1} onClick={() => move(1)} className="chip h-9 justify-center disabled:opacity-30">
                 <ArrowDown size={14} /> Down
+              </button>
+              {/* in turns with the exercise below */}
+              <button disabled={index === count - 1} onClick={superset} aria-pressed={linked} className={`chip h-9 justify-center disabled:opacity-30 ${linked ? 'chip-on' : ''}`}>
+                <Link2 size={14} /> Superset
               </button>
               <button onClick={remove} className="chip h-9 justify-center text-bad">
                 <Trash2 size={14} /> Remove
@@ -228,9 +279,9 @@ function ExerciseBlock({ w, we, index, count }: { w: World; we: WorkoutExercise;
       {rows.map((r) => (
         <div key={r.s.id} className={`grid ${cols} items-center gap-2 py-[5px]`}>
           <button
-            aria-label={r.s.kind === 'warmup' ? 'Warm-up set. Tap to count it' : 'Tap to make it a warm-up'}
-            onClick={() => patchSet(r.s.id, { kind: r.s.kind === 'warmup' ? 'working' : 'warmup' })}
-            className={`num h-10 text-left text-[16.5px] ${r.s.kind === 'warmup' ? 'text-z1' : r.s.done ? 'text-fg' : 'text-fg-3'}`}
+            aria-label={`${KIND_WORD[r.s.kind]}. Tap for a ${KIND_WORD[NEXT_KIND[r.s.kind]].toLowerCase()}`}
+            onClick={() => patchSet(r.s.id, { kind: NEXT_KIND[r.s.kind] })}
+            className={`num h-10 text-left text-[16.5px] ${r.s.kind === 'warmup' ? 'text-z1' : r.s.kind === 'drop' ? 'text-strength' : r.s.done ? 'text-fg' : 'text-fg-3'}`}
           >
             {r.label}
           </button>
@@ -264,6 +315,9 @@ function ExerciseBlock({ w, we, index, count }: { w: World; we: WorkoutExercise;
       <div className="mt-2 flex items-center gap-2">
         <button onClick={() => patchEx((e) => ({ ...e, sets: [...e.sets, blankSet()] }))} className="chip h-9">
           <Plus size={14} /> Set
+        </button>
+        <button onClick={() => patchEx((e) => ({ ...e, sets: [...e.sets, blankSet('drop')] }))} className="chip h-9">
+          <Plus size={14} /> Drop
         </button>
         <button
           onClick={() => patchEx((e) => ({ ...e, sets: e.sets.slice(0, -1) }))}

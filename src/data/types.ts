@@ -231,9 +231,12 @@ export interface Exercise {
   targetRpe: number
   /** kg added when progressing */
   increment: number
+  /** a reverse pyramid: the top set first, then each set lighter and two reps higher, each moving on its own */
+  pyramid?: boolean
   notes?: string
 }
 
+/** a drop set is logged straight after the set before it, lighter: extra work that doesn't move the targets */
 export type SetKind = 'warmup' | 'working' | 'drop' | 'failure'
 
 export interface SetEntry {
@@ -250,6 +253,8 @@ export interface WorkoutExercise {
   id: string
   exerciseId: string
   sets: SetEntry[]
+  /** exercises next to each other with the same key are a superset, done in turns */
+  superset?: string
   note?: string
 }
 
@@ -269,6 +274,8 @@ export interface Workout {
 export interface RoutineItem {
   exerciseId: string
   sets: number
+  /** exercises next to each other with the same key are a superset, done in turns */
+  superset?: string
 }
 
 export interface Routine {

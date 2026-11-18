@@ -1,5 +1,5 @@
 import { differenceInCalendarDays, parseISO } from 'date-fns'
-import { ArrowDown, ArrowUp, Check, Minus, Pencil, Plus, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, Check, Link2, Minus, Pencil, Plus, X } from 'lucide-react'
 import { useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router'
 import { IconButton, Screen } from '../../components/ui/Screen'
@@ -8,7 +8,8 @@ import { useStore } from '../../data/store'
 import type { RoutineItem } from '../../data/types'
 import { useUi } from '../../data/ui'
 import { useWorld } from '../../data/world'
-import { focusOf, lastDone } from '../../lib/lift'
+import { focusOf, lastDone, loaded, supersetTags, tidySupersets, toggleSuperset } from '../../lib/lift'
+import { uid } from '../../lib/rng'
 import { Targets } from './LiftScreen'
 import { daysAgo, useBegin } from './parts'
 
@@ -56,9 +57,11 @@ export function RoutineScreen() {
       if (j < 0 || j >= items.length) return items
       const out = [...items]
       ;[out[i], out[j]] = [out[j], out[i]]
-      return out
+      return tidySupersets(out)
     })
   const add = () => open({ type: 'pickExercise', many: true, onPick: (exerciseId) => setItems((items) => [...items, { exerciseId, sets: 3 }]) })
+  // exercises done in turns: tagged A1, A2, and joined by the link between them
+  const tags = supersetTags(r.items)
   // on sample data the sample lifter's workouts show too: those aren't yours to delete
   const mine = useStore.getState().routines.some((x) => x.id === r.id)
   const last = lastDone(r, w.workouts)
@@ -100,7 +103,10 @@ export function RoutineScreen() {
               return (
                 <div key={`${it.exerciseId}-${i}`} className="py-3.5">
                   <div className="flex items-center gap-1">
-                    <span className="min-w-0 flex-1 truncate text-[16px] font-semibold">{ex.name}</span>
+                    <span className="min-w-0 flex-1 truncate text-[16px] font-semibold">
+                      {tags[i] && <span className="mr-1.5 text-[12.5px] font-extrabold text-strength">{tags[i]}</span>}
+                      {ex.name}
+                    </span>
                     <button
                       aria-label={`Move ${ex.name} up`}
                       disabled={i === 0}
@@ -119,7 +125,7 @@ export function RoutineScreen() {
                     </button>
                     <button
                       aria-label={`Remove ${ex.name}`}
-                      onClick={() => setItems((items) => items.filter((_, k) => k !== i))}
+                      onClick={() => setItems((items) => tidySupersets(items.filter((_, k) => k !== i)))}
                       className="press -mr-2 grid h-8 w-8 place-items-center text-fg-3"
                     >
                       <X size={16} />
@@ -145,10 +151,22 @@ export function RoutineScreen() {
                     </button>
                     <span className="meta">{it.sets === 1 ? 'set' : 'sets'} of</span>
                     <button onClick={() => open({ type: 'exercise', exerciseId: ex.id })} className="chip ml-auto h-9">
+                      {ex.pyramid && loaded(ex) ? 'Pyramid ' : ''}
                       {ex.repRange[0]}–{ex.repRange[1]}
                       {ex.kind === 'duration' ? ' s' : ' reps'}
                     </button>
                   </div>
+                  {/* on the line to the next one: do the two in turns */}
+                  {i < r.items.length - 1 && (
+                    <button
+                      aria-label={`Superset ${ex.name} with the next exercise`}
+                      aria-pressed={!!it.superset && it.superset === r.items[i + 1].superset}
+                      onClick={() => setItems((items) => toggleSuperset(items, i, uid))}
+                      className={`press absolute bottom-0 left-1/2 z-10 grid h-7 w-7 -translate-x-1/2 translate-y-1/2 place-items-center rounded-full ${it.superset && it.superset === r.items[i + 1].superset ? 'bg-strength text-ink-0' : 'bg-ink-2 text-fg-3'}`}
+                    >
+                      <Link2 size={14} strokeWidth={2.2} />
+                    </button>
+                  )}
                 </div>
               )
             })}

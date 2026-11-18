@@ -177,6 +177,7 @@ export const useStore = create<State>()((set, get) => ({
       id: uid(),
       exerciseId: item.exerciseId,
       sets: Array.from({ length: item.sets }, (): SetEntry => ({ id: uid(), kind: 'working', done: false })),
+      superset: item.superset,
     }))
     set({
       active: {

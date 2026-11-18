@@ -9,19 +9,27 @@
 // the range sets the weight again from the weakest set; under the range twice, or
 // no reps gained in two sessions, takes a tenth off to build back from; so does a
 // long break. Weight added to you counts with your body weight.
+//
+// A reverse pyramid (`Exercise.pyramid`) runs the same rules set by set: the top
+// set first, then each set lighter and two reps higher, each moving on its own.
+// A drop set is extra work logged after a set: it counts in the volume but never
+// moves a target. Exercises in a superset are done in turns and still move on
+// their own.
 
 import { MUSCLES } from '../data/exercises'
 import type { Exercise, LiftSummary, Routine, SetEntry, Workout } from '../data/types'
 import { median, round } from './math'
 
-export const isWorking = (s: SetEntry) => s.done && s.kind !== 'warmup'
+/** A set that counts: done, and not a warm-up or a drop set. */
+export const isWorking = (s: SetEntry) => s.done && s.kind !== 'warmup' && s.kind !== 'drop'
 
 /** Tracked by the weight on the bar, or the weight added to you. */
 export const loaded = (ex: Pick<Exercise, 'kind'>) => ex.kind === 'weight' || ex.kind === 'weighted-bodyweight'
 
 export function volume(w: Workout): number {
   let v = 0
-  for (const we of w.exercises) for (const s of we.sets) if (isWorking(s) && s.kg && s.reps) v += s.kg * s.reps
+  // drop sets are work too
+  for (const we of w.exercises) for (const s of we.sets) if (s.done && s.kind !== 'warmup' && s.kg && s.reps) v += s.kg * s.reps
   return v
 }
 
@@ -53,7 +61,9 @@ export function historyFor(exerciseId: string, workouts: Workout[], excludeId?: 
   return out.sort((a, b) => b.date.localeCompare(a.date))
 }
 
-const work = (sets: SetEntry[]) => sets.filter((s) => s.kind !== 'warmup')
+/** The sets the targets go on, in order: not warm-ups, and not drop sets. */
+export const mainSets = (sets: SetEntry[]) => sets.filter((s) => s.kind !== 'warmup' && s.kind !== 'drop')
+const work = mainSets
 const countOf = (ex: Pick<Exercise, 'kind'>, s: SetEntry) => (ex.kind === 'duration' ? (s.secs ?? 0) : (s.reps ?? 0))
 
 /** The most you moved in a session: the heaviest working set of a loaded lift, the most reps or the longest hold of anything else. */
@@ -66,10 +76,13 @@ export interface Target {
   move: 'first' | 'up' | 'more' | 'back'
   /** kg on the bar, or added to you; missing until there's a session to go on, or while it's bodyweight alone */
   kg?: number
-  /** reps (or seconds) to get on every set, at least */
+  /** reps (or seconds) to get on every set, at least; in a reverse pyramid, the top set's */
   count: number
-  /** what each set aims for, in order: never under `count`, nor under what that set did last time at this weight; sets past the end aim for `count` */
-  perSet: number[]
+  /**
+   * What each set aims for, in order: never under `count`, nor under what that set did last time at this weight.
+   * In a reverse pyramid each set has its own weight too. Sets past the end aim for `kg` and `count`.
+   */
+  perSet: { kg?: number; count: number }[]
   /** the change, in a few characters: "+2.5 kg", "+1 rep", "+1 set"; empty the first time */
   note: string
 }
@@ -134,13 +147,14 @@ export function targetFor(ex: Exercise, history: ExerciseSession[], o: TargetOpt
   const timed = ex.kind === 'duration'
   const last = work(history[0]?.sets ?? [])
   if (!last.length) return { move: 'first', count: lo, perSet: [], note: '' }
+  if (ex.pyramid && loaded(ex)) return pyramidTarget(ex, history, o)
 
   // nothing to load: another rep on the weakest set, or a longer hold
   if (!loaded(ex)) {
     const counts = last.map((s) => countOf(ex, s))
     const least = Math.min(...counts)
     const count = Math.max(lo, least + (timed ? 5 : 1))
-    return { move: 'more', count, perSet: counts.map((c) => Math.max(c, count)), note: timed ? `+${count - least} s` : `+${plural(count - least, 'rep')}` }
+    return { move: 'more', count, perSet: counts.map((c) => ({ count: Math.max(c, count) })), note: timed ? `+${count - least} s` : `+${plural(count - least, 'rep')}` }
   }
 
   const step = ex.increment || 2.5
@@ -167,7 +181,7 @@ export function targetFor(ex: Exercise, history: ExerciseSession[], o: TargetOpt
     move: 'more',
     kg: kg || undefined,
     count,
-    perSet: counts.map((c) => Math.max(c, count)),
+    perSet: counts.map((c) => ({ kg: kg || undefined, count: Math.max(c, count) })),
     note,
   })
   // a tenth off the whole load, on the weight's own steps; at least a step, and never under nothing added
@@ -220,6 +234,106 @@ export function targetFor(ex: Exercise, history: ExerciseSession[], o: TargetOpt
   return more(Math.min(hi, Math.max(lo, least + 1)))
 }
 
+/** In a reverse pyramid each set after the top one aims this many reps higher than the set before. */
+export const PYRAMID_REPS = 2
+/** and a set with nothing to go on starts this much lighter than the set before */
+const PYRAMID_LIGHTER = 0.9
+
+/** A set's rep range in a reverse pyramid: the exercise's for the top set, two reps higher for each set after it. */
+export const pyramidRange = (ex: Pick<Exercise, 'repRange'>, k: number): [number, number] => [ex.repRange[0] + PYRAMID_REPS * k, ex.repRange[1] + PYRAMID_REPS * k]
+
+/** The next set down a reverse pyramid with nothing else to go on: a tenth lighter than `kg`, on the weight's own steps. */
+export const pyramidStep = (ex: Pick<Exercise, 'increment'>, kg: number) => Math.max(0, roundTo(kg * PYRAMID_LIGHTER, ex.increment || 2.5)) || undefined
+
+/**
+ * A reverse pyramid, set by set: each set moves by the same rules as straight sets, from that set in the sessions
+ * before, within its own rep range. A set the last session didn't have starts a tenth lighter than the one above it,
+ * at the bottom of its range. The headline (`kg`, `count`, `move`, `note`) is the top set's.
+ */
+function pyramidTarget(ex: Exercise, history: ExerciseSession[], o: TargetOptions): Target {
+  const last = work(history[0].sets)
+  const step = ex.increment || 2.5
+  const body = ex.kind === 'weighted-bodyweight' ? (o.bodyKg ?? 0) : 0
+  const sets: Target[] = []
+  for (let k = 0; k < Math.max(1, o.sets ?? last.length); k++) {
+    const range = pyramidRange(ex, k)
+    if (k < last.length) {
+      // this set in the sessions that had it: the latest did
+      const own = history.map((h) => ({ ...h, sets: work(h.sets).slice(k, k + 1) })).filter((h) => h.sets.length)
+      sets.push(targetFor({ ...ex, pyramid: false, repRange: range }, own, { now: o.now, bodyKg: o.bodyKg }))
+    } else {
+      const above = sets[k - 1]
+      const kg = above.kg !== undefined ? Math.max(0, roundTo((above.kg + body) * PYRAMID_LIGHTER - body, step)) : undefined
+      sets.push({ move: 'more', kg: kg || undefined, count: range[0], perSet: [], note: '' })
+    }
+  }
+  return { ...sets[0], perSet: sets.map((t) => ({ kg: t.kg, count: t.count })) }
+}
+
+/** The drop sets in a session, by the main set they follow (0 for the first). */
+export function dropsBySet(sets: SetEntry[]): Map<number, SetEntry[]> {
+  const out = new Map<number, SetEntry[]>()
+  let k = -1
+  for (const s of sets) {
+    if (s.kind === 'warmup') continue
+    if (s.kind !== 'drop') k++
+    else if (k >= 0) out.set(k, [...(out.get(k) ?? []), s])
+  }
+  return out
+}
+
+/**
+ * Where a drop set starts: as far down from the set before as last time's was, or a fifth, on the weight's own steps
+ * and at least a step down; as many reps as last time's, or as the set before.
+ */
+export function dropFor(ex: Exercise, before: { kg?: number; count?: number }, last?: { from?: number; kg?: number; reps?: number }): { kg?: number; count?: number } {
+  const step = ex.increment || 2.5
+  const ratio = last?.kg && last.from ? last.kg / last.from : 0.8
+  const kg = before.kg ? Math.max(0, Math.min(before.kg - step, floorTo(before.kg * ratio, step))) : undefined
+  return { kg: kg || undefined, count: last?.reps ?? before.count }
+}
+
+/** Superset tags for a workout's exercises, in order: A1, A2 for the first done in turns, B1, B2 for the next; none for one done on its own. */
+export function supersetTags(items: { superset?: string }[]): (string | undefined)[] {
+  const tags: (string | undefined)[] = items.map(() => undefined)
+  let letter = 0
+  for (let i = 0; i < items.length;) {
+    const key = items[i].superset
+    let j = i + 1
+    while (key && j < items.length && items[j].superset === key) j++
+    if (j - i > 1) {
+      const name = String.fromCharCode(65 + (letter++ % 26))
+      for (let k = i; k < j; k++) tags[k] = `${name}${k - i + 1}`
+    }
+    i = j
+  }
+  return tags
+}
+
+/** Supersets after a move or a removal: an exercise left on its own isn't in one any more. */
+export function tidySupersets<T extends { superset?: string }>(items: T[]): T[] {
+  const tags = supersetTags(items)
+  return items.map((x, i) => (x.superset && !tags[i] ? { ...x, superset: undefined } : x))
+}
+
+/** Do the exercises at `i` and `i + 1` in turns, or stop: a join brings the one below (and its superset) into the one above; a split starts a new one below. */
+export function toggleSuperset<T extends { superset?: string }>(items: T[], i: number, newKey: () => string): T[] {
+  const a = items[i]
+  const b = items[i + 1]
+  if (!a || !b) return items
+  const out = items.map((x) => ({ ...x }))
+  if (a.superset && a.superset === b.superset) {
+    const key = newKey()
+    for (let j = i + 1; j < out.length && out[j].superset === a.superset; j++) out[j].superset = key
+  } else {
+    const key = a.superset ?? newKey()
+    const old = b.superset
+    out[i].superset = key
+    for (let j = i + 1; j < out.length && (j === i + 1 || (!!old && out[j].superset === old)); j++) out[j].superset = key
+  }
+  return tidySupersets(out)
+}
+
 /** The target in a glance: "62.5 kg × 8", "+10 kg × 6", "12 reps", "45 s"; the range when it's your first go. */
 export function targetText(ex: Exercise, t: Target): string {
   const [lo, hi] = ex.repRange
@@ -238,9 +352,13 @@ export function setText(ex: Pick<Exercise, 'kind'>, s: SetEntry): string {
   return `${fmtKg(s.kg ?? 0)} × ${s.reps ?? 0}`
 }
 
-/** A session's working sets on one line: "60 × 8, 8, 7", or set by set when the weight changed. */
+/** A session's working sets on one line: "60 × 8, 8, 7", or set by set when the weight changed, and any drop sets after: "+ 50 × 8". */
 export function setsLine(ex: Pick<Exercise, 'kind'>, sets: SetEntry[]): string {
-  const w = work(sets)
+  const drops = sets.filter((s) => s.kind === 'drop').map((s) => `+ ${setText(ex, s)}`)
+  return [mainLine(ex, work(sets)), ...drops].filter(Boolean).join(' ')
+}
+
+function mainLine(ex: Pick<Exercise, 'kind'>, w: SetEntry[]): string {
   if (!w.length) return ''
   if (loaded(ex) && w.every((s) => s.kg === w[0].kg))
     return `${ex.kind === 'weighted-bodyweight' ? (w[0].kg ? `+${fmtKg(w[0].kg)}` : 'BW') : fmtKg(w[0].kg ?? 0)} × ${w.map((s) => s.reps ?? 0).join(', ')}`
