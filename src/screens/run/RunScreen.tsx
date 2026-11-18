@@ -51,7 +51,7 @@ export function RunScreen() {
       }
     >
       {runs.length === 0 ? (
-        <Empty title="No runs yet">Runs from your watch show up here after the next sync.</Empty>
+        <Empty title="No runs yet" />
       ) : (
         <>
           {race && left !== undefined && left >= 0 && <RaceAhead race={race} days={left} />}

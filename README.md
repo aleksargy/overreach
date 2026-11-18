@@ -23,11 +23,11 @@ iPhone (PWA, IndexedDB)  ⇄  Netlify Functions (passphrase)  ⇄  Garmin Person
 
 Use Node 22 (`nvm use` reads `.nvmrc`), then `npm install`.
 
-| Command                              | What you get                                                               |
-| ------------------------------------ | -------------------------------------------------------------------------- |
-| `npm run dev`                        | the app on localhost:5173 with sample data                                 |
-| `npm run dev:api` and `npm run dev`  | a fake Garmin with a year of history: Settings, passphrase `dev`, Sync now |
-| `npm run dev:real` and `npm run dev` | your real Garmin account, 90 days back (set up the key first, below)       |
+| Command                              | What you get                                                                |
+| ------------------------------------ | --------------------------------------------------------------------------- |
+| `npm run dev`                        | the app on localhost:5173, blank (turn on Demo in Settings for sample data) |
+| `npm run dev:api` and `npm run dev`  | a fake Garmin with a year of history: Settings, passphrase `dev`, Sync now  |
+| `npm run dev:real` and `npm run dev` | your real Garmin account, 90 days back (set up the key first, below)        |
 
 Both APIs listen on 127.0.0.1 only. Real data from `dev:real` stays on your Mac, in `.netlify/real-blobs` and the browser's storage for localhost.
 
@@ -39,7 +39,7 @@ npm run typecheck
 npm run format:check   # npm run format fixes it
 npm run check:env      # every env var the code reads is listed in .env.schema
 npm run build
-npm run screens        # every screen at 390 × 844 in sample and live mode, into screens/
+npm run screens        # every screen at 390 × 844 in sample, live and blank mode, into screens/
 ```
 
 CI runs the first five on every pull request. `npm run screens` needs Chromium once: `npx playwright install chromium`.

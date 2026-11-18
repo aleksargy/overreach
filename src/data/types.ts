@@ -324,7 +324,10 @@ export interface Profile {
 }
 
 export interface SyncState {
-  mode: 'sample' | 'live'
+  /** 'live' once a sync has brought Garmin data; 'off' before, with only what you log (it was 'sample' before UserData 4) */
+  mode: 'off' | 'live'
+  /** show the made-up athlete's data (Settings, Demo) instead of Garmin's; what you log stays as it is */
+  demo?: boolean
   passphrase?: string
   lastSync?: string
   /** the server's data as of this time is what's stored on the phone */

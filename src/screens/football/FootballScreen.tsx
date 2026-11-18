@@ -57,7 +57,8 @@ export function FootballScreen() {
       title="Football"
       kicker={
         <span className="flex items-center gap-2">
-          Season {s.label} · {s.apps ? `${s.apps} rated` : `${s.games} games`} {w.mode === 'sample' && <SampleBadge />}
+          Season {s.label}
+          {s.apps ? ` · ${s.apps} rated` : s.games ? ` · ${s.games} games` : ''} {w.mode === 'sample' && <SampleBadge />}
         </span>
       }
       actions={
@@ -88,11 +89,19 @@ export function FootballScreen() {
         </>
       ) : (
         <>
-          <Empty title="No card yet">
-            {s.apps === 0 && s.games > 0
-              ? `Your watch has ${s.games} games this season. Rate three and your player card appears here.`
-              : `Rate ${3 - Math.min(2, s.apps)} more ${s.apps === 2 ? 'game' : 'games'} and your player card appears here.`}
-          </Empty>
+          {/* nothing logged yet: the way in; some: how many more rated games the card needs */}
+          {s.games || s.apps ? (
+            <Empty title="No card yet">{`${3 - Math.min(2, s.apps)} more rated ${s.apps === 2 ? 'game' : 'games'}`}</Empty>
+          ) : (
+            <Empty
+              title="No games yet"
+              action={
+                <button onClick={() => open({ type: 'logMatch' })} className="btn-primary mt-3 w-full">
+                  Log a match
+                </button>
+              }
+            />
+          )}
           {fs && fs.apps > 0 && <SeasonTiles fs={fs} />}
         </>
       )}
