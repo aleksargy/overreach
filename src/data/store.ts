@@ -8,8 +8,11 @@ import type { BodyEntry, Daily, Exercise, GarminActivity, Match, Profile, Routin
 
 /** Everything you type into the app. Garmin data lives in `garmin`, sample data is generated. */
 export interface UserData {
-  /** 2: matches have points (what went well and badly) instead of moments. 3: your workouts start empty, without the four starters. */
-  version: 3
+  /**
+   * 2: matches have points (what went well and badly) instead of moments. 3: your workouts start empty, without
+   * the four starters. 4: a phone that hasn't synced starts blank (sync mode 'off'), and sample data is the Demo switch.
+   */
+  version: 4
   profile: Profile
   matches: Match[]
   hiddenMatchIds: string[]
@@ -30,9 +33,14 @@ export interface GarminCache {
   body: BodyEntry[]
 }
 
+/** a preview build (one-file, or a pull request's) opens on sample data; anything else starts blank */
+// (import.meta.env is Vite's: tests that load this outside it see neither)
+const START_DEMO = !!import.meta.env && (import.meta.env.VITE_PREVIEW === '1' || import.meta.env.VITE_DEMO === '1')
+
 const EMPTY: UserData = {
-  version: 3,
-  profile: SAMPLE_PROFILE,
+  version: 4,
+  // the sample athlete's heart rates until the watch says otherwise, but no name: it's yours to give
+  profile: { ...SAMPLE_PROFILE, name: '' },
   matches: [],
   hiddenMatchIds: [],
   skippedRatings: [],
@@ -42,7 +50,7 @@ const EMPTY: UserData = {
   routines: [],
   body: [],
   active: null,
-  sync: { mode: 'sample' },
+  sync: { mode: 'off', demo: START_DEMO || undefined },
 }
 
 interface State extends UserData {
@@ -110,13 +118,20 @@ async function save(key: string, value: unknown) {
 }
 
 /** What an older version of the app saved, brought up to date. */
-function upgrade(u: UserData): UserData {
-  return { ...u, version: 3, matches: (u.matches ?? []).map(withPoints), routines: withoutStarters(u.routines ?? [], u.workouts ?? []) }
+export function upgrade(u: UserData): UserData {
+  return {
+    ...u,
+    version: 4,
+    matches: (u.matches ?? []).map(withPoints),
+    routines: withoutStarters(u.routines ?? [], u.workouts ?? []),
+    // before 4, a phone that hadn't synced said 'sample' and showed sample data; now it shows only what you log
+    sync: { ...u.sync, mode: u.sync?.mode === 'live' ? 'live' : 'off' },
+  }
 }
 
 function pickUser(s: State): UserData {
   return {
-    version: 3,
+    version: 4,
     profile: s.profile,
     matches: s.matches,
     hiddenMatchIds: s.hiddenMatchIds,

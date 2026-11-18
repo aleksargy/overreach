@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { fetchStream } from './api'
 import { BUILTIN_EXERCISES, SAMPLE_ROUTINES } from './exercises'
-import { buildSample, sampleStreamFor, type SampleData } from './sample'
+import { SAMPLE_PROFILE, buildSample, sampleStreamFor, type SampleData } from './sample'
 import { useStore } from './store'
 import type { Activity, BodyEntry, Daily, Exercise, GarminActivity, Match, Profile, Routine, Stream, Workout } from './types'
 import { analyseFootball, gamesToRate, usualFormatAt, withWatchLines, type FootballAnalysis } from '../lib/football'
@@ -17,7 +17,8 @@ import { differenceInCalendarDays, format } from 'date-fns'
 
 export interface World {
   now: Date
-  mode: 'sample' | 'live'
+  /** what's shown besides what you log: the sample athlete (the Demo switch), your Garmin data, or nothing ('own') */
+  mode: 'sample' | 'live' | 'own'
   profile: Profile
   activities: Activity[]
   byId: Map<string, Activity>
@@ -136,15 +137,17 @@ export function useWorld(): World {
     const day = isoDay(new Date())
     if (worldCache && worldCache.day === day && worldCache.inputs.length === inputs.length && worldCache.inputs.every((x, i) => x === inputs[i])) return worldCache.world
     const now = new Date()
-    const live = s.sync.mode === 'live' && !!s.garmin
-    const sample = live ? null : getSample(now, s.profile)
+    // the Demo switch shows the sample athlete; otherwise Garmin once it has synced, and before that only what you log
+    const demo = !!s.sync.demo
+    const live = !demo && s.sync.mode === 'live' && !!s.garmin
+    const sample = demo ? getSample(now, s.profile) : null
 
     const exercises = [...BUILTIN_EXERCISES.map((e) => ({ ...e, ...s.edits[e.id] })), ...s.custom]
     const exerciseById = new Map(exercises.map((e) => [e.id, e]))
 
     const workouts = [...s.workouts, ...(sample?.workouts ?? [])].filter((w) => w.end).sort((a, b) => b.start.localeCompare(a.start))
 
-    const base = live ? fromGarmin(s.garmin!.activities, s.profile, s.workouts) : sample!.activities
+    const base = live ? fromGarmin(s.garmin!.activities, s.profile, s.workouts) : (sample?.activities ?? [])
     const linkedWorkouts = new Set(base.map((a) => a.workoutId).filter(Boolean))
     const activities = [...base, ...s.workouts.filter((w) => w.end && !linkedWorkouts.has(w.id)).map((w) => workoutToActivity(w, s.profile))].sort((a, b) =>
       b.start.localeCompare(a.start),
@@ -157,8 +160,8 @@ export function useWorld(): World {
     const matches = [...yours, ...(sample?.matches ?? []).filter((m) => !s.hidden.includes(m.id) && !userByActivity.has(m.activityId))].sort((a, b) => b.date.localeCompare(a.date))
     const matchByActivity = new Map(matches.filter((m) => m.activityId).map((m) => [m.activityId!, m]))
 
-    const dailies = live ? s.garmin!.dailies : sample!.dailies
-    const body = [...s.body, ...(live ? s.garmin!.body : sample!.body)].sort((a, b) => b.date.localeCompare(a.date))
+    const dailies = live ? s.garmin!.dailies : (sample?.dailies ?? [])
+    const body = [...s.body, ...(live ? s.garmin!.body : (sample?.body ?? []))].sort((a, b) => b.date.localeCompare(a.date))
 
     const load = loadModel(activities, 84, now)
     const slots = recurringSlots(activities, now)
@@ -186,8 +189,9 @@ export function useWorld(): World {
 
     const world: World = {
       now,
-      mode: live ? 'live' : 'sample',
-      profile: s.profile,
+      mode: demo ? 'sample' : live ? 'live' : 'own',
+      // the sample athlete goes by their own name when you haven't given yours
+      profile: demo && !s.profile.name.trim() ? { ...s.profile, name: SAMPLE_PROFILE.name } : s.profile,
       activities,
       byId,
       dailies,
@@ -197,7 +201,7 @@ export function useWorld(): World {
       exercises,
       exerciseById,
       // your own list starts empty; on sample data the sample lifter's workouts fill in, yours over theirs
-      routines: live ? s.routines : [...SAMPLE_ROUTINES.filter((r) => !s.routines.some((x) => x.id === r.id)), ...s.routines],
+      routines: demo ? [...SAMPLE_ROUTINES.filter((r) => !s.routines.some((x) => x.id === r.id)), ...s.routines] : s.routines,
       body,
       analyses: sample?.analyses ?? new Map(),
       load,

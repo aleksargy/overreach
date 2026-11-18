@@ -101,6 +101,8 @@ const TOPICS: { key: string; title: string; lines: string[] }[] = [
       'The app checks Garmin when you open it, at most every 10 minutes, and once early every morning.',
       'What you type is copied to your server a few seconds after each change, and comes back on a new phone.',
       'Export saves your matches, workouts, exercises and weigh-ins as a file. Restoring adds what’s in it and replaces nothing.',
+      'Garmin is optional. Without it, what you log stays on this phone, so export a backup now and then.',
+      'Sample data (Settings, Demo) shows the app with a made-up athlete instead of your Garmin data. What you log stays as it is.',
     ],
   },
 ]
