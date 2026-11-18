@@ -130,7 +130,15 @@ const SCREENS = [
     {
       from: '/lift',
       async sheet(page) {
-        await page.locator('a[href^="/lift/workout/"]:has-text("Upper A")').first().click()
+        const upper = page.locator('a[href^="/lift/workout/"]:has-text("Upper A")').first()
+        // taken on its own, it makes the workout first
+        if (!(await upper.count())) {
+          await makeWorkout(page)
+          await page.getByRole('dialog').getByRole('button', { name: 'Done' }).click()
+          await page.goto(`${base}/lift`)
+          await page.waitForTimeout(700)
+        }
+        await upper.click()
         await page.waitForTimeout(600)
         await page.getByRole('button', { name: 'Edit workout' }).click()
         await page.waitForTimeout(300)
