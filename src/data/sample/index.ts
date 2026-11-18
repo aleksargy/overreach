@@ -198,6 +198,9 @@ function simulateWorkout(id: string, routineId: string, start: Date, state: Map<
         done: true,
       })
     }
+    // now and then a drop set after the last squat set: a fifth lighter, a couple more reps (no draw, so the rest stays as it was)
+    if (ex.id === 'back-squat' && st.kg % 5 === 0)
+      sets.push({ id: `${id}-${ex.id}-d`, kind: 'drop', kg: Math.floor((st.kg * 0.8) / 2.5) * 2.5, reps: vals[vals.length - 1] + 2, done: true })
     if (Math.min(...vals) >= hi && Math.max(...rpes) <= 8.5 && ex.increment) state.set(ex.id, { kg: st.kg + ex.increment, reps: lo })
     else state.set(ex.id, { kg: st.kg, reps: Math.min(hi, st.reps + (r.chance(0.6) ? (ex.kind === 'duration' ? 3 : 1) : 0)) })
     return { id: `${id}-${ex.id}`, exerciseId: ex.id, sets }
