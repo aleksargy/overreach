@@ -150,26 +150,161 @@ export function gamesToRate(activities: Activity[], rated: (activityId: string) 
 
 export const SPRINT_MPS = 5.0 // 18 km/h
 export const HI_MPS = 4.0 // 14.4 km/h
-/** a minute covering less than this (m) is standing still: before kick-off, half time, after the whistle */
-const STILL_M = 25
+/** walking is up to this (7 km/h), jogging from here to HI_MPS, running from there to SPRINT_MPS */
+export const WALK_MPS = 7 / 3.6
+
+/** Half a minute averaging under this (m/s) is standing about: before kick-off, at half time, after the whistle. */
+const STAND_V = 0.6
+/** Three seconds at this (m/s) is jogging or faster, which nobody does at half time or walking off. */
+const RUN_V = 2.5
+/** A minute is play when you jogged in it or covered this much (m); walking off covers less. */
+const PLAY_M = 100
+/** The shortest half time (s): a minute when you paused the watch, about two standing about. Anything shorter is a stoppage. */
+const PAUSE_S = 60
+const STAND_S = 100
+/** Either side of half time there's at least this much play (s), and neither half is more than HALVES times the other. */
+const HALF_S = 300
+const HALVES = 1.5
+
+/** A moving average over w samples, centred on each one. */
+function smooth(xs: readonly number[], w: number): Float64Array {
+  const n = xs.length
+  const pre = new Float64Array(n + 1)
+  for (let i = 0; i < n; i++) pre[i + 1] = pre[i] + (xs[i] || 0)
+  const out = new Float64Array(n)
+  const h = Math.floor(w / 2)
+  for (let i = 0; i < n; i++) {
+    const a = Math.max(0, i - h)
+    const b = Math.min(n, i - h + w)
+    out[i] = (pre[b] - pre[a]) / Math.max(1, b - a)
+  }
+  return out
+}
 
 /**
- * Half time: the longest run of three or more standing-still minutes whose middle
- * falls in the middle 60% of the recording, as [from, to) minutes. Undefined for a
- * game played straight through.
+ * When the watch was paused, as [from, to) seconds. Streams carry it (`Stream.pauses`); one decoded before
+ * they did shows it in its samples instead: the gap was filled with no speed and no heart rate and the last
+ * position held, from 10 s (GAP_S in netlify/lib/fit) after the last sample before it. Nothing recording
+ * reads exactly that for 20 s.
  */
-export function halfTimeOf(perMin: number[]): { from: number; to: number } | undefined {
-  const n = perMin.length
-  let best: { from: number; to: number } | undefined
-  for (let m = 0; m < n; m++) {
-    if (perMin[m] >= STILL_M) continue
-    let to = m
-    while (to < n && perMin[to] < STILL_M) to++
-    const mid = (m + to) / 2
-    if (to - m >= 3 && mid > n * 0.2 && mid < n * 0.8 && (!best || to - m > best.to - best.from)) best = { from: m, to }
-    m = to
+export function pausesOf(stream: Stream): [number, number][] {
+  if (stream.pauses) return stream.pauses
+  const { dt, hr, lat, lon } = stream
+  const v = stream.v ?? []
+  const out: [number, number][] = []
+  for (let i = 0, from = -1; i <= v.length; i++) {
+    const filled = i < v.length && v[i] === 0 && (!hr || hr[i] === 0) && (!lat || !lon || (i > 0 && lat[i] === lat[i - 1] && lon[i] === lon[i - 1]))
+    if (filled && from < 0) from = i
+    else if (!filled && from >= 0) {
+      if ((i - from) * dt >= 20) out.push([Math.max(0, from * dt - 10), i * dt])
+      from = -1
+    }
   }
-  return best
+  return out
+}
+
+/** Where a game's parts fall, in seconds from the start of the recording. */
+export interface Phases {
+  kickOff: number
+  /** the final whistle */
+  end: number
+  /** the half-time break, [from, to): when you paused the watch, or stood about; undefined for a game played straight through */
+  halfTime?: { from: number; to: number; paused: boolean }
+  /** the second half starts at the end of half time, or halfway through play */
+  second: number
+}
+
+/**
+ * Kick-off, half time and the final whistle. Play is the minutes you jogged in or covered PLAY_M, from the
+ * first to the last of them, so standing about before kick-off and the walk off after the whistle are left
+ * out. Half time is a pause of the watch if there's one between two halves, otherwise a spell of standing
+ * about: whichever is longest, counting for more the more evenly it splits the game, with a half of play
+ * either side and neither half more than HALVES times the other. A warm-up makes the first side long, and
+ * then the first half starts where the standing about before it ends. Edges are found to the second, and a
+ * pause takes in any standing about either side of it.
+ */
+export function phasesOf(stream: Stream): Phases {
+  const dt = stream.dt
+  const v = stream.v ?? []
+  const n = v.length
+  const total = n * dt
+  const samples = (s: number) => Math.max(1, Math.round(s / dt))
+  const at = (s: number) => Math.min(n, Math.max(0, Math.round(s / dt)))
+  const s30 = smooth(v, samples(30))
+  const s5 = smooth(v, samples(5))
+  const s3 = smooth(v, samples(3))
+  const ran = (a: number, b: number) => {
+    for (let i = a; i < b; i++) if (s3[i] >= RUN_V) return true
+    return false
+  }
+
+  const play: boolean[] = []
+  for (let m = 0; m * 60 < total; m++) {
+    const [a, b] = [at(m * 60), at((m + 1) * 60)]
+    let d = 0
+    for (let i = a; i < b; i++) d += v[i] * dt
+    play.push(d >= PLAY_M || ran(a, b))
+  }
+  const first = play.indexOf(true)
+  if (first < 0) return { kickOff: 0, end: total, second: total / 2 }
+  const last = play.lastIndexOf(true)
+  // to the second: from when you first moved in the first minute of play, to when you last did in the last
+  let k = at(first * 60)
+  while (k < at((first + 1) * 60) - 1 && s5[k] < STAND_V) k++
+  let e = at((last + 1) * 60)
+  while (e > at(last * 60) + 1 && s5[e - 1] < STAND_V) e--
+
+  // a stretch's edges to the second: in from any moving a half-minute average smooths over, then out over standing either side
+  const settle = (a: number, b: number, lo: number, hi: number, exact: boolean): [number, number] => {
+    if (!exact) {
+      while (a < b && s5[a] >= STAND_V) a++
+      while (b > a && s5[b - 1] >= STAND_V) b--
+    }
+    while (a > lo && s5[a - 1] < STAND_V) a--
+    while (b < hi && s5[b] < STAND_V) b++
+    return [a, b]
+  }
+  // spells of standing about, joined across a short walk with no jogging in it (to the bench and back)
+  const joined: [number, number][] = []
+  for (let i = 0, a = -1; i <= n; i++) {
+    const still = i < n && s30[i] < STAND_V
+    if (still && a < 0) a = i
+    else if (!still && a >= 0) {
+      const prev = joined[joined.length - 1]
+      if (prev && (a - prev[1]) * dt <= 60 && !ran(prev[1], a)) prev[1] = i
+      else joined.push([a, i])
+      a = -1
+    }
+  }
+  const spells = joined.map(([a, b]) => settle(a, b, 0, n, false)).filter(([a, b]) => b > a)
+  // where the first half starts if this is half time, or nothing if it can't be. When play before the break runs
+  // much longer than after it, it began with a warm-up: the first half starts where lining up for kick-off ends, the
+  // earliest minute or more of standing about that leaves a first half of half to 1.3 times the second
+  const firstHalf = ({ a, b }: { a: number; b: number }) => {
+    const d2 = e - b
+    if (a <= k || d2 * dt < HALF_S) return undefined
+    let from = k
+    if (a - k > 1.3 * d2) from = spells.find(([x, y]) => (y - x) * dt >= 60 && y >= a - 1.3 * d2 && y <= a - 0.5 * d2)?.[1] ?? k
+    const d1 = a - from
+    return d1 * dt >= HALF_S && d1 <= HALVES * d2 && d2 <= HALVES * d1 ? { from, even: Math.min(d1, d2) / Math.max(d1, d2) } : undefined
+  }
+  // the longest break wins, the more so the more evenly it splits the game: a long stoppage in one half loses to a shorter half time
+  const best = (cs: { a: number; b: number; paused: boolean }[]) =>
+    cs
+      .map((c) => ({ ...c, fit: firstHalf(c) }))
+      .filter((c) => c.fit)
+      .sort((x, y) => (y.b - y.a) * y.fit!.even ** 2 - (x.b - x.a) * x.fit!.even ** 2)[0]
+  const ht =
+    best(
+      pausesOf(stream)
+        .filter(([a, b]) => b - a >= PAUSE_S)
+        .map(([a, b]) => ({ a: at(a), b: at(b), paused: true })),
+    ) ?? best(spells.filter(([a, b]) => (b - a) * dt >= STAND_S).map(([a, b]) => ({ a, b, paused: false })))
+  if (!ht) return { kickOff: k * dt, end: e * dt, second: ((k + e) * dt) / 2 }
+  const from = ht.fit!.from
+  // a pause takes in any standing about either side of it
+  const [a, b] = ht.paused ? settle(ht.a, ht.b, Math.max(from, ht.a - samples(300)), Math.min(e, ht.b + samples(300)), true) : [ht.a, ht.b]
+  return { kickOff: from * dt, end: e * dt, halfTime: { from: a * dt, to: b * dt, paused: ht.paused }, second: b * dt }
 }
 
 export interface Bucket {
@@ -179,24 +314,51 @@ export interface Bucket {
   sprints: number
 }
 
-export interface FootballAnalysis {
+/** One half, from its kick-off to its whistle. */
+export interface Half {
+  /** seconds from the start of the recording, [from, to) */
+  from: number
+  to: number
   minutes: number
   distanceM: number
   mPerMin: number
+  /** metres over HI_MPS */
+  hiDistM: number
+  sprints: number
+  topSpeedKmh: number
+  avgHr?: number
+}
+
+/** Metres in play at each speed: walking (under WALK_MPS), jogging (to HI_MPS), running (to SPRINT_MPS) and sprinting. */
+export interface Bands {
+  walk: number
+  jog: number
+  run: number
+  sprint: number
+}
+
+export interface FootballAnalysis {
+  /** minutes played: kick-off to the final whistle, without half time */
+  minutes: number
+  /** the whole recording, as the watch measured it */
+  distanceM: number
+  /** metres a minute played */
+  mPerMin: number
   topSpeedKmh: number
   sprints: number
-  sprintsByHalf: [number, number]
   hiDistM: number
   avgHr?: number
   maxHr?: number
   buckets: Bucket[]
   fadeMinute?: number
+  halves: [Half, Half]
+  bands: Bands
   /** points in pitch space, x along the length, both 0–1 */
   heat: [number, number][]
   /** index into heat where the second half starts */
   half: number
-  /** the half-time break in minutes from the start, [from, to); undefined if the game ran straight through */
-  halfTime?: { from: number; to: number }
+  /** the half-time break in seconds from the start, [from, to); undefined if the game ran straight through */
+  halfTime?: { from: number; to: number; paused: boolean }
   trace?: PitchTrace
 }
 
@@ -243,32 +405,54 @@ export function projectToPitch(lat: number[], lon: number[]): [number, number][]
   return pts.map(pitchFrame(pts))
 }
 
+/** A fade lasts at least this many minutes, to the final whistle. */
+const FADE_MIN = 10
+
+/**
+ * Fading: from some minute of the second half to the final whistle, every five minutes under 90% of your
+ * first half's metres a minute, and all of it under 85%, for FADE_MIN minutes or more. Its minute is the
+ * first one that was down. Anything less clear says nothing: a second half that restarts a little slower,
+ * or a quiet spell you came back from, isn't a fade.
+ */
+function fadeOf(cum: (s: number) => number, [first, second]: [Half, Half]): number | undefined {
+  const ref = first.mPerMin
+  const full = Math.floor(second.minutes)
+  if (first.minutes < 10 || full < FADE_MIN || !ref) return undefined
+  const m = Array.from({ length: full }, (_, k) => cum(second.from + 60 * (k + 1)) - cum(second.from + 60 * k))
+  const five = (k: number) => (m[k] + m[k + 1] + m[k + 2] + m[k + 3] + m[k + 4]) / 5
+  // back from the whistle while every five minutes stays down
+  let from = full - 5
+  while (from >= 0 && five(from) < 0.9 * ref) from--
+  for (let s = from + 1; full - s >= FADE_MIN; s++) {
+    if (mean(m.slice(s)) >= 0.85 * ref) continue
+    let k = s
+    while (k < s + 4 && m[k] >= 0.9 * ref) k++
+    return Math.round((second.from + 60 * k) / 60)
+  }
+  return undefined
+}
+
 export function analyseFootball(stream: Stream): FootballAnalysis {
   const dt = stream.dt
   const v = stream.v ?? []
   const hr = stream.hr ?? []
   const n = v.length
-  const minutes = (n * dt) / 60
-  let dist = 0
-  let hi = 0
-  let top = 0
-  let sprints = 0
-  let run = 0
-  let cool = 99
-  const perMin: number[] = []
-  const sprintStarts: number[] = []
-  for (let i = 0; i < n; i++) {
-    const step = v[i] * dt
-    dist += step
-    if (v[i] > HI_MPS) hi += step
-    top = Math.max(top, v[i])
-    const m = Math.floor((i * dt) / 60)
-    perMin[m] = (perMin[m] ?? 0) + step
+  const ph = phasesOf(stream)
+  const at = (s: number) => Math.min(n, Math.max(0, Math.round(s / dt)))
+  // distance so far: the watch's own when it kept one, otherwise from speed
+  const d = stream.d
+  const own = !!d && d.length === n && d[n - 1] > d[0]
+  const pre = new Float64Array(n + 1)
+  for (let i = 0; i < n; i++) pre[i + 1] = pre[i] + v[i] * dt
+  const cum = (s: number) => (own ? d![Math.min(n - 1, at(s))] - d![0] : pre[at(s)])
+
+  // a sprint is SPRINT_MPS held for 2 s, at least 3 s after the last one
+  const sprintAt: number[] = []
+  for (let i = 0, run = 0, cool = 99; i < n; i++) {
     if (v[i] >= SPRINT_MPS) {
       run += dt
       if (run >= 2 && cool >= 3) {
-        sprints++
-        sprintStarts.push(i * dt)
+        sprintAt.push(i * dt)
         cool = 0
         run = -999
       }
@@ -278,85 +462,82 @@ export function analyseFootball(stream: Stream): FootballAnalysis {
     }
   }
 
-  const buckets: Bucket[] = []
-  for (let b = 0; b * 5 < minutes; b++) {
-    const i0 = Math.floor((b * 300) / dt)
-    const i1 = Math.min(n, Math.floor(((b + 1) * 300) / dt))
-    let d = 0
+  const halfOf = (from: number, to: number): Half => {
+    let hi = 0
+    let top = 0
     const hs: number[] = []
-    for (let i = i0; i < i1; i++) {
-      d += v[i] * dt
-      if (hr[i]) hs.push(hr[i])
+    for (let i = at(from); i < at(to); i++) {
+      if (v[i] > HI_MPS) hi += v[i] * dt
+      top = Math.max(top, v[i])
+      if (hr[i] > 0) hs.push(hr[i])
     }
+    const minutes = Math.max(0, to - from) / 60
+    const distanceM = Math.max(0, cum(to) - cum(from))
+    return {
+      from,
+      to,
+      minutes,
+      distanceM,
+      mPerMin: minutes ? distanceM / minutes : 0,
+      hiDistM: hi,
+      sprints: sprintAt.filter((t) => t >= from && t < to).length,
+      topSpeedKmh: round(top * 3.6, 1),
+      avgHr: hs.length ? Math.round(mean(hs)) : undefined,
+    }
+  }
+  const halves: [Half, Half] = [halfOf(ph.kickOff, ph.halfTime?.from ?? ph.second), halfOf(ph.second, ph.end)]
+  const inPlay = (s: number) => halves.some((h) => s >= h.from && s < h.to)
+
+  const bands: Bands = { walk: 0, jog: 0, run: 0, sprint: 0 }
+  for (const h of halves) for (let i = at(h.from); i < at(h.to); i++) bands[v[i] >= SPRINT_MPS ? 'sprint' : v[i] > HI_MPS ? 'run' : v[i] >= WALK_MPS ? 'jog' : 'walk'] += v[i] * dt
+
+  const total = (n * dt) / 60
+  const buckets: Bucket[] = []
+  for (let b = 0; b * 5 < total; b++) {
+    const hs: number[] = []
+    for (let i = at(b * 300); i < at((b + 1) * 300); i++) if (hr[i]) hs.push(hr[i])
     buckets.push({
       startMin: b * 5,
-      distM: d,
+      distM: Math.max(0, cum((b + 1) * 300) - cum(b * 300)),
       avgHr: hs.length ? Math.round(mean(hs)) : undefined,
-      sprints: sprintStarts.filter((t) => t >= b * 300 && t < (b + 1) * 300).length,
+      sprints: sprintAt.filter((t) => t >= b * 300 && t < (b + 1) * 300).length,
     })
   }
 
-  // the second half starts when the break ends; a game played straight through splits in the middle
-  const halfTime = halfTimeOf(perMin)
-  const secondS = halfTime ? halfTime.to * 60 : (n * dt) / 2
-  const sprintsByHalf: [number, number] = [sprintStarts.filter((t) => t < secondS).length, sprintStarts.filter((t) => t >= secondS).length]
+  const minutes = halves[0].minutes + halves[1].minutes
+  const played = halves[0].distanceM + halves[1].distanceM
+  const hs = hr.filter((x, i) => x > 0 && inPlay(i * dt))
 
-  // Fade: the first minute of the second half where your 5-minute rolling output
-  // stays under 80% of your minutes 3–20 for five minutes straight. Standing-still
-  // minutes are dropped first, and the rolling window never reaches back across
-  // half time, so the break itself can't read as a fade.
-  let fadeMinute: number | undefined
-  const active = perMin.map((d, m) => ({ d, m })).filter((x) => x.d >= STILL_M)
-  const second = active.findIndex((x) => x.m * 60 >= secondS)
-  if (active.length >= 24 && second >= 8) {
-    const ds = active.map((x) => x.d)
-    const base = mean(ds.slice(3, Math.min(20, second)))
-    const roll = (i: number) => mean(ds.slice(Math.max(second, i - 4), i + 1))
-    for (let i = second; i < ds.length - 5; i++) {
-      if ([0, 1, 2, 3, 4].every((k) => roll(i + k) < base * 0.8)) {
-        fadeMinute = active[Math.max(second, i - 2)].m
-        break
-      }
-    }
-  }
-
-  // the watch's own distance when it recorded one, so the report agrees with the activity
-  const d = stream.d
-  if (d && d.length === n && d[n - 1] > d[0]) dist = d[n - 1] - d[0]
-
-  const hs = hr.filter((x) => x > 0)
-  // the heatmap is where you played: a point every 2 s, leaving out the standing before
-  // kick-off, at half time and after the whistle
-  const first = active[0]?.m ?? 0
-  const last = active[active.length - 1]?.m ?? perMin.length
-  const inPlay = (m: number) => m >= first && m <= last && !(halfTime && m >= halfTime.from && m < halfTime.to)
+  // the heatmap is where you played: a point every 2 s of each half
   const every = Math.max(1, Math.round(2 / dt))
   const kept: number[] = []
-  for (let i = 0; i < (stream.lat ?? []).length; i += every) if (inPlay(Math.floor((i * dt) / 60))) kept.push(i)
+  for (let i = 0; i < (stream.lat ?? []).length; i += every) if (inPlay(i * dt)) kept.push(i)
   const lat = kept.map((i) => stream.lat![i])
   const lon = kept.map((i) => stream.lon![i])
   // projectToPitch skips points with no fix, so count only those up to the second half
-  const half = kept.filter((i, k) => i * dt < secondS && lat[k] && lon[k]).length
+  const half = kept.filter((i, k) => i * dt < ph.second && lat[k] && lon[k]).length
   // and a coarser record of the same, small enough to keep for every game
   const every15 = Math.max(1, Math.round(15 / dt))
   const sparse = kept.filter((i) => i % every15 < every && stream.lat![i] && stream.lon![i])
 
   return {
-    minutes: Math.round(minutes),
-    distanceM: dist,
-    mPerMin: minutes ? dist / minutes : 0,
-    topSpeedKmh: round(top * 3.6, 1),
-    sprints,
-    sprintsByHalf,
-    hiDistM: hi,
+    minutes,
+    // the watch's own distance when it recorded one, so the report agrees with the activity
+    distanceM: own ? d![n - 1] - d![0] : pre[n],
+    mPerMin: minutes ? played / minutes : 0,
+    topSpeedKmh: Math.max(halves[0].topSpeedKmh, halves[1].topSpeedKmh),
+    sprints: halves[0].sprints + halves[1].sprints,
+    hiDistM: halves[0].hiDistM + halves[1].hiDistM,
     avgHr: hs.length ? Math.round(mean(hs)) : undefined,
     maxHr: hs.length ? Math.max(...hs) : undefined,
     buckets,
-    fadeMinute,
+    fadeMinute: fadeOf(cum, halves),
+    halves,
+    bands,
     heat: projectToPitch(lat, lon),
     half,
-    halfTime,
-    trace: traceOf(sparse, stream, secondS, !!halfTime),
+    halfTime: ph.halfTime,
+    trace: traceOf(sparse, stream, ph.second, !!ph.halfTime),
   }
 }
 
@@ -368,15 +549,20 @@ function traceOf(idx: number[], stream: Stream, secondS: number, hadBreak: boole
   return { at, xy, half: idx.filter((i) => i * stream.dt < secondS).length, break: hadBreak }
 }
 
-/** Bump when the per-game summary gains something: sync makes older ones again from the stored stream. */
-export const FOOTBALL_SUMMARY = 2
+/**
+ * Bump when the per-game summary gains something: sync makes older ones again from the stored stream.
+ * 3: half time to the second (the pause, or standing about), minutes and metres a minute counted from
+ * kick-off to the final whistle without half time, and the fade judged against your own first half.
+ */
+export const FOOTBALL_SUMMARY = 3
 
 export function summaryOf(a: FootballAnalysis): FootballSummary {
   return {
     v: FOOTBALL_SUMMARY,
-    minutes: a.minutes,
+    minutes: round(a.minutes, 1),
     distanceM: Math.round(a.distanceM),
-    mPerMin: Math.round(a.mPerMin * 10) / 10,
+    // as worked out, so a rating line made from it rounds the way the report's own number does
+    mPerMin: a.mPerMin,
     topSpeedKmh: a.topSpeedKmh,
     sprints: a.sprints,
     hiDistM: Math.round(a.hiDistM),
@@ -519,6 +705,39 @@ export interface RateInput {
   baseline: Baseline
 }
 
+/** What fading late takes off a rating. */
+const FADE = -0.1
+const workRateLine = (a: Pick<Physical, 'mPerMin' | 'sprints'>) => `Work rate: ${Math.round(a.mPerMin)} m/min, ${a.sprints} sprints`
+const topSpeedLine = (kmh: number) => `New top speed, ${kmh} km/h`
+const fadeLine = (minute: number) => `Faded from ${minute}'`
+
+/**
+ * A saved rating's lines from the watch, brought up to date with its game's summary. Ratings saved before
+ * FOOTBALL_SUMMARY 3 counted half time in metres a minute, and their fade was judged against minutes 3–20, so
+ * a second half that restarted a little slower read as one. Once the summary is current the fade line follows
+ * it (in or out, moving the rating 0.1) and the work-rate and top-speed lines say what the report shows.
+ */
+export function withWatchLines(m: Match, s: FootballSummary | undefined): Match {
+  if (!s || (s.v ?? 1) < FOOTBALL_SUMMARY || !m.breakdown.some((f) => f.key === 'workrate')) return m
+  let change = 0
+  const lines = m.breakdown.flatMap((f): RatingFactor[] => {
+    if (f.key === 'workrate') return [{ ...f, label: workRateLine(s) }]
+    if (f.key === 'topspeed') return [{ ...f, label: topSpeedLine(s.topSpeedKmh) }]
+    if (f.key !== 'fade') return [f]
+    if (s.fadeMinute !== undefined) return [{ ...f, label: fadeLine(s.fadeMinute) }]
+    change -= f.value
+    return []
+  })
+  if (s.fadeMinute !== undefined && !lines.some((f) => f.key === 'fade')) {
+    // where rateMatch puts it: last of the watch's lines, before your verdict
+    const at = lines.findIndex((f) => f.key === 'feel')
+    lines.splice(at < 0 ? lines.length : at, 0, { key: 'fade', label: fadeLine(s.fadeMinute), value: FADE })
+    change += FADE
+  }
+  if (!change && lines.every((f, i) => f.label === m.breakdown[i]?.label)) return m
+  return { ...m, breakdown: lines, rating: round(clamp(m.rating + change, 3, 10), 1) }
+}
+
 const EXPECTED_SHARE: Record<Position, number> = { GK: 0.15, DEF: 0.6, MID: 1, FWD: 1.5, ANY: 1 }
 const DEF_WEIGHT: Record<Position, number> = { GK: 0.6, DEF: 0.5, MID: 0.2, FWD: 0.05, ANY: 0.25 }
 
@@ -565,13 +784,10 @@ export function rateMatch(i: RateInput): { rating: number; breakdown: RatingFact
     const b = i.baseline
     const distPts = clamp((a.mPerMin / b.mPerMin - 1) * 2.5, -0.4, 0.4)
     const sprintPts = clamp((((a.sprints / a.minutes) * 10) / Math.max(b.sprintsPer10, 0.5) - 1) * 0.8, -0.3, 0.3)
-    f.push({
-      key: 'workrate',
-      label: `Work rate: ${Math.round(a.mPerMin)} m/min, ${a.sprints} sprints`,
-      value: distPts + sprintPts,
-    })
-    if (a.topSpeedKmh > b.topSpeedKmh) f.push({ key: 'topspeed', label: `New top speed, ${a.topSpeedKmh} km/h`, value: 0.1 })
-    if (a.fadeMinute !== undefined && a.fadeMinute < a.minutes * 0.8) f.push({ key: 'fade', label: `Faded from ${a.fadeMinute}'`, value: -0.1 })
+    f.push({ key: 'workrate', label: workRateLine(a), value: distPts + sprintPts })
+    if (a.topSpeedKmh > b.topSpeedKmh) f.push({ key: 'topspeed', label: topSpeedLine(a.topSpeedKmh), value: 0.1 })
+    // a fade is only found with ten minutes of it to go, so it's never just the last few minutes
+    if (a.fadeMinute !== undefined) f.push({ key: 'fade', label: fadeLine(a.fadeMinute), value: FADE })
   }
 
   f.push({ key: 'feel', label: `Your verdict: ${FEEL[i.feel]}`, value: (i.feel - 6) * 0.12 })

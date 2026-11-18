@@ -3,7 +3,7 @@ import { test } from 'node:test'
 import { fitFromDownload, footballSummary, streamFromFit } from '../netlify/lib/fit'
 import { garmin } from '../netlify/lib/garmin'
 import { memoryKV } from '../netlify/lib/kv'
-import { FOOTBALL_SUMMARY } from '../src/lib/football'
+import { analyseFootball, FOOTBALL_SUMMARY } from '../src/lib/football'
 import { detailOf, foldHrv, foldSleep, gmtToIso, hrProfile, mapActivity, sportOf } from '../netlify/lib/mapping'
 import { HISTORY_DAYS, loadAll, RUN_DAYS, runStep, type StepResult } from '../netlify/lib/sync'
 import { BEST_S, RUN_SUMMARY } from '../src/lib/running'
@@ -92,14 +92,26 @@ test('turns a football FIT file into a 1 s stream and counts the sprints', () =>
   assert.equal(stream.dt, 1)
   // 55 minutes of wall clock including the half-time gap
   assert.equal(stream.v!.length, 55 * 60)
-  // the gap reads as standing still
+  // the watch's timer stopped for half time: the stream keeps when, and the gap reads as standing still from that second
+  assert.deepEqual(stream.pauses, [[25 * 60, 30 * 60]])
+  assert.equal(stream.v![25 * 60], 0)
   assert.equal(stream.v![25 * 60 + 100], 0)
   assert.ok(stream.lat && stream.lon && stream.hr && stream.d)
   assert.equal(stream.laps?.length, 1)
+  assert.deepEqual(analyseFootball(stream).halfTime, { from: 25 * 60, to: 30 * 60, paused: true })
   const s = footballSummary(stream)!
   assert.equal(s.sprints, 6)
   assert.ok(s.topSpeedKmh > 22 && s.topSpeedKmh < 24, `top speed ${s.topSpeedKmh}`)
-  assert.equal(s.minutes, 55)
+  // minutes played, without half time
+  assert.equal(s.minutes, 50)
+})
+
+test('a game recorded through half time finds the break in the samples', () => {
+  const stream = streamFromFit(fitFromDownload(footballFit(new Date('2026-10-20T19:00:00Z'), 3, false)), 'g-1', 'football')
+  assert.deepEqual(stream.pauses, [])
+  const ht = analyseFootball(stream).halfTime!
+  assert.equal(ht.paused, false)
+  assert.ok(Math.abs(ht.from - 25 * 60) <= 5 && Math.abs(ht.to - 30 * 60) <= 5, `half time ${ht.from}–${ht.to}`)
 })
 
 test('a first sync walks the full history, then reports up to date', async () => {

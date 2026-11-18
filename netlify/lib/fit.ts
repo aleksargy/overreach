@@ -1,7 +1,7 @@
 // FIT file → the app's evenly sampled Stream (and laps). Garmin's download
 // endpoint answers with a ZIP holding `<id>_ACTIVITY.fit`.
 
-import { Decoder, Stream as FitStream, type RecordMesg } from '@garmin/fitsdk'
+import { Decoder, Stream as FitStream, type EventMesg, type RecordMesg } from '@garmin/fitsdk'
 import { unzipSync } from 'fflate'
 import type { Lap, Sport, Stream } from '../../src/data/types'
 
@@ -21,6 +21,37 @@ const ms = (d: unknown) => (d instanceof Date ? d.getTime() : typeof d === 'numb
 /** a gap longer than this is the watch paused (half time, a café stop): speed reads as zero */
 const GAP_S = 10
 
+/**
+ * When the watch was paused, in ms: from each time its timer stopped to when it started again, and any
+ * other gap of more than GAP_S between samples (a file with no timer events). Overlaps are joined, and
+ * pauses of GAP_S or less are left out.
+ */
+function pausesIn(events: EventMesg[], records: RecordMesg[]): [number, number][] {
+  const found: [number, number][] = []
+  let stopped: number | undefined
+  for (const e of events.filter((x) => x.event === 'timer' && Number.isFinite(ms(x.timestamp))).sort((a, b) => ms(a.timestamp) - ms(b.timestamp))) {
+    const t = ms(e.timestamp)
+    if (e.eventType === 'start' && stopped !== undefined) {
+      found.push([stopped, t])
+      stopped = undefined
+    } else if ((e.eventType === 'stop' || e.eventType === 'stopAll') && stopped === undefined) stopped = t
+  }
+  // the timer's own times are exact; a gap only counts where they say nothing
+  const timed = [...found]
+  for (let j = 1; j < records.length; j++) {
+    const a = ms(records[j - 1].timestamp)
+    const b = ms(records[j].timestamp)
+    if (b - a > GAP_S * 1000 && !timed.some(([x, y]) => x < b && a < y)) found.push([a, b])
+  }
+  const out: [number, number][] = []
+  for (const p of found.sort((x, y) => x[0] - y[0])) {
+    const last = out[out.length - 1]
+    if (last && p[0] <= last[1]) last[1] = Math.max(last[1], p[1])
+    else out.push([...p])
+  }
+  return out.filter(([a, b]) => b - a > GAP_S * 1000)
+}
+
 export function streamFromFit(fit: Uint8Array, activityId: string, sport: Sport): Stream {
   const { messages, errors } = new Decoder(FitStream.fromByteArray(fit)).read({ convertDateTimesToDates: true, mergeHeartRates: true })
   const records = (messages.recordMesgs ?? []).filter((r) => Number.isFinite(ms(r.timestamp)))
@@ -28,6 +59,10 @@ export function streamFromFit(fit: Uint8Array, activityId: string, sport: Sport)
 
   const t0 = ms(records[0].timestamp)
   const totalS = (ms(records[records.length - 1].timestamp) - t0) / 1000
+  // inside the recording only: the timer starting before the first sample or stopping after the last isn't a pause
+  const pauses = pausesIn(messages.eventMesgs ?? [], records)
+    .map(([a, b]) => [Math.max(a, t0), Math.min(b, t0 + totalS * 1000)] as [number, number])
+    .filter(([a, b]) => b - a > GAP_S * 1000)
   // football keeps 1 s so short sprints survive; everything else stays under ~2000 points
   const dt = sport === 'football' ? 1 : Math.max(1, Math.ceil(totalS / 2000))
   const n = Math.floor(totalS / dt) + 1
@@ -55,13 +90,17 @@ export function streamFromFit(fit: Uint8Array, activityId: string, sport: Sport)
 
   // hold the latest sample at or before each tick; derive speed from distance if the device didn't log it
   let j = 0
+  let p = 0
   let last = { d: 0, alt: NaN, lat: NaN, lon: NaN }
   for (let i = 0; i < n; i++) {
     const t = t0 + i * dt * 1000
     while (j + 1 < records.length && ms(records[j + 1].timestamp) <= t) j++
     const r = records[j]
     const age = (t - ms(r.timestamp)) / 1000
-    const stale = age > GAP_S
+    while (p < pauses.length && pauses[p][1] <= t) p++
+    // paused, with nothing recorded since the timer stopped, reads as standing still from the moment it stopped
+    const paused = p < pauses.length && pauses[p][0] <= t && ms(r.timestamp) < t && ms(r.timestamp) <= pauses[p][0]
+    const stale = age > GAP_S || paused
     if (r.distance !== undefined) last.d = r.distance
     const a = altOf(r)
     if (a !== undefined) last.alt = a
@@ -100,6 +139,8 @@ export function streamFromFit(fit: Uint8Array, activityId: string, sport: Sport)
   }
   if (has.pwr) out.pwr = pwr
   if (has.cad) out.cad = cad
+  // kept even when there were none, so a stream with no pauses isn't mistaken for one decoded before they were kept
+  out.pauses = pauses.map(([a, b]) => [Math.round((a - t0) / 1000), Math.round((b - t0) / 1000)])
 
   const since = (d: unknown) => Math.max(0, Math.round((ms(d) - t0) / 1000)) || 0
   // pool swims: one entry per length (laps there are sets of lengths); everything else: laps

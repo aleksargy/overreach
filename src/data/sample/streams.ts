@@ -357,8 +357,12 @@ export function footballStream(id: string, format: Format, minutes: number): Str
   const firstEnd = r.range(0, Math.PI) < Math.PI / 2 ? 1 : -1
   const { origin, bearing } = GROUNDS[format] ?? GROUNDS[7]
   const halfTime = format >= 7 ? [minutes / 2 - (format === 11 ? 5 : 2.5), minutes / 2 + (format === 11 ? 5 : 2.5)] : null
+  // Sunday league: the watch paused a minute or two after the half-time whistle and started again just before
+  // kick-off, as Alex does it (seconds); the 7s record straight through the break. Its own draws, so the game stays the same.
+  const pr = rng(`${id}:pause`)
+  const pause = halfTime && format === 11 ? [Math.round((halfTime[0] + pr.range(0.5, 2)) * 60), Math.round((halfTime[1] - pr.range(0.3, 1.2)) * 60)] : null
   let restarted = false
-  const out: Stream = { activityId: id, dt, hr: [], v: [], lat: [], lon: [] }
+  const out: Stream = { activityId: id, dt, hr: [], v: [], lat: [], lon: [], pauses: pause ? [[pause[0], pause[1]]] : [] }
   const n = Math.round(minutes * 60)
   for (let i = 0; i < n; i++) {
     const min = i / 60
@@ -417,10 +421,12 @@ export function footballStream(id: string, format: Format, minutes: number): Str
     const x = end > 0 ? pos.x + gx : L - pos.x - gx
     const y = end > 0 ? pos.y + gy : W - pos.y - gy
     const ll = toLatLon(x * Math.cos(bearing) - y * Math.sin(bearing), x * Math.sin(bearing) + y * Math.cos(bearing), origin)
-    out.v!.push(+v.toFixed(2))
-    out.hr!.push(Math.round(clamp(hr, 80, HR_MAX)))
-    out.lat!.push(+ll.lat.toFixed(7))
-    out.lon!.push(+ll.lon.toFixed(7))
+    // paused, the watch keeps nothing: no speed, no heart rate, the last position held
+    const paused = pause && i >= pause[0] && i < pause[1]
+    out.v!.push(paused ? 0 : +v.toFixed(2))
+    out.hr!.push(paused ? 0 : Math.round(clamp(hr, 80, HR_MAX)))
+    out.lat!.push(paused ? out.lat![i - 1] : +ll.lat.toFixed(7))
+    out.lon!.push(paused ? out.lon![i - 1] : +ll.lon.toFixed(7))
   }
   return out
 }

@@ -10,7 +10,7 @@ import { useStore } from '../../data/store'
 import { useUi } from '../../data/ui'
 import { useFootballAnalysis, useStream, useWorld } from '../../data/world'
 import { fmt } from '../../lib/format'
-import { FEEL, headToHead, ordinal, ratingTone, result, sameOpponent } from '../../lib/football'
+import { FEEL, headToHead, ordinal, ratingTone, result, sameOpponent, type Bands, type Half } from '../../lib/football'
 import { zoneBounds, zoneOf } from '../../lib/load'
 import { median } from '../../lib/math'
 import { RatingLines } from './RatingLines'
@@ -48,7 +48,6 @@ export function MatchReportScreen() {
   const tone = ratingTone(m.rating)
   const heat = an ? (half === 'all' ? an.heat : half === '1' ? an.heat.slice(0, an.half) : an.heat.slice(an.half)) : []
   const bounds = zoneBounds(w.profile)
-  const fadeBucket = an?.fadeMinute !== undefined ? Math.floor(an.fadeMinute / 5) : undefined
 
   return (
     <Screen
@@ -125,7 +124,10 @@ export function MatchReportScreen() {
                 </div>
               ))}
             </div>
+            <Speeds bands={an.bands} />
           </section>
+
+          <Halves halves={an.halves} />
 
           <section className="tile mt-2.5 flex flex-col gap-3">
             <div className="flex items-center justify-between gap-3">
@@ -152,7 +154,7 @@ export function MatchReportScreen() {
               values={an.buckets.map((b) => Math.round(b.distM))}
               labels={an.buckets.map((b, i) => (i % 2 === 0 ? `${b.startMin}′` : null))}
               colors={an.buckets.map((b) => (b.avgHr ? zoneColor(zoneOf(b.avgHr, bounds)) : 'rgb(var(--fg-4))'))}
-              marker={fadeBucket !== undefined ? { index: fadeBucket, label: `Fade ${an.fadeMinute}′` } : undefined}
+              marker={an.fadeMinute !== undefined ? { index: an.fadeMinute / 5, label: `Fade ${an.fadeMinute}′` } : undefined}
               height={140}
               valueLabels
             />
@@ -200,6 +202,78 @@ export function MatchReportScreen() {
         )}
       </div>
     </Screen>
+  )
+}
+
+/** Under a kilometre in metres (to 10), over it in kilometres. */
+const distance = (m: number) => (m < 995 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toFixed(1)} km`)
+
+/** Where the distance came from: one bar split by speed, sage getting stronger with it, and each part's distance under it. */
+function Speeds({ bands }: { bands: Bands }) {
+  const parts = [
+    { key: 'Walk', m: bands.walk, color: 'rgb(var(--football) / 0.2)' },
+    { key: 'Jog', m: bands.jog, color: 'rgb(var(--football) / 0.45)' },
+    { key: 'Run', m: bands.run, color: 'rgb(var(--football) / 0.7)' },
+    { key: 'Sprint', m: bands.sprint, color: 'rgb(var(--football))' },
+  ]
+  return (
+    <div className="mt-1 flex flex-col gap-3 border-t border-ink-2 pt-3.5">
+      <div className="flex h-3 gap-[3px]">
+        {parts.map((p) => (p.m > 0 ? <span key={p.key} className="min-w-2 rounded-md" style={{ flex: p.m, background: p.color }} /> : null))}
+      </div>
+      <div className="grid grid-cols-4">
+        {parts.map((p) => (
+          <div key={p.key} className="flex min-w-0 flex-col gap-[3px]">
+            <span className="label flex items-center gap-1.5">
+              <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: p.color }} />
+              {p.key}
+            </span>
+            <span className="text-[14px] font-bold">{distance(p.m)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * The two halves side by side, the way a match's stats are shown on television: each half's number at its side,
+ * and a bar under them split between the two. The bigger part is solid when it's clearly bigger (5% or more).
+ */
+function Halves({ halves: [a, b] }: { halves: [Half, Half] }) {
+  const rows = [
+    { key: 'Distance', unit: 'km', a: a.distanceM, b: b.distanceM, show: (m: number) => (m / 1000).toFixed(1) },
+    { key: 'Metres a minute', a: a.mPerMin, b: b.mPerMin, show: (x: number) => String(Math.round(x)) },
+    { key: 'High intensity', unit: 'm', a: a.hiDistM, b: b.hiDistM, show: (m: number) => String(Math.round(m / 10) * 10) },
+    { key: 'Sprints', a: a.sprints, b: b.sprints, show: String },
+    { key: 'Top speed', unit: 'km/h', a: a.topSpeedKmh, b: b.topSpeedKmh, show: (x: number) => x.toFixed(1) },
+    a.avgHr && b.avgHr ? { key: 'Heart rate', unit: 'bpm', a: a.avgHr, b: b.avgHr, show: String } : null,
+  ].filter((r) => r !== null)
+  const side = (x: number, other: number) =>
+    Math.max(x, other) < Math.min(x, other) * 1.05 ? 'rgb(var(--football) / 0.45)' : x > other ? 'rgb(var(--football))' : 'rgb(var(--football) / 0.2)'
+  return (
+    <Section title={`1st half · ${Math.round(a.minutes)}′`} action={<span className="t-section">{`2nd half · ${Math.round(b.minutes)}′`}</span>}>
+      <div className="flex flex-col gap-3">
+        {rows.map((r) => (
+          <div key={r.key} className="flex flex-col gap-1.5">
+            <div className="grid grid-cols-[1fr_auto_1fr] items-baseline gap-2">
+              <span className="num text-[20px] leading-none">{r.show(r.a)}</span>
+              <span className="text-center text-[12.5px] font-semibold text-fg-3">
+                {r.key}
+                {r.unit && <span className="font-medium"> {r.unit}</span>}
+              </span>
+              <span className="num text-right text-[20px] leading-none">{r.show(r.b)}</span>
+            </div>
+            {r.a + r.b > 0 && (
+              <div className="flex h-1.5 gap-[3px]">
+                <span className="rounded-full" style={{ flex: r.a, background: side(r.a, r.b) }} />
+                <span className="rounded-full" style={{ flex: r.b, background: side(r.b, r.a) }} />
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </Section>
   )
 }
 

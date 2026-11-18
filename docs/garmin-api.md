@@ -41,5 +41,6 @@ Checked on 25 October 2026 against Alex's key: Training Readiness (`/metrics-ser
 ## Not known yet
 
 - How Alex's football is recorded: Garmin's `soccer` type, or "other" with a name like "7-a-side", which the mapper also catches. Check that games land on the Football tab.
+- How a paused game looks in Alex's FIT files. The fake writes what Garmin watches are understood to: a timer `stopAll` event, no samples, then a `start`. `streamFromFit` takes the timer events, or any gap of more than 10 s in the samples, and `/api/stream` should show the pause under `pauses`. A watch that keeps sampling while paused would still work: those samples are kept as they are.
 - Whether API FIT files are complete. Runalyze reported in October 2026 that Garmin strips some proprietary fields (VO2 max, training effect, recovery time, performance condition) from them. The app doesn't depend on any of those.
 - How far back the history goes, and the real rate limits. Garmin doesn't publish them. The sync stops on a 429 and carries on later.

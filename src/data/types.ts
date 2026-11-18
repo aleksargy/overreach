@@ -96,12 +96,15 @@ export interface LiftSummary {
 export interface FootballSummary {
   /** how it was worked out: older summaries are made again from the stored stream (FOOTBALL_SUMMARY in lib/football) */
   v?: number
+  /** minutes played, kick-off to the final whistle without half time (the whole recording before v3), and metres a minute of them */
   minutes: number
+  /** the whole recording, as the watch measured it */
   distanceM: number
   mPerMin: number
   topSpeedKmh: number
   sprints: number
   hiDistM: number
+  /** the minute of the recording a fade to the final whistle started (lib/football) */
   fadeMinute?: number
   /** where you were, kept small enough to lay a season of games over each other */
   trace?: PitchTrace
@@ -142,6 +145,11 @@ export interface Stream {
   lon?: number[]
   pwr?: number[]
   cad?: number[]
+  /**
+   * When the watch was paused, as [from, to) seconds from the start: its timer stopped and started again,
+   * or it kept no samples for a while. Streams decoded before this was kept don't have it.
+   */
+  pauses?: [number, number][]
 }
 
 export interface Daily {

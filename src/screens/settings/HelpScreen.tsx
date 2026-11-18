@@ -37,9 +37,21 @@ const TOPICS: { key: string; title: string; lines: string[] }[] = [
       'Goals and assists count against the share of your team’s goals your position would usually have.',
       'Goals conceded count against your usual, more for keepers and defenders, and a clean sheet adds a little.',
       'Each thing that went well or badly counts 0.15, a big one 0.3, and all of them 0.6 at most. Tap one in the log to make it big.',
-      'From the watch: metres a minute and sprints against your usual, a new top speed, and fading late.',
+      'From the watch: metres a minute and sprints against your usual, and a new top speed.',
+      'Fading late takes off 0.1: the last ten minutes or more under 85% of your first half’s metres a minute, and no five minutes of them back over 90%.',
       'How you say you played moves it too.',
       'Each game is judged against games of its own format.',
+    ],
+  },
+  {
+    key: 'football',
+    title: 'From the watch',
+    lines: [
+      'Half time is when you paused the watch between the halves, and any standing about either side.',
+      'Without a pause, it’s the longest spell of standing about with play either side, the two halves about the same length.',
+      'Minutes and metres a minute run from kick-off to the final whistle, without half time. A warm-up and the walk off don’t count.',
+      'Walking is under 7 km/h, jogging to 14.4, running to 18, and sprinting faster. High intensity is running and sprinting.',
+      'A sprint is 18 km/h or more for two seconds.',
     ],
   },
   {

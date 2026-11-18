@@ -5,7 +5,7 @@ import { BUILTIN_EXERCISES, SAMPLE_ROUTINES } from './exercises'
 import { buildSample, sampleStreamFor, type SampleData } from './sample'
 import { useStore } from './store'
 import type { Activity, BodyEntry, Daily, Exercise, GarminActivity, Match, Profile, Routine, Stream, Workout } from './types'
-import { analyseFootball, gamesToRate, usualFormatAt, type FootballAnalysis } from '../lib/football'
+import { analyseFootball, gamesToRate, usualFormatAt, withWatchLines, type FootballAnalysis } from '../lib/football'
 import { liftSummary } from '../lib/lift'
 import { isoDay } from '../lib/format'
 import { loadModel, srpeLoad, trimp, zoneBounds, zoneSecondsFromAvg, type LoadModel } from '../lib/load'
@@ -152,9 +152,9 @@ export function useWorld(): World {
     const byId = new Map(activities.map((a) => [a.id, a]))
 
     const userByActivity = new Set(s.matches.map((m) => m.activityId).filter(Boolean))
-    const matches = [...s.matches, ...(sample?.matches ?? []).filter((m) => !s.hidden.includes(m.id) && !userByActivity.has(m.activityId))].sort((a, b) =>
-      b.date.localeCompare(a.date),
-    )
+    // a rating saved before its game's summary was last made again shows that summary's watch lines (a fade that isn't one comes out)
+    const yours = s.matches.map((m) => (m.activityId ? withWatchLines(m, byId.get(m.activityId)?.football) : m))
+    const matches = [...yours, ...(sample?.matches ?? []).filter((m) => !s.hidden.includes(m.id) && !userByActivity.has(m.activityId))].sort((a, b) => b.date.localeCompare(a.date))
     const matchByActivity = new Map(matches.filter((m) => m.activityId).map((m) => [m.activityId!, m]))
 
     const dailies = live ? s.garmin!.dailies : sample!.dailies
