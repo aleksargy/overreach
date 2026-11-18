@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router'
 import { IconButton, Screen } from '../../components/ui/Screen'
 import { Field, Section, Segmented, Toggle, inputCls } from '../../components/ui/bits'
-import { APP_NAME, APP_TAGLINE } from '../../config'
+import { APP_NAME } from '../../config'
 import { ApiError, getStatus, syncAll, type ServerStatus } from '../../data/api'
 import { useStore } from '../../data/store'
 import type { Race } from '../../data/types'
@@ -32,7 +32,6 @@ export function SettingsScreen() {
       <YourData />
       <footer className="mt-14 text-center">
         <div className="display text-[20px] font-extrabold leading-none">{APP_NAME}</div>
-        <div className="meta mt-1.5 text-fg-4">{APP_TAGLINE}</div>
       </footer>
     </Screen>
   )
