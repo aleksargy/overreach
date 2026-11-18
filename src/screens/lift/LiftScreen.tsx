@@ -10,7 +10,7 @@ import { useStore } from '../../data/store'
 import type { Muscle, Routine } from '../../data/types'
 import { useUi } from '../../data/ui'
 import { useWorld, type World } from '../../data/world'
-import { amount, focusOf, historyFor, lastDone, nextRoutine, progressOf, recordsIn, targetText, topOf } from '../../lib/lift'
+import { amount, focusOf, historyFor, lastDone, nextRoutine, progressOf, recordsIn, supersetTags, targetText, topOf } from '../../lib/lift'
 import { uid } from '../../lib/rng'
 import { EQUIPMENT_LABEL, MUSCLE_LABEL, MoveNote, WorkoutRow, daysAgo, nextFor, useBegin } from './parts'
 
@@ -120,6 +120,8 @@ function NextUp({ w, routine }: { w: World; routine: Routine }) {
 
 /** A workout's exercises, each with its sets, the rule in play and the weight and reps to go for. `tinted` sets it on the lilac hero. */
 export function Targets({ w, routine, className = '', tinted }: { w: World; routine: Routine; className?: string; tinted?: boolean }) {
+  // exercises done in turns are tagged A1, A2
+  const tags = supersetTags(routine.items)
   return (
     <div className={`${tinted ? '' : 'list ruled'} ${className}`}>
       {routine.items.map((it, i) => {
@@ -133,7 +135,10 @@ export function Targets({ w, routine, className = '', tinted }: { w: World; rout
             className={`flex items-center gap-3 transition-colors duration-150 ${tinted ? 'border-t border-strength/[0.14] py-[9px]' : 'py-[10px] active:bg-ink-2'}`}
           >
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-[15px] font-bold leading-5">{ex.name}</span>
+              <span className="block truncate text-[15px] font-bold leading-5">
+                {tags[i] && <span className={`mr-1.5 text-[12.5px] font-extrabold ${tinted ? 'text-strength-label' : 'text-strength'}`}>{tags[i]}</span>}
+                {ex.name}
+              </span>
               <span className={`block text-[12px] ${tinted ? 'text-strength-head/80' : 'text-fg-3'}`}>
                 {it.sets} {it.sets === 1 ? 'set' : 'sets'} · <MoveNote t={t} plain={tinted} />
               </span>

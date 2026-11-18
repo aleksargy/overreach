@@ -6,7 +6,7 @@ import { useStore } from '../../data/store'
 import { useUi } from '../../data/ui'
 import { useWorld } from '../../data/world'
 import { dur, fmt } from '../../lib/format'
-import { recordsIn, setsLine, workingSets } from '../../lib/lift'
+import { mainSets, recordsIn, setsLine, supersetTags, workingSets } from '../../lib/lift'
 
 const EFFORT = ['', 'Easy', 'Easy', 'Easy', 'Easy', 'Solid', 'Solid', 'Hard', 'Hard', 'All out', 'All out']
 
@@ -25,6 +25,7 @@ export function WorkoutScreen() {
   const [sure, setSure] = useState(false)
   const wk = w.workouts.find((x) => x.id === id)
   const records = useMemo(() => (wk ? recordsIn(wk, w.workouts, w.exerciseById) : []), [wk, w])
+  const tags = supersetTags(wk?.exercises ?? [])
 
   if (!wk) {
     return (
@@ -40,7 +41,7 @@ export function WorkoutScreen() {
       id: wk.routineId ?? `again-${wk.id}`,
       name: wk.name,
       focus: '',
-      items: wk.exercises.map((e) => ({ exerciseId: e.exerciseId, sets: e.sets.filter((s) => s.kind !== 'warmup').length || 1 })),
+      items: wk.exercises.map((e) => ({ exerciseId: e.exerciseId, sets: mainSets(e.sets).length || 1, superset: e.superset })),
     })
     setOpen(true)
   }
@@ -81,13 +82,16 @@ export function WorkoutScreen() {
 
       <Section title="What you did">
         <div className="list">
-          {wk.exercises.map((we) => {
+          {wk.exercises.map((we, i) => {
             const ex = w.exerciseById.get(we.exerciseId)
             if (!ex) return null
             return (
               <Link key={we.id} to={`/lift/exercise/${ex.id}`} className="flex items-baseline gap-3 py-3 transition-colors duration-150 active:bg-ink-2">
-                <span className="min-w-0 flex-1 truncate text-[16px] font-semibold">{ex.name}</span>
-                <span className="num max-w-[58%] truncate text-right text-[17px]">{setsLine(ex, we.sets)}</span>
+                <span className="min-w-0 flex-1 truncate text-[16px] font-semibold">
+                  {tags[i] && <span className="mr-1.5 text-[12.5px] font-extrabold text-strength">{tags[i]}</span>}
+                  {ex.name}
+                </span>
+                <span className="num max-w-[62%] text-right text-[17px] leading-[1.25]">{setsLine(ex, we.sets)}</span>
               </Link>
             )
           })}

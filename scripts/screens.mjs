@@ -124,19 +124,59 @@ const SCREENS = [
     },
   ],
   ['lift-workout', { from: '/lift', link: 'a[href^="/lift/workout/"]' }],
+  // the workout made above, its two exercises linked as a superset
   [
     'lift-edit',
     {
       from: '/lift',
       async sheet(page) {
-        await page.locator('a[href^="/lift/workout/"]').first().click()
+        await page.locator('a[href^="/lift/workout/"]:has-text("Upper A")').first().click()
         await page.waitForTimeout(600)
         await page.getByRole('button', { name: 'Edit workout' }).click()
+        await page.waitForTimeout(300)
+        const link = page.getByRole('button', { name: 'Superset Bench Press with the next exercise' })
+        if ((await link.getAttribute('aria-pressed')) !== 'true') await link.click()
+        await blur(page)
+      },
+    },
+  ],
+  // bench as a reverse pyramid, from its page
+  [
+    'exercise-pyramid',
+    {
+      from: '/lift/exercise/bench-press',
+      async sheet(page) {
+        await page.getByRole('button', { name: 'Edit exercise' }).click()
+        await page.waitForTimeout(500)
+        await page.getByRole('button', { name: 'Reverse pyramid' }).click()
+        await page.getByRole('button', { name: 'Reverse pyramid' }).scrollIntoViewIfNeeded()
+        await page.waitForTimeout(300)
+      },
+      async after(page) {
+        await page.getByRole('button', { name: 'Save changes' }).click()
+        await page.waitForTimeout(400)
       },
     },
   ],
   // the logger a few sets in
   ['lift-log', { from: '/lift', sheet: openWorkout }],
+  // a drop set after the last bench set, ticked
+  [
+    'lift-log-drop',
+    {
+      from: '/lift',
+      async sheet(page) {
+        await openWorkout(page)
+        await page.getByRole('button', { name: 'Drop', exact: true }).first().click()
+        await page.waitForTimeout(200)
+        const tick = page.getByRole('button', { name: 'Mark set done' })
+        await tick.first().click()
+        await page.waitForTimeout(150)
+        await tick.first().click()
+        await page.waitForTimeout(300)
+      },
+    },
+  ],
   // typing reps into the third set: the logger ends at the keyboard and the set stays in view
   [
     'lift-log-typing',
@@ -404,6 +444,8 @@ try {
         const file = join(dirOf(mode), `${name}.png`)
         await page.screenshot({ path: file })
         console.log(file)
+        // anything to finish once the shot's taken, like saving a sheet
+        await where.after?.(page)
         continue
       }
       if (typeof where === 'object') {

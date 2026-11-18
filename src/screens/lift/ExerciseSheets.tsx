@@ -67,6 +67,7 @@ function ExerciseForm({ exerciseId, initialName, onSaved }: { exerciseId?: strin
   const [increment, setInc] = useState(base?.increment || STEP[base?.equipment ?? 'dumbbell'])
   // a new exercise's step follows its kit until you pick one
   const [stepPicked, setStepPicked] = useState(!!base)
+  const [pyramid, setPyramid] = useState(!!base?.pyramid)
   const [notes, setNotes] = useState(base?.notes ?? '')
   const nameRef = useAutoFocus<HTMLInputElement>(!base)
   const timed = kind === 'duration'
@@ -86,6 +87,7 @@ function ExerciseForm({ exerciseId, initialName, onSaved }: { exerciseId?: strin
       repRange: [Math.min(lo, hi), Math.max(lo, hi)],
       targetRpe: base?.targetRpe ?? 8,
       increment: weighted ? increment : 0,
+      pyramid: (weighted && pyramid) || undefined,
       notes: notes.trim() || undefined,
     }
     if (base) {
@@ -144,7 +146,7 @@ function ExerciseForm({ exerciseId, initialName, onSaved }: { exerciseId?: strin
       </div>
 
       <div>
-        <div className="label mb-2">{timed ? 'Hold for, seconds' : 'Rep range'}</div>
+        <div className="label mb-2">{timed ? 'Hold for, seconds' : weighted && pyramid ? 'Top set, reps' : 'Rep range'}</div>
         <div className="grid grid-cols-2 gap-2">
           <div className="tile py-3">
             <Stepper label="From" value={lo} onChange={setLo} min={1} max={timed ? 600 : 50} />
@@ -154,6 +156,20 @@ function ExerciseForm({ exerciseId, initialName, onSaved }: { exerciseId?: strin
           </div>
         </div>
       </div>
+
+      {weighted && (
+        <div>
+          <div className="label mb-2">Sets</div>
+          <Chips
+            value={pyramid ? 'pyramid' : 'straight'}
+            options={[
+              { key: 'straight', label: 'Same weight' },
+              { key: 'pyramid', label: 'Reverse pyramid' },
+            ]}
+            onChange={(v) => setPyramid(v === 'pyramid')}
+          />
+        </div>
+      )}
 
       {weighted && (
         <div>
