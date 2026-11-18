@@ -57,6 +57,24 @@ const SCREENS = [
   // the latest run's page, where its ghosts are offered
   ['run-activity', { from: '/run', link: 'a[href^="/activity/"]' }],
   ['match', { from: '/football', link: 'a[href^="/match/"]' }],
+  // the first game you faded in, at its halves and the fade on its intensity chart (live mode on the fake has no matches)
+  [
+    'match-fade',
+    {
+      from: '/football',
+      async sheet(page) {
+        for (const href of await page.locator('a[href^="/match/"]').evaluateAll((as) => as.map((a) => a.getAttribute('href')))) {
+          await page.goto(base + href)
+          await page.waitForTimeout(900)
+          if (await page.getByText(/^Fade \d+/).count()) {
+            await page.getByText('Intensity', { exact: true }).evaluate((el) => el.closest('section')?.scrollIntoView({ block: 'end' }))
+            return true
+          }
+        }
+        return false
+      },
+    },
+  ],
   ['race', { from: '/run', link: 'a[href^="/race/"]' }],
   // the latest run's ghosts, found from its page
   ['ghost', { from: '/run', link: ['a[href^="/activity/"]', 'a[href^="/ghost/"]'] }],
@@ -266,9 +284,10 @@ const SCREENS = [
       },
     },
   ],
-  // how it works, from the ⓘ in Settings, and with what to lift open
+  // how it works, from the ⓘ in Settings, and with what to lift and the match numbers open
   ['help', '/help'],
   ['help-lift', '/help#lift'],
+  ['help-football', '/help#football'],
   // a match logged from scratch and rated: the number counting up on the gold tile. Last, since it saves a match.
   [
     'reveal',
@@ -447,7 +466,11 @@ try {
       if (where.sheet) {
         await page.goto(base + where.from)
         await page.waitForTimeout(900)
-        await where.sheet(page)
+        // a shot can find there's nothing to show yet
+        if ((await where.sheet(page)) === false) {
+          console.log(`${join(dirOf(mode), name)}: nothing to open yet`)
+          continue
+        }
         await page.waitForTimeout(400)
         const file = join(dirOf(mode), `${name}.png`)
         await page.screenshot({ path: file })
