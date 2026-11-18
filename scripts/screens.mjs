@@ -1,9 +1,10 @@
-// Screenshots of every screen at 390 × 844, in sample mode and in live mode on the
-// fake Garmin, to check a UI change the way it looks on the phone. Runs its own
-// Vite and fake API on spare ports, so it can run next to `npm run dev`.
-//   npm run screens                      every screen, both modes
+// Screenshots of every screen at 390 × 844, to check a UI change the way it looks on
+// the phone, in three modes: sample (the Demo switch on), live on the fake Garmin,
+// and blank (a first visit with no Garmin: only what you log). Runs its own Vite and
+// fake API on spare ports, so it can run next to `npm run dev`.
+//   npm run screens                      every screen, all three modes
 //   npm run screens -- settings run      just those screens
-//   npm run screens -- --live            one mode (or --sample)
+//   npm run screens -- --live            one mode (or --sample, --blank)
 //   npm run screens -- --race            with "Training for a race" on: a marathon two weeks out, goal 3:30
 //   npm run screens -- --bar             the first screenful only, with the tab bar left in
 //   npm run screens -- --webkit          in Safari's engine, into screens/<mode>-webkit (once: npx playwright install webkit)
@@ -33,8 +34,8 @@ const API = await sparePort()
 const WEB = await sparePort()
 const base = `http://127.0.0.1:${WEB}`
 const args = process.argv.slice(2)
-const picked = ['sample', 'live'].filter((m) => args.includes(`--${m}`))
-const modes = picked.length ? picked : ['sample', 'live']
+const picked = ['sample', 'live', 'blank'].filter((m) => args.includes(`--${m}`))
+const modes = picked.length ? picked : ['sample', 'live', 'blank']
 const race = args.includes('--race')
 // Alex's phone: its screen, its status bar and home indicator, and the band under the status bar that iOS frosts
 const phone = args.includes('--phone') && { width: 402, height: 874, top: 62, bottom: 34, frost: 30 }
@@ -439,8 +440,15 @@ try {
           document.head.append(Object.assign(document.createElement('style'), { textContent: 'nav[aria-label="Main"] { display: none }' })),
         )
       })
+    // a fresh install starts blank: sample data is the Demo switch
+    if (mode === 'sample') {
+      await page.goto(`${base}/settings`)
+      await page.getByRole('switch', { name: 'Sample data' }).click()
+      await page.waitForTimeout(300)
+    }
     if (mode === 'live') {
       await page.goto(`${base}/settings`)
+      await page.getByRole('button', { name: 'Connect' }).click()
       await page.getByPlaceholder('The one you set in Netlify').fill('dev')
       await page.getByRole('button', { name: 'Sync now' }).click()
       await page

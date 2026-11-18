@@ -8,7 +8,6 @@ import { ApiError, getStatus, syncAll, type ServerStatus } from '../../data/api'
 import { useStore } from '../../data/store'
 import type { Race } from '../../data/types'
 import { useUi } from '../../data/ui'
-import { useWorld } from '../../data/world'
 import { backupOf, counts, describe, readBackup } from '../../lib/backup'
 import { ago, fmt } from '../../lib/format'
 import { DISTANCES, formatGoal, parseGoal, typeGoal } from '../../lib/race'
@@ -29,6 +28,7 @@ export function SettingsScreen() {
       <Profile />
       <RaceSettings />
       <Garmin />
+      <Demo />
       <YourData />
       <footer className="mt-14 text-center">
         <div className="display text-[20px] font-extrabold leading-none">{APP_NAME}</div>
@@ -127,17 +127,23 @@ function useServerStatus(pass: string | undefined, bump: number) {
   return st
 }
 
+/**
+ * Garmin is optional: without it the app holds what you log, on this phone. Until it's connected it's one line
+ * and Connect; then how to connect, the passphrase and Sync now.
+ */
 function Garmin() {
   const sync = useStore((s) => s.sync)
   const setSync = useStore((s) => s.setSync)
   const garmin = useStore((s) => s.garmin)
-  const w = useWorld()
   const [busy, setBusy] = useState(false)
   const [progress, setProgress] = useState<string | null>(null)
   const [bump, setBump] = useState(0)
+  const [connecting, setConnecting] = useState(false)
   const server = useServerStatus(sync.passphrase, bump)
-  const live = w.mode === 'live'
-  const setUp = !sync.lastSync || sync.status === 'error'
+  const connected = !!sync.lastSync
+  // the passphrase shows once you ask to connect, and stays while there's one typed or a sync has failed
+  const open = connected || connecting || !!sync.passphrase || sync.status === 'error'
+  const setUp = !connected || sync.status === 'error'
 
   const run = async () => {
     setBusy(true)
@@ -158,19 +164,25 @@ function Garmin() {
   return (
     <Section title="Garmin">
       <div>
-        <div className="flex items-center gap-3 pb-4">
-          <span className={`h-2 w-2 shrink-0 rounded-full ${live ? 'bg-z2' : 'bg-warn'}`} />
+        <div className={`flex items-center gap-3 ${open ? 'pb-4' : ''}`}>
+          <span className={`h-2 w-2 shrink-0 rounded-full ${connected ? 'bg-z2' : 'bg-fg-4'}`} />
           <span className="min-w-0 flex-1">
-            <span className="block text-[16px] font-semibold leading-5">{live ? 'Connected' : 'Showing sample data'}</span>
-            <span className="meta block">
-              {sync.lastSync ? `Last sync ${ago(sync.lastSync)}` : 'Never synced'}
-              {garmin ? ` · ${garmin.activities.length} activities` : ''}
-            </span>
+            <span className="block text-[16px] font-semibold leading-5">{connected ? 'Connected' : 'Not connected'}</span>
+            {sync.lastSync && (
+              <span className="meta block">
+                Last sync {ago(sync.lastSync)}
+                {garmin ? ` · ${garmin.activities.length} activities` : ''}
+              </span>
+            )}
           </span>
-          {garmin && <Toggle label="Use Garmin data" on={sync.mode === 'live'} onChange={(on) => setSync({ mode: on ? 'live' : 'sample' })} />}
+          {!open && (
+            <button onClick={() => setConnecting(true)} className="chip h-9">
+              Connect
+            </button>
+          )}
         </div>
         {/* how to connect, until it's connected, and again if a sync fails (a key that's run out, say) */}
-        {setUp && (
+        {open && setUp && (
           <ol className="border-t border-ink-2 py-3 text-[14.5px] leading-snug text-fg-2">
             {[
               <>
@@ -198,25 +210,41 @@ function Garmin() {
             ))}
           </ol>
         )}
-        <div className="flex flex-col gap-3 border-t border-ink-2 pt-4">
-          <Field label="Passphrase">
-            <input
-              type="password"
-              autoComplete="current-password"
-              value={sync.passphrase ?? ''}
-              onChange={(e) => setSync({ passphrase: e.target.value })}
-              placeholder="The one you set in Netlify"
-              className={inputCls}
-            />
-          </Field>
-          <button onClick={run} disabled={busy || !sync.passphrase} className="btn-primary w-full disabled:opacity-40">
-            <RefreshCw size={16} className={busy ? 'animate-spin' : ''} /> {busy ? 'Syncing…' : 'Sync now'}
-          </button>
-          {progress && <p className="meta">{progress}</p>}
-          {sync.status === 'error' && sync.message && !busy && <p className="text-[13px] leading-snug text-bad">{sync.message}</p>}
-          {PREVIEW && <p className="text-[12.5px] leading-snug text-fg-3">This preview runs on sample data. Sync works once the app is on Netlify.</p>}
-          {server && !busy && <ServerLine st={server} />}
-        </div>
+        {open && (
+          <div className="flex flex-col gap-3 border-t border-ink-2 pt-4">
+            <Field label="Passphrase">
+              <input
+                type="password"
+                autoComplete="current-password"
+                value={sync.passphrase ?? ''}
+                onChange={(e) => setSync({ passphrase: e.target.value })}
+                placeholder="The one you set in Netlify"
+                className={inputCls}
+              />
+            </Field>
+            <button onClick={run} disabled={busy || !sync.passphrase} className="btn-primary w-full disabled:opacity-40">
+              <RefreshCw size={16} className={busy ? 'animate-spin' : ''} /> {busy ? 'Syncing…' : 'Sync now'}
+            </button>
+            {progress && <p className="meta">{progress}</p>}
+            {sync.status === 'error' && sync.message && !busy && <p className="text-[13px] leading-snug text-bad">{sync.message}</p>}
+            {PREVIEW && <p className="text-[12.5px] leading-snug text-fg-3">This preview runs on sample data. Sync works once the app is on Netlify.</p>}
+            {server && !busy && <ServerLine st={server} />}
+          </div>
+        )}
+      </div>
+    </Section>
+  )
+}
+
+/** The made-up athlete's runs, games, lifts and nights instead of Garmin's, to show the app off. What you log stays as it is. */
+function Demo() {
+  const demo = useStore((s) => !!s.sync.demo)
+  const setSync = useStore((s) => s.setSync)
+  return (
+    <Section title="Demo">
+      <div className="flex items-center gap-3">
+        <span className="min-w-0 flex-1 text-[16px] font-semibold leading-5">Sample data</span>
+        <Toggle label="Sample data" on={demo} onChange={(on) => setSync({ demo: on || undefined })} />
       </div>
     </Section>
   )

@@ -62,9 +62,7 @@ function Weight({ body, now, news }: { body: BodyEntry[]; now: Date; news?: Stan
             Weigh in
           </button>
         }
-      >
-        Weigh in a few mornings a week. The 7-day average smooths out water and salt.
-      </Empty>
+      />
     )
   }
   const last = data.avg[data.avg.length - 1]

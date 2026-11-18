@@ -46,7 +46,10 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      # a preview opens on sample data (the Demo switch on); a real install starts blank
       - run: npm run build
+        env:
+          VITE_DEMO: '1'
       # no functions: a preview shows sample data and can't reach your real data or Garmin
       - name: Deploy a preview
         id: deploy
