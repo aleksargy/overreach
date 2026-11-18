@@ -1,4 +1,4 @@
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, Link2 } from 'lucide-react'
 import { Link } from 'react-router'
 import { EQUIPMENT, MUSCLES } from '../../data/exercises'
 import { useStore } from '../../data/store'
@@ -22,6 +22,24 @@ export function nextFor(w: World, ex: Exercise, sets?: number): Target {
 /** How many working sets your workouts give an exercise: the most any of them does. */
 export const plannedSets = (w: World, exerciseId: string) =>
   Math.max(0, ...w.routines.flatMap((r) => r.items.filter((i) => i.exerciseId === exerciseId).map((i) => i.sets))) || undefined
+
+/**
+ * The link on the line between two exercises: tap it and the one above and the one below become a superset, done
+ * in turns; tap it again and they're apart. Joined, it says so.
+ */
+export function SupersetLink({ linked, onToggle, above, className = '' }: { linked: boolean; onToggle: () => void; above: string; className?: string }) {
+  return (
+    <button
+      aria-label={linked ? `Superset: ${above} and the next exercise. Tap to split them` : `Superset ${above} with the next exercise`}
+      aria-pressed={linked}
+      onClick={onToggle}
+      className={`press z-10 flex h-7 items-center justify-center gap-1 rounded-full ${linked ? 'bg-strength px-2.5 text-[12.5px] font-bold text-ink-0' : 'w-7 bg-ink-2 text-fg-3'} ${className}`}
+    >
+      <Link2 size={14} strokeWidth={2.2} />
+      {linked && 'Superset'}
+    </button>
+  )
+}
 
 /** Start a workout, or go back to the one that's running. */
 export function useBegin() {

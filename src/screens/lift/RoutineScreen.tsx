@@ -1,5 +1,5 @@
 import { differenceInCalendarDays, parseISO } from 'date-fns'
-import { ArrowDown, ArrowUp, Check, Link2, Minus, Pencil, Plus, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, Check, Minus, Pencil, Plus, X } from 'lucide-react'
 import { useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router'
 import { IconButton, Screen } from '../../components/ui/Screen'
@@ -11,7 +11,7 @@ import { useWorld } from '../../data/world'
 import { focusOf, lastDone, loaded, supersetTags, tidySupersets, toggleSuperset } from '../../lib/lift'
 import { uid } from '../../lib/rng'
 import { Targets } from './LiftScreen'
-import { daysAgo, useBegin } from './parts'
+import { SupersetLink, daysAgo, useBegin } from './parts'
 
 /**
  * One of your workouts: what's in it and what to lift on each exercise, with
@@ -158,14 +158,12 @@ export function RoutineScreen() {
                   </div>
                   {/* on the line to the next one: do the two in turns */}
                   {i < r.items.length - 1 && (
-                    <button
-                      aria-label={`Superset ${ex.name} with the next exercise`}
-                      aria-pressed={!!it.superset && it.superset === r.items[i + 1].superset}
-                      onClick={() => setItems((items) => toggleSuperset(items, i, uid))}
-                      className={`press absolute bottom-0 left-1/2 z-10 grid h-7 w-7 -translate-x-1/2 translate-y-1/2 place-items-center rounded-full ${it.superset && it.superset === r.items[i + 1].superset ? 'bg-strength text-ink-0' : 'bg-ink-2 text-fg-3'}`}
-                    >
-                      <Link2 size={14} strokeWidth={2.2} />
-                    </button>
+                    <SupersetLink
+                      linked={!!it.superset && it.superset === r.items[i + 1].superset}
+                      onToggle={() => setItems((items) => toggleSuperset(items, i, uid))}
+                      above={ex.name}
+                      className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2"
+                    />
                   )}
                 </div>
               )
