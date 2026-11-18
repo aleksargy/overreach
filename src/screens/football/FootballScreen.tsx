@@ -1,4 +1,4 @@
-import { Info, Plus } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { AnimatePresence } from 'motion/react'
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router'
@@ -13,7 +13,7 @@ import { useUi } from '../../data/ui'
 import { useWorld } from '../../data/world'
 import { fmt } from '../../lib/format'
 import { POSITIONS, headToHead, ratingTone, recordWords, recurringPoints, result, rivals, seasonPitch, type Rivalry } from '../../lib/football'
-import { IN_FORM, PlayerCard } from './PlayerCard'
+import { PlayerCard } from './PlayerCard'
 import { RateTile } from './RateTile'
 import { season } from './season'
 
@@ -31,7 +31,6 @@ export function FootballScreen() {
   const w = useWorld()
   const open = useUi((s) => s.open)
   const s = season(w)
-  const [explain, setExplain] = useState(false)
   const [picked, setPicked] = useState(lastPicked)
   const f = picked !== undefined && s.formats.includes(picked) ? picked : s.formats[0]
   const fs = f !== undefined ? s.format(f) : undefined
@@ -86,29 +85,6 @@ export function FootballScreen() {
             <PlayerCard card={s.card} name={w.profile.name.trim()} />
             {fs && <SeasonTiles fs={fs} column />}
           </div>
-          <button onClick={() => setExplain((x) => !x)} aria-expanded={explain} className="link mx-auto mt-3 flex">
-            <Info size={14} strokeWidth={2} className="mr-1" /> How the card is built
-          </button>
-          {explain && (
-            <div className="tile mt-2.5">
-              <div className="list">
-                {s.card.attrs.map((a) => (
-                  <div key={a.key} className="flex items-baseline justify-between gap-3 py-2.5 text-[14px]">
-                    <span className="text-fg-2">
-                      <span className="mr-2 font-bold text-fg">{a.key}</span>
-                      {a.label}
-                    </span>
-                    <span className="text-right text-[13px] text-fg-3">{a.hint}</span>
-                  </div>
-                ))}
-              </div>
-              <p className="meta mt-2 leading-snug">
-                Pace, stamina and work rate come from your watch. Shooting and passing come from what you log. Each game is judged against its own format first, so a goal in 11s
-                counts for more than one in 7s. The edge is bronze under 65, silver from 65 and gold from 75, and the card says you&rsquo;re in form when your form is {IN_FORM} or
-                more.
-              </p>
-            </div>
-          )}
         </>
       ) : (
         <>

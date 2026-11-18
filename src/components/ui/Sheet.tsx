@@ -10,10 +10,15 @@ interface Props {
   kicker?: string
   children: ReactNode
   footer?: ReactNode
+  /** as tall as it goes, however little is in it: a list you search keeps still as it narrows */
+  full?: boolean
 }
 
-/** Bottom sheet: graphite with 26 px top corners, a handle and pills inside. Drag the handle down or tap outside to close; the page behind only dims. */
-export function Sheet({ open, onClose, title, kicker, children, footer }: Props) {
+/**
+ * Bottom sheet: graphite with 26 px top corners, a handle and pills inside. Drag the handle down or tap outside
+ * to close; the page behind only dims. It's a layer, so while you type it sits on the keyboard.
+ */
+export function Sheet({ open, onClose, title, kicker, children, footer, full }: Props) {
   const controls = useDragControls()
   useEffect(() => {
     if (!open) return
@@ -30,7 +35,7 @@ export function Sheet({ open, onClose, title, kicker, children, footer }: Props)
   return createPortal(
     <AnimatePresence>
       {open && (
-        <div className="fixed inset-0 z-50">
+        <div className="layer z-50">
           <motion.div
             className="absolute inset-0 bg-ink-0/75"
             initial={{ opacity: 0 }}
@@ -43,7 +48,7 @@ export function Sheet({ open, onClose, title, kicker, children, footer }: Props)
             role="dialog"
             aria-modal="true"
             aria-label={title}
-            className="sheet absolute inset-x-0 bottom-0 mx-auto flex max-h-[min(calc(100%-var(--edge)-8px),860px)] max-w-app flex-col rounded-t-sheet bg-ink-1"
+            className={`sheet absolute inset-x-0 bottom-0 mx-auto flex max-w-app flex-col rounded-t-sheet bg-ink-1 ${full ? 'h-[min(calc(100%-var(--edge)-8px),860px)]' : 'max-h-[min(calc(100%-var(--edge)-8px),860px)]'}`}
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
@@ -72,11 +77,11 @@ export function Sheet({ open, onClose, title, kicker, children, footer }: Props)
               )}
             </div>
             <div
-              className={`gutter overflow-y-auto overscroll-contain pt-3 [mask-image:linear-gradient(to_bottom,transparent,black_14px)] ${footer ? 'pb-4' : 'pb-[max(16px,var(--safe-bottom))]'}`}
+              className={`gutter overflow-y-auto overscroll-contain pt-3 [mask-image:linear-gradient(to_bottom,transparent,black_14px)] ${full ? 'min-h-0 flex-1' : ''} ${footer ? 'pb-4' : 'pb-[var(--sheet-foot)]'}`}
             >
               {children}
             </div>
-            {footer && <div className="gutter pb-[max(16px,var(--safe-bottom))] pt-3">{footer}</div>}
+            {footer && <div className="gutter pb-[var(--sheet-foot)] pt-3">{footer}</div>}
           </motion.div>
         </div>
       )}

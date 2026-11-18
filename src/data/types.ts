@@ -231,7 +231,6 @@ export interface Exercise {
   targetRpe: number
   /** kg added when progressing */
   increment: number
-  restS: number
   notes?: string
 }
 

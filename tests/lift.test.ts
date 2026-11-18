@@ -2,11 +2,13 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { BUILTIN_EXERCISES } from '../src/data/exercises'
 import type { Exercise, Routine, SetEntry, Workout } from '../src/data/types'
-import { focusOf, historyFor, nextRoutine, progressOf, recordsIn, setsLine, targetFor, targetText } from '../src/lib/lift'
+import { focusOf, historyFor, nextRoutine, progressOf, recordsIn, setsLine, targetFor, targetText, type TargetOptions } from '../src/lib/lift'
 
 const byId = new Map(BUILTIN_EXERCISES.map((e) => [e.id, e]))
 const bench = byId.get('bench-press')! // 6–10 reps, 2.5 kg steps
+const dbPress = byId.get('incline-db-press')! // 8–12 reps, 2 kg steps
 const pullUp = byId.get('pull-up')! // bodyweight plus added kg, 5–10 reps
+const pushUp = byId.get('push-up')! // 10–25 reps
 const plank = byId.get('plank')! // 45–90 s
 
 let n = 0
@@ -31,6 +33,8 @@ const session = (ex: Exercise, daysAgo: number, sets: SetEntry[], name = 'Push',
   }
 }
 const next = (ex: Exercise, ...sessions: Workout[]) => targetFor(ex, historyFor(ex.id, sessions))
+const nextWith = (ex: Exercise, o: TargetOptions, ...sessions: Workout[]) => targetFor(ex, historyFor(ex.id, sessions), o)
+const three = (kg: number | undefined, reps: number) => [set(kg, reps), set(kg, reps), set(kg, reps)]
 
 test('the first time there’s only the rep range to go for', () => {
   const t = next(bench)
@@ -38,20 +42,55 @@ test('the first time there’s only the rep range to go for', () => {
   assert.equal(targetText(bench, t), '6–10 reps')
 })
 
-test('short of the top of the range, the weight stays and the target is one more rep', () => {
+test('short of the top of the range, the weight stays and the weakest set aims for one more rep', () => {
   const t = next(bench, session(bench, 3, [set(60, 9), set(60, 8), set(60, 8)]))
   assert.deepEqual([t.move, t.kg, t.count, t.note], ['more', 60, 9, '+1 rep'])
   assert.equal(targetText(bench, t), '60 kg × 9')
   // warm-ups don't count towards it
   const warmed = next(bench, session(bench, 3, [set(30, 5, 'warmup'), set(60, 8), set(60, 8)]))
   assert.deepEqual([warmed.kg, warmed.count], [60, 9])
+  // each set aims for at least that, and no fewer than it did last time
+  const fading = next(bench, session(bench, 3, [set(60, 10), set(60, 9), set(60, 7)]))
+  assert.deepEqual([fading.count, fading.perSet], [8, [10, 9, 8]])
 })
 
 test('the top of the range on every set earns more weight, back at the bottom of the range', () => {
-  const t = next(bench, session(bench, 3, [set(60, 10), set(60, 10), set(60, 10)]))
+  const t = next(bench, session(bench, 3, three(60, 10)))
   assert.deepEqual([t.move, t.kg, t.count, t.note], ['up', 62.5, 6, '+2.5 kg'])
   // one set short isn't every set
   assert.equal(next(bench, session(bench, 3, [set(60, 10), set(60, 10), set(60, 9)])).move, 'more')
+  // nor is a set done lighter: it aims for the working weight, at what it says you'd get there plus one
+  const dropped = next(bench, session(bench, 3, [set(60, 10), set(60, 10), set(55, 10)]))
+  assert.deepEqual([dropped.move, dropped.kg, dropped.count, dropped.perSet], ['more', 60, 7, [10, 10, 7]])
+})
+
+test('the weight waits until the workout’s sets are all done at the top', () => {
+  const two = session(bench, 3, [set(60, 10), set(60, 10)])
+  const t = nextWith(bench, { sets: 3 }, two)
+  assert.deepEqual([t.move, t.kg, t.count, t.note], ['more', 60, 10, '+1 set'])
+  assert.equal(nextWith(bench, { sets: 2 }, two).move, 'up')
+})
+
+test('a step too big for the bottom of the range waits for more reps, until it’s in reach or the reps stop coming', () => {
+  // 10 kg dumbbells × 12 says about 5 reps at 12 kg, short of 8
+  const t = next(dbPress, session(dbPress, 3, three(10, 12)))
+  assert.deepEqual([t.move, t.kg, t.count, t.note], ['more', 10, 13, '+1 rep'])
+  assert.equal(next(dbPress, session(dbPress, 3, three(10, 15))).count, 16)
+  // × 16 says 8 at 12 kg
+  const up = next(dbPress, session(dbPress, 3, three(10, 16)))
+  assert.deepEqual([up.move, up.kg, up.count, up.note], ['up', 12, 8, '+2 kg'])
+  // three sessions at 13 and no further: the step goes ahead anyway
+  const stuck = next(dbPress, session(dbPress, 3, three(10, 13)), session(dbPress, 10, three(10, 13)), session(dbPress, 17, three(10, 13)))
+  assert.deepEqual([stuck.move, stuck.kg], ['up', 12])
+})
+
+test('a session far over or under the range sets the weight again from the weakest set, aiming mid-range', () => {
+  // 40 × 15 says about 47 kg for 8 reps: 45 on 2.5 kg steps, not one step at a time
+  const light = next(bench, session(bench, 3, three(40, 15)))
+  assert.deepEqual([light.move, light.kg, light.count, light.note], ['up', 45, 8, '+5 kg'])
+  // 60 × 3 says about 52 kg for 8
+  const heavy = next(bench, session(bench, 3, [set(60, 3), set(60, 3)]))
+  assert.deepEqual([heavy.move, heavy.kg, heavy.count, heavy.note], ['back', 50, 8, '−10 kg'])
 })
 
 test('under the range twice running at the same weight takes a tenth off', () => {
@@ -64,12 +103,64 @@ test('under the range twice running at the same weight takes a tenth off', () =>
   assert.deepEqual([once.move, once.kg, once.count, once.note], ['more', 70, 6, '+2 reps'])
 })
 
+test('no reps gained in two sessions at the same weight takes a tenth off', () => {
+  const flat = [session(bench, 2, [set(60, 8), set(60, 8), set(60, 7)]), session(bench, 9, [set(60, 8), set(60, 7), set(60, 7)])]
+  const t = next(bench, ...flat, session(bench, 16, [set(60, 8), set(60, 8), set(60, 7)]))
+  assert.deepEqual([t.move, t.kg, t.count, t.note], ['back', 55, 8, '−5 kg'])
+  // a rep gained in that time is still moving
+  assert.equal(next(bench, ...flat, session(bench, 16, [set(60, 8), set(60, 7), set(60, 6)])).move, 'more')
+  // so are reps gained on the other sets while the weakest one holds
+  const holding = [
+    session(bench, 2, [set(72.5, 7), set(72.5, 7), set(72.5, 7), set(72.5, 6)]),
+    session(
+      bench,
+      9,
+      Array.from({ length: 4 }, () => set(72.5, 6)),
+    ),
+  ]
+  const moving = next(
+    bench,
+    ...holding,
+    session(
+      bench,
+      16,
+      Array.from({ length: 4 }, () => set(72.5, 6)),
+    ),
+  )
+  assert.deepEqual([moving.move, moving.count, moving.perSet], ['more', 7, [7, 7, 7, 7]])
+  // and one bad day after a good one isn't stuck
+  const dip = [session(bench, 2, [set(60, 8), set(60, 7)]), session(bench, 9, [set(60, 8), set(60, 8)]), session(bench, 16, [set(60, 8), set(60, 7)])]
+  assert.deepEqual([next(bench, ...dip).move, next(bench, ...dip).count], ['more', 8])
+})
+
+test('a long break takes a tenth off: four weeks, or three times the usual gap', () => {
+  const now = new Date('2026-11-01T20:00:00Z')
+  const climbing = (days: number[]) => [session(bench, days[0], three(60, 9)), session(bench, days[1], three(60, 8)), session(bench, days[2], three(60, 7))]
+  // weekly, then 30 days off
+  const weekly = nextWith(bench, { now }, ...climbing([30, 37, 44]))
+  assert.deepEqual([weekly.move, weekly.kg, weekly.count], ['back', 55, 8])
+  // every fortnight, 30 days is only twice the usual gap
+  const fortnightly = nextWith(bench, { now }, ...climbing([30, 44, 58]))
+  assert.deepEqual([fortnightly.move, fortnightly.kg, fortnightly.count], ['more', 60, 10])
+})
+
+test('weight added to you counts with your body weight', () => {
+  const under = [session(pullUp, 3, [set(20, 4), set(20, 4)]), session(pullUp, 10, [set(20, 4), set(20, 4)])]
+  // a tenth of 80 kg plus 20 is 10 kg off
+  const t = nextWith(pullUp, { bodyKg: 80 }, ...under)
+  assert.deepEqual([t.move, targetText(pullUp, t), t.note], ['back', '+10 kg × 8', '−10 kg'])
+  // without a weigh-in it can only go by what's added
+  assert.equal(targetText(pullUp, next(pullUp, ...under)), '+17.5 kg × 8')
+})
+
 test('bodyweight work adds reps, holds add seconds, and added weight is written as added', () => {
-  const up = next(pullUp, session(pullUp, 2, [set(5, 10), set(5, 10), set(5, 10)]))
+  const up = next(pullUp, session(pullUp, 2, three(5, 10)))
   assert.equal(targetText(pullUp, up), '+7.5 kg × 5')
   // no weight added yet: the first step is to add some
   const first = next(pullUp, session(pullUp, 2, [set(undefined, 10), set(undefined, 10)]))
   assert.equal(targetText(pullUp, first), '+2.5 kg × 5')
+  const reps = next(pushUp, session(pushUp, 2, [set(undefined, 15), set(undefined, 12), set(undefined, 10)]))
+  assert.deepEqual([reps.count, reps.perSet, reps.note], [11, [15, 12, 11], '+1 rep'])
   const hold = next(plank, session(plank, 2, [set(undefined, 60, 'working', true), set(undefined, 50, 'working', true)]))
   assert.deepEqual([hold.move, hold.count, hold.note], ['more', 55, '+5 s'])
   assert.equal(targetText(plank, hold), '55 s')
@@ -139,4 +230,9 @@ test('a workout’s focus is its biggest muscle groups', () => {
     ],
   }
   assert.equal(focusOf(pushDay, byId), 'Shoulders, chest, triceps')
+})
+
+test('a weighted lift logged without a weight still gets one to go for', () => {
+  const t = next(bench, session(bench, 3, three(undefined, 10)))
+  assert.deepEqual([t.move, t.kg], ['up', 2.5])
 })
