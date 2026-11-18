@@ -313,6 +313,9 @@ export interface Race {
   goalS?: number
 }
 
+/** The tabs you can hide: Today stays, since it's home and the way into Settings. */
+export type TabKey = 'run' | 'football' | 'lift' | 'body'
+
 export interface Profile {
   name: string
   hrMax: number
@@ -321,6 +324,8 @@ export interface Profile {
   zones?: number[]
   /** the race you're training for */
   race?: Race
+  /** tabs you've hidden (Settings, Tabs): gone from the tab bar, Today and the + sheet; All activity still lists everything */
+  hiddenTabs?: TabKey[]
 }
 
 export interface SyncState {

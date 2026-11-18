@@ -6,7 +6,7 @@ import { Link, useNavigate } from 'react-router'
 import { Ball, SportIcon, sportColor } from '../../components/icons/SportIcon'
 import { IconButton, Screen } from '../../components/ui/Screen'
 import { SampleBadge } from '../../components/ui/bits'
-import type { Activity, Sport } from '../../data/types'
+import type { Activity, Sport, TabKey } from '../../data/types'
 import { useUi } from '../../data/ui'
 import { useWorld, type World } from '../../data/world'
 import { dayLabel, isoDay, km, kmh, pace, swimPace } from '../../lib/format'
@@ -35,9 +35,12 @@ export function TodayScreen() {
       }
       actions={
         <>
-          <IconButton label="Log something" onClick={() => open({ type: 'log' })} active>
-            <Plus size={18} strokeWidth={2.2} />
-          </IconButton>
+          {/* the + logs a match, a workout or a weigh-in: with all three tabs hidden there's nothing for it */}
+          {(['football', 'lift', 'body'] as const).some(w.shows) && (
+            <IconButton label="Log something" onClick={() => open({ type: 'log' })} active>
+              <Plus size={18} strokeWidth={2.2} />
+            </IconButton>
+          )}
           <button aria-label="Settings" title="Settings" onClick={() => nav('/settings')} className="round text-[14px] font-bold">
             {name.charAt(0).toUpperCase() || '·'}
           </button>
@@ -191,7 +194,7 @@ function DayDot({ d, label, w }: { d: Day; label: string; w: World }) {
 function Glance({ w }: { w: World }) {
   const game = <GameTile w={w} />
   const reading = <ReadingTile w={w} />
-  const hasGame = !!(w.nextFootball || w.matches[0])
+  const hasGame = w.shows('football') && !!(w.nextFootball || w.matches[0])
   const hasReading = !!readingFor(w)
   if (!hasGame && !hasReading) return null
   return (
@@ -264,7 +267,7 @@ function readingOf(s: Standout, w: World): { label: string; to: string } {
 function readingFor(w: World): { label: string; to: string; value: string; line: string; lineCls: string } | null {
   const s = w.news.today
   if (s) return { ...readingOf(s, w), value: s.value, line: s.short, lineCls: s.tone === 'bad' ? 'text-bad' : 'text-football' }
-  const weighIn = w.body.find((b) => b.weightKg)
+  const weighIn = w.shows('body') && w.body.find((b) => b.weightKg)
   if (weighIn) return { label: 'Weight', to: '/body', value: `${weighIn.weightKg!.toFixed(1)} kg`, line: dayLabel(weighIn.date, w.now), lineCls: 'text-fg-3' }
   return null
 }
@@ -289,7 +292,7 @@ function ReadingTile({ w }: { w: World }) {
 
 /** A game from the last two weeks still to rate, as on Football. */
 function ToRate({ w }: { w: World }) {
-  const a = w.unrated[0]
+  const a = w.shows('football') ? w.unrated[0] : undefined
   return <AnimatePresence initial={false}>{a && <RateTile key={a.id} a={a} w={w} />}</AnimatePresence>
 }
 
@@ -329,8 +332,12 @@ function numbersOf(a: Activity): { v: string; u: string }[] {
 const THUMB_TINT: Partial<Record<Sport, string>> = { run: 'bg-run-tint', football: 'bg-football-tint', strength: 'bg-strength-tint' }
 
 /** The last session: its route drawn small (or its sport), and its three numbers. */
+/** The tab a sport lives on; rides, swims and the rest have none, so they always show. */
+const TAB_OF: Partial<Record<Activity['sport'], TabKey>> = { run: 'run', football: 'football', strength: 'lift' }
+
 function Latest({ w }: { w: World }) {
-  const a = w.activities[0]
+  // the latest session from a tab you show
+  const a = w.activities.find((x) => !TAB_OF[x.sport] || w.shows(TAB_OF[x.sport]!))
   if (!a) return null
   return (
     <>

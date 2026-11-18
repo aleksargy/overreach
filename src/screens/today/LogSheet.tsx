@@ -4,13 +4,15 @@ import { useNavigate } from 'react-router'
 import { Ball } from '../../components/icons/SportIcon'
 import { BarMark } from '../../components/icons/tabs'
 import { Sheet } from '../../components/ui/Sheet'
+import { useStore } from '../../data/store'
+import type { TabKey } from '../../data/types'
 import { useUi, type SheetState } from '../../data/ui'
 
 /** Each thing you can log: most open their own sheet, lifting goes to its tab, where the next workout is waiting. */
-const ITEMS: { label: string; sub: string; icon: ReactNode; set: string; next?: SheetState; to?: string }[] = [
-  { label: 'Match', sub: 'Score, goals, assists and how it felt', icon: <Ball size={19} strokeWidth={1.8} />, set: '--football', next: { type: 'logMatch' } },
-  { label: 'Workout', sub: 'The next one on your list, with what to lift', icon: <BarMark size={19} strokeWidth={1.9} />, set: '--strength', to: '/lift' },
-  { label: 'Weigh-in', sub: 'Your weight this morning', icon: <Scale size={19} strokeWidth={1.9} />, set: '--body', next: { type: 'logBody' } },
+const ITEMS: { label: string; sub: string; icon: ReactNode; set: string; tab: TabKey; next?: SheetState; to?: string }[] = [
+  { label: 'Match', sub: 'Score, goals, assists and how it felt', icon: <Ball size={19} strokeWidth={1.8} />, set: '--football', tab: 'football', next: { type: 'logMatch' } },
+  { label: 'Workout', sub: 'The next one on your list, with what to lift', icon: <BarMark size={19} strokeWidth={1.9} />, set: '--strength', tab: 'lift', to: '/lift' },
+  { label: 'Weigh-in', sub: 'Your weight this morning', icon: <Scale size={19} strokeWidth={1.9} />, set: '--body', tab: 'body', next: { type: 'logBody' } },
 ]
 
 /** The + on Today: everything you type in yourself starts here. */
@@ -19,10 +21,12 @@ export function LogSheet() {
   const close = useUi((s) => s.close)
   const open = useUi((s) => s.open)
   const nav = useNavigate()
+  // only what goes on a tab you show
+  const hidden = useStore((s) => s.profile.hiddenTabs)
   return (
     <Sheet open={sheet?.type === 'log'} onClose={close} title="Log">
       <div className="list">
-        {ITEMS.map((it) => (
+        {ITEMS.filter((it) => !hidden?.includes(it.tab)).map((it) => (
           <button
             key={it.label}
             onClick={() => {
