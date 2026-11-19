@@ -22,6 +22,9 @@ import {
 
 const byId = new Map(BUILTIN_EXERCISES.map((e) => [e.id, e]))
 const bench = byId.get('bench-press')! // 6–10 reps, 2.5 kg steps
+const rdl = byId.get('romanian-deadlift')! // 6–10 reps, 2.5 kg steps
+const squat = byId.get('back-squat')! // 5–8 reps, 2.5 kg steps
+const legCurl: Exercise = { ...byId.get('leg-curl')!, repRange: [8, 12] } // 5 kg steps, on the range Alex uses
 const dbPress = byId.get('incline-db-press')! // 8–12 reps, 2 kg steps
 const pullUp = byId.get('pull-up')! // bodyweight plus added kg, 5–10 reps
 const pushUp = byId.get('push-up')! // 10–25 reps
@@ -81,6 +84,30 @@ test('the top of the range on every set earns more weight, back at the bottom of
   assert.deepEqual([dropped.move, dropped.kg, dropped.count, counts(dropped)], ['more', 60, 7, [10, 10, 7]])
 })
 
+test('the sets you ramp up through keep their weight and reps, and the rules run on the sets at the working weight', () => {
+  // 40 × 10 and 60 × 10 on the way to 80 × 9 aren't sets failed at 80
+  const t = next(rdl, session(rdl, 3, [set(40, 10), set(60, 10), set(80, 9)]))
+  assert.deepEqual([t.move, t.kg, t.count, t.note], ['more', 80, 10, '+1 rep'])
+  assert.deepEqual(t.perSet, [
+    { kg: 40, count: 10 },
+    { kg: 60, count: 10 },
+    { kg: 80, count: 10 },
+  ])
+  const sq = next(squat, session(squat, 3, [set(60, 9), set(80, 5), set(80, 5)]))
+  assert.deepEqual([sq.move, sq.kg, sq.count, counts(sq)], ['more', 80, 6, [9, 6, 6]])
+  // the top of the range at the working weight goes up, the ramp counting among the workout's sets
+  const up = nextWith(rdl, { sets: 3 }, session(rdl, 3, [set(40, 10), set(60, 10), set(80, 10)]))
+  assert.deepEqual([up.move, up.kg, up.count, up.note], ['up', 82.5, 6, '+2.5 kg'])
+  assert.deepEqual(up.perSet, [
+    { kg: 40, count: 10 },
+    { kg: 60, count: 10 },
+    { kg: 82.5, count: 6 },
+  ])
+  // a ramp set the working weight comes down to comes down with it
+  const back = next(bench, session(bench, 3, [set(65, 3), set(70, 5), set(70, 4)]), session(bench, 10, [set(65, 3), set(70, 5), set(70, 5)]))
+  assert.deepEqual([back.move, back.kg, back.perSet[0]], ['back', 62.5, { kg: 57.5, count: 3 }])
+})
+
 test('the weight waits until the workout’s sets are all done at the top', () => {
   const two = session(bench, 3, [set(60, 10), set(60, 10)])
   const t = nextWith(bench, { sets: 3 }, two)
@@ -101,13 +128,19 @@ test('a step too big for the bottom of the range waits for more reps, until it�
   assert.deepEqual([stuck.move, stuck.kg], ['up', 12])
 })
 
-test('a session far over or under the range sets the weight again from the weakest set, aiming mid-range', () => {
+test('every set at the working weight far over or under the range sets it again from the weakest, aiming mid-range', () => {
   // 40 × 15 says about 47 kg for 8 reps: 45 on 2.5 kg steps, not one step at a time
   const light = next(bench, session(bench, 3, three(40, 15)))
   assert.deepEqual([light.move, light.kg, light.count, light.note], ['up', 45, 8, '+5 kg'])
   // 60 × 3 says about 52 kg for 8
   const heavy = next(bench, session(bench, 3, [set(60, 3), set(60, 3)]))
   assert.deepEqual([heavy.move, heavy.kg, heavy.count, heavy.note], ['back', 50, 8, '−10 kg'])
+  // one set falling away is the day, not the weight: another go at it, for the bottom of the range
+  const fell = next(legCurl, session(legCurl, 3, [set(50, 11), set(55, 8), set(55, 5)]))
+  assert.deepEqual([fell.move, fell.kg, fell.count, counts(fell)], ['more', 55, 8, [11, 8, 8]])
+  // and a set done lighter is no set failed at the working weight
+  const lighter = next(bench, session(bench, 3, [set(60, 10), set(60, 10), set(50, 10)]))
+  assert.deepEqual([lighter.move, lighter.kg], ['more', 60])
 })
 
 test('under the range twice running at the same weight takes a tenth off', () => {

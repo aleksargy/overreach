@@ -185,8 +185,9 @@ function ExerciseBlock({ w, we, index, count, tag }: { w: World; we: WorkoutExer
   let nWork = 0
   let nWarm = 0
   let nDrop = 0
-  // straight sets: the weight you last put in on a set today carries down the sets after it, whatever the plan said
-  let typed: number | undefined
+  // straight sets: the weight you last put in on a set today carries down the sets after it planned at the same weight,
+  // whatever the plan said (so not from the ramp up to the working weight onto it)
+  let typed: { plan?: number; kg: number } | undefined
   // the set above, as it stands: a drop set goes down from it, and a pyramid set with nothing to go on a tenth below it
   let above: { kg?: number; count?: number } = {}
   let main: { kg?: number; count?: number } = {}
@@ -208,9 +209,12 @@ function ExerciseBlock({ w, we, index, count, tag }: { w: World; we: WorkoutExer
     const k = nWork++
     nDrop = 0
     const slot = target.perSet[k]
-    const phKg = ex.pyramid ? (slot?.kg ?? (k && main.kg ? pyramidStep(ex, main.kg) : undefined)) : (typed ?? target.kg ?? prevWork[k]?.kg)
+    // what the set was planned at: its own weight, else the target's; weight added to you with none is bodyweight
+    // (not last time's added weight, which is what a target down to bodyweight comes from)
+    const plan = slot?.kg ?? target.kg ?? (ex.kind === 'weighted-bodyweight' ? 0 : undefined)
+    const phKg = ex.pyramid ? (slot?.kg ?? (k && main.kg ? pyramidStep(ex, main.kg) : undefined)) : typed && typed.plan === plan ? typed.kg : plan
     const phCount = slot?.count ?? (ex.pyramid ? pyramidRange(ex, k)[0] : target.count)
-    if (s.kg !== undefined) typed = s.kg
+    if (s.kg !== undefined) typed = { plan, kg: s.kg }
     main = above = { kg: s.kg ?? phKg, count: countOf(s) ?? phCount }
     return { s, label: String(k + 1), previous: prevWork[k], phKg, phCount }
   })
