@@ -12,14 +12,23 @@
 // range twice, or no reps gained in two sessions, takes a tenth off to build back
 // from; so does a long break. Weight added to you counts with your body weight.
 //
+// Each week (Monday to Sunday) counts once, as its best session of the lift: a
+// lift done twice a week moves on from the better of the two, so a tired second
+// go doesn't pull it down, and backing off needs two weeks, not two sessions.
+//
 // A reverse pyramid (`Exercise.pyramid`) runs the same rules set by set: the top
 // set first, then each set lighter and two reps higher, each moving on its own.
 // A drop set is extra work logged after a set: it counts in the volume but never
 // moves a target. Exercises in a superset are done in turns and still move on
 // their own.
+//
+// A programme is some of your workouts run so many times a week, for a number of
+// weeks or with no end: Next up only comes from the one you're on.
 
+import { differenceInCalendarWeeks, parseISO, startOfWeek } from 'date-fns'
 import { MUSCLES } from '../data/exercises'
-import type { Exercise, LiftSummary, Routine, SetEntry, Workout } from '../data/types'
+import type { Exercise, LiftSummary, Programme, ProgrammeRun, Routine, SetEntry, Workout } from '../data/types'
+import { isoDay } from './format'
 import { median, round } from './math'
 
 /** A set that counts: done, and not a warm-up or a drop set. */
@@ -142,23 +151,66 @@ export const rampOf = (sets: SetEntry[], kg: number) =>
     sets.findIndex((s) => (s.kg ?? 0) === kg),
   )
 
+/** The Monday a day's week starts on, yyyy-MM-dd: weeks run Monday to Sunday. */
+export const mondayOf = (d: Date | string) => isoDay(startOfWeek(typeof d === 'string' ? parseISO(d) : d, { weekStartsOn: 1 }))
+
 /**
- * What to do next time, from the sessions before (newest first). Nothing to
+ * The better of two sessions of a lift, the one to build on: the heavier, as long as its weakest set there reached the
+ * range, then the one with more reps on that set, then more on average. A heavier go that fell short of the range
+ * loses to a lighter one that didn't; between two that fell short, the one whose weakest set says the most for a
+ * one-rep max wins. Work with nothing to load goes by the weakest set's reps or seconds. A tie keeps the newer.
+ */
+function better(ex: Exercise, a: ExerciseSession, b: ExerciseSession, bodyKg = 0): ExerciseSession {
+  const [lo] = ex.repRange
+  const rank = (h: ExerciseSession) => {
+    const main = work(h.sets)
+    if (!main.length) return { ok: false, kg: 0, least: 0, mean: 0, max: -1 }
+    const kg = loaded(ex) ? topOf(ex, main) : 0
+    const counts = (loaded(ex) ? main.slice(rampOf(main, kg)).filter((s) => (s.kg ?? 0) === kg) : main).map((s) => countOf(ex, s))
+    const least = Math.min(...counts)
+    const load = kg + (ex.kind === 'weighted-bodyweight' ? bodyKg : 0)
+    return { ok: !loaded(ex) || least >= lo, kg, least, mean: counts.reduce((x, y) => x + y, 0) / counts.length, max: load * (1 + least / 30) }
+  }
+  const x = rank(a)
+  const y = rank(b)
+  if (x.ok !== y.ok) return x.ok ? a : b
+  if (!x.ok) return y.max > x.max ? b : a
+  return y.kg > x.kg || (y.kg === x.kg && (y.least > x.least || (y.least === x.least && y.mean > x.mean))) ? b : a
+}
+
+/** A lift's sessions with each week (Monday to Sunday) as its best one, newest first: what targets go on. */
+export function weeksOf(ex: Exercise, history: ExerciseSession[], bodyKg?: number): ExerciseSession[] {
+  const out: ExerciseSession[] = []
+  let week = ''
+  for (const h of history) {
+    const k = mondayOf(h.date)
+    if (k === week) out[out.length - 1] = better(ex, out[out.length - 1], h, bodyKg)
+    else out.push(h)
+    week = k
+  }
+  return out
+}
+
+/**
+ * What to do next time, from the sessions before (newest first), each week as its best session. Nothing to
  * load: one more rep on the weakest set, or five more seconds. Loaded, the ramp
  * up to the working weight stays as it was and, in order: a long break takes a
  * tenth off; every set at the working weight far over or under the range sets it
- * again from the weakest, to land mid-range; under the range twice, or no reps
- * gained in two sessions, takes a tenth off; every set at the top earns the next
+ * again from the weakest, to land mid-range; under the range two weeks running, or
+ * no reps gained in two weeks, takes a tenth off; every set at the top earns the next
  * weight, once the workout's sets are all done and the step is in reach;
  * otherwise the weakest set aims for one more rep.
  */
-export function targetFor(ex: Exercise, history: ExerciseSession[], o: TargetOptions = {}): Target {
+export function targetFor(ex: Exercise, sessions: ExerciseSession[], o: TargetOptions = {}): Target {
   const [lo, hi] = ex.repRange
   const mid = Math.round((lo + hi) / 2)
   const timed = ex.kind === 'duration'
+  // each week counts once, as its best session: a tired second go in a week doesn't pull the target down, and the
+  // rules that back off count weeks, not sessions
+  const history = weeksOf(ex, sessions, o.bodyKg)
   const sets = work(history[0]?.sets ?? [])
   if (!sets.length) return { move: 'first', count: lo, perSet: [], note: '' }
-  if (ex.pyramid && loaded(ex)) return pyramidTarget(ex, history, o)
+  if (ex.pyramid && loaded(ex)) return pyramidTarget(ex, history, sessions, o)
 
   // nothing to load: another rep on the weakest set, or a longer hold
   if (!loaded(ex)) {
@@ -210,8 +262,9 @@ export function targetFor(ex: Exercise, history: ExerciseSession[], o: TargetOpt
   }
 
   // a long break: a tenth off
-  const off = o.now ? (o.now.getTime() - Date.parse(history[0].date)) / DAY : 0
-  if (off >= breakDays(history)) {
+  // (from the last time you did it, and your usual gap between any two goes)
+  const off = o.now ? (o.now.getTime() - Date.parse(sessions[0].date)) / DAY : 0
+  if (off >= breakDays(sessions)) {
     const next = lighter()
     if (next !== undefined) return at(next, 'back', mid)
   }
@@ -273,7 +326,8 @@ export const pyramidStep = (ex: Pick<Exercise, 'increment'>, kg: number) => Math
  * before, within its own rep range. A set the last session didn't have starts a tenth lighter than the one above it,
  * at the bottom of its range. The headline (`kg`, `count`, `move`, `note`) is the top set's.
  */
-function pyramidTarget(ex: Exercise, history: ExerciseSession[], o: TargetOptions): Target {
+function pyramidTarget(ex: Exercise, history: ExerciseSession[], sessions: ExerciseSession[], o: TargetOptions): Target {
+  // as many sets as the week's best session had
   const last = work(history[0].sets)
   const step = ex.increment || 2.5
   const body = ex.kind === 'weighted-bodyweight' ? (o.bodyKg ?? 0) : 0
@@ -281,8 +335,8 @@ function pyramidTarget(ex: Exercise, history: ExerciseSession[], o: TargetOption
   for (let k = 0; k < Math.max(1, o.sets ?? last.length); k++) {
     const range = pyramidRange(ex, k)
     if (k < last.length) {
-      // this set in the sessions that had it: the latest did
-      const own = history.map((h) => ({ ...h, sets: work(h.sets).slice(k, k + 1) })).filter((h) => h.sets.length)
+      // this set in the sessions that had it, each week its best: the latest did
+      const own = sessions.map((h) => ({ ...h, sets: work(h.sets).slice(k, k + 1) })).filter((h) => h.sets.length)
       sets.push(targetFor({ ...ex, pyramid: false, repRange: range }, own, { now: o.now, bodyKg: o.bodyKg }))
     } else {
       const above = sets[k - 1]
@@ -483,10 +537,58 @@ const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLow
 /** The last time a workout was done: by its id, or by its name for a session started again from history. Workouts newest first. */
 export const lastDone = (r: Routine, workouts: Workout[]) => workouts.find((w) => w.routineId === r.id || same(w.name, r.name))
 
-/** The workout that's waited longest: one you haven't done yet first, then the one done longest ago. Workouts newest first. */
-export function nextRoutine(routines: Routine[], workouts: Workout[]): Routine | undefined {
+/** The run of a programme that's still going, if any. */
+export const openRun = (p: Programme): ProgrammeRun | undefined => {
+  const r = p.runs[p.runs.length - 1]
+  return r && !r.end ? r : undefined
+}
+
+/** The programme you're on: the one still running (the latest to start, should two copies merged together both be). */
+export function currentProgramme(programmes: Programme[]): Programme | undefined {
+  let pick: { p: Programme; start: string } | undefined
+  for (const p of programmes) {
+    const r = openRun(p)
+    if (r && (!pick || r.start > pick.start)) pick = { p, start: r.start }
+  }
+  return pick?.p
+}
+
+/** Which week of a run a day falls in, from 1: weeks run Monday to Sunday, the first being the one it started in. */
+export const weekOfRun = (run: ProgrammeRun, now: Date) => differenceInCalendarWeeks(now, parseISO(run.start), { weekStartsOn: 1 }) + 1
+
+/** A programme's workouts in its order, as they are now: one deleted since is left out. */
+export const routinesOf = (p: Programme, routines: Routine[]) => p.routineIds.flatMap((id) => routines.find((r) => r.id === id) ?? [])
+
+/**
+ * Sessions of a programme's workouts in each week of a run, from its first to the week `now` is in (or the run's last,
+ * once it's ended). A session counts by the workout it came from, or its name.
+ */
+export function sessionsByWeek(p: Programme, run: ProgrammeRun, routines: Routine[], workouts: Workout[], now: Date): number[] {
+  const mine = routinesOf(p, routines)
+  const out = Array.from({ length: Math.max(1, weekOfRun(run, run.end ? parseISO(run.end) : now)) }, () => 0)
+  for (const w of workouts) {
+    const day = isoDay(parseISO(w.start))
+    if (!w.end || day < run.start || (run.end && day > run.end) || !mine.some((r) => w.routineId === r.id || same(w.name, r.name))) continue
+    const k = weekOfRun(run, parseISO(w.start)) - 1
+    if (k < out.length) out[k]++
+  }
+  return out
+}
+
+/** Sessions of a programme's workouts done this week (Monday to Sunday) since its run started. */
+export function doneThisWeek(p: Programme, routines: Routine[], workouts: Workout[], now: Date): number {
+  const run = openRun(p)
+  return run ? (sessionsByWeek(p, run, routines, workouts, now)[weekOfRun(run, now) - 1] ?? 0) : 0
+}
+
+/**
+ * The workout that's waited longest: one you haven't done yet first (in their order), then the one done longest ago.
+ * With a programme, only its workouts, as long as it has one with something in it. Workouts newest first.
+ */
+export function nextRoutine(routines: Routine[], workouts: Workout[], programme?: Programme): Routine | undefined {
+  const own = programme ? routinesOf(programme, routines).filter((r) => r.items.length) : []
   let pick: { r: Routine; t: number } | undefined
-  for (const r of routines) {
+  for (const r of own.length ? own : routines) {
     if (!r.items.length) continue
     const t = Date.parse(lastDone(r, workouts)?.start ?? '') || 0
     if (!pick || t < pick.t) pick = { r, t }

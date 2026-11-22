@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { SAMPLE_ROUTINES } from '../src/data/exercises'
 import { counts, describe, hasContent, merge, readBackup, withoutStarters, type Backup } from '../src/lib/backup'
-import type { BodyEntry, Match, Profile, Routine, Workout } from '../src/data/types'
+import type { BodyEntry, Match, Profile, Programme, Routine, Workout } from '../src/data/types'
 
 const profile: Profile = { name: 'Alex', hrMax: 189, hrRest: 47 }
 const match = (id: string, note = '') => ({ id, date: '2026-10-19', note }) as unknown as Match
@@ -18,6 +18,7 @@ const phone = (over: Partial<Backup> = {}): Backup => ({
   customExercises: [],
   exerciseEdits: {},
   routines: [],
+  programmes: [],
   body: [],
   ...over,
 })
@@ -43,6 +44,22 @@ test('folding in a saved copy keeps the phone’s version and never brings back 
   assert.equal(out.workouts.length, 1)
   // the phone already had data of its own, so its settings stay
   assert.equal(out.profile.name, 'Alex')
+})
+
+test('a programme of your own counts as data, and comes back in by id with the phone’s version kept', () => {
+  const full: Programme = { id: 'p-full', name: 'Full body', routineIds: ['r-a'], perWeek: 3, weeks: 10, runs: [{ start: '2026-11-16' }] }
+  assert.equal(hasContent(phone({ programmes: [full] })), true)
+  const out = merge(phone({ programmes: [{ ...full, weeks: 12 }] }), { programmes: [full, { ...full, id: 'p-split', name: 'Upper/lower' }] })
+  assert.deepEqual(
+    out.programmes.map((p) => [p.id, p.weeks]),
+    [
+      ['p-full', 12],
+      ['p-split', 10],
+    ],
+  )
+  // a copy saved before programmes has none, and that's fine
+  assert.deepEqual(merge(phone(), { workouts: [workout('w-1')] }).programmes, [])
+  assert.deepEqual(readBackup({ data: { programmes: [full] } })?.programmes, [full])
 })
 
 test('a phone with nothing of yours takes the saved settings too', () => {

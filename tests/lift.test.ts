@@ -1,14 +1,18 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { BUILTIN_EXERCISES } from '../src/data/exercises'
-import type { Exercise, Routine, SetEntry, Workout } from '../src/data/types'
+import type { Exercise, Programme, Routine, SetEntry, Workout } from '../src/data/types'
 import {
+  currentProgramme,
+  doneThisWeek,
   dropFor,
   dropsBySet,
   focusOf,
   historyFor,
   liftSummary,
   nextRoutine,
+  openRun,
+  sessionsByWeek,
   progressOf,
   recordsIn,
   setsLine,
@@ -18,6 +22,7 @@ import {
   toggleSuperset,
   type Target,
   type TargetOptions,
+  weekOfRun,
 } from '../src/lib/lift'
 
 const byId = new Map(BUILTIN_EXERCISES.map((e) => [e.id, e]))
@@ -141,6 +146,46 @@ test('every set at the working weight far over or under the range sets it again 
   // and a set done lighter is no set failed at the working weight
   const lighter = next(bench, session(bench, 3, [set(60, 10), set(60, 10), set(50, 10)]))
   assert.deepEqual([lighter.move, lighter.kg], ['more', 60])
+})
+
+test('a lift done twice in a week moves on from the better session, and backing off counts weeks', () => {
+  // 1 November is a Sunday: 6 days before is that week's Monday, 3 its Thursday, 10 the Thursday before
+  const monday = (sets: SetEntry[]) => session(bench, 6, sets)
+  const thursday = (sets: SetEntry[]) => session(bench, 3, sets)
+  // a tired Thursday doesn't pull the target down: it goes on from Monday
+  const tired = next(bench, thursday([set(60, 8), set(60, 7), set(60, 7)]), monday([set(60, 9), set(60, 9), set(60, 8)]))
+  assert.deepEqual([tired.move, tired.kg, tired.count, counts(tired)], ['more', 60, 9, [9, 9, 9]])
+  // under the range on Monday and Thursday is one week under, not two: another go before a tenth comes off
+  const once = next(bench, thursday([set(70, 5), set(70, 4)]), monday([set(70, 5), set(70, 5)]))
+  assert.deepEqual([once.move, once.kg, once.count], ['more', 70, 6])
+  // a heavier go that made the range is the one to build on
+  const moved = next(bench, thursday([set(62.5, 7), set(62.5, 6), set(62.5, 6)]), monday(three(60, 10)))
+  assert.deepEqual([moved.move, moved.kg, moved.count], ['more', 62.5, 7])
+  // one that fell short of it isn't: Monday's earned the step, so it's still there to take
+  const short = next(bench, thursday([set(62.5, 4), set(62.5, 4), set(62.5, 3)]), monday(three(60, 10)))
+  assert.deepEqual([short.move, short.kg, short.count, short.note], ['up', 62.5, 6, '+2.5 kg'])
+})
+
+test('a programme: Next up only from its workouts, its weeks Monday to Sunday, and its sessions this week', () => {
+  const r = (id: string, name: string): Routine => ({ id, name, focus: '', items: [{ exerciseId: bench.id, sets: 3 }] })
+  const routines = [r('a', 'Upper A'), r('b', 'Lower'), r('fa', 'Full body A'), r('fb', 'Full body B')]
+  const split: Programme = { id: 'p0', name: 'Upper/lower', routineIds: ['a', 'b'], perWeek: 4, runs: [{ start: '2026-08-03', end: '2026-10-19' }] }
+  // started Monday 19 October, so Sunday 1 November ends its second week
+  const full: Programme = { id: 'p1', name: 'Full body', routineIds: ['fa', 'fb'], perWeek: 3, weeks: 10, runs: [{ start: '2026-10-19' }] }
+  assert.equal(currentProgramme([split, full])?.id, 'p1')
+  assert.equal(openRun(split), undefined)
+  const sunday = new Date(2026, 10, 1, 12)
+  assert.deepEqual([weekOfRun(full.runs[0], sunday), weekOfRun(full.runs[0], new Date(2026, 9, 25, 12)), weekOfRun(full.runs[0], new Date(2026, 9, 26, 12))], [2, 1, 2])
+  const done = [session(bench, 3, three(60, 8), 'Full body A', 'fa'), session(bench, 10, three(60, 8), 'Full body B', 'fb')]
+  // the one that's waited longest, from the programme only; with none, from all your workouts
+  assert.equal(nextRoutine(routines, done, full)?.id, 'fb')
+  assert.equal(nextRoutine(routines, done)?.id, 'a')
+  // this week is Thursday's Full body A; the week before doesn't count
+  assert.equal(doneThisWeek(full, routines, done, sunday), 1)
+  // week by week through the run: one each, and the Upper A done before it started isn't in it
+  assert.deepEqual(sessionsByWeek(full, full.runs[0], routines, [...done, session(bench, 17, three(60, 8), 'Upper A', 'a')], sunday), [1, 1])
+  // a programme whose workouts are all empty leaves Next up to the rest
+  assert.equal(nextRoutine([...routines.slice(0, 2), { ...routines[2], items: [] }, { ...routines[3], items: [] }], done, full)?.id, 'a')
 })
 
 test('under the range twice running at the same weight takes a tenth off', () => {

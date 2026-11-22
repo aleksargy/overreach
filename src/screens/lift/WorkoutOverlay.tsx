@@ -24,6 +24,7 @@ import {
   targetText,
   tidySupersets,
   toggleSuperset,
+  weeksOf,
 } from '../../lib/lift'
 import { uid } from '../../lib/rng'
 import { MoveNote, SupersetLink, nextFor } from './parts'
@@ -156,6 +157,9 @@ function ExerciseBlock({ w, we, index, count, tag }: { w: World; we: WorkoutExer
   const say = useUi((s) => s.say)
   const ex = w.exerciseById.get(we.exerciseId)
   const history = useMemo(() => (ex ? historyFor(ex.id, w.workouts) : []), [ex, w.workouts])
+  // the session the target builds on: the latest week's best, which a tired second go that week isn't
+  const bodyKg = w.body.find((b) => b.weightKg)?.weightKg
+  const base = useMemo(() => (ex ? weeksOf(ex, history, bodyKg)[0] : undefined), [ex, history, bodyKg])
   // the sets it has today: fewer last time and the weight waits for them
   const sets = working(we).length
   const target = useMemo(() => (ex ? nextFor(w, ex, sets) : null), [w, ex, sets])
@@ -164,7 +168,7 @@ function ExerciseBlock({ w, we, index, count, tag }: { w: World; we: WorkoutExer
 
   const weighted = loaded(ex)
   const timed = ex.kind === 'duration'
-  const prev = history[0]
+  const prev = base
   const prevWork = prev ? mainSets(prev.sets) : []
   const prevWarm = prev?.sets.filter((s) => s.kind === 'warmup') ?? []
   const prevDrops = prev ? dropsBySet(prev.sets) : new Map<number, SetEntry[]>()
@@ -278,7 +282,7 @@ function ExerciseBlock({ w, we, index, count, tag }: { w: World; we: WorkoutExer
 
       <div className={`mt-4 grid ${cols} items-center gap-2 pb-1 text-[12px] font-semibold text-fg-3`}>
         <span>Set</span>
-        <span>Last time</span>
+        <span>{prev && prev !== history[0] ? 'Week’s best' : 'Last time'}</span>
         {weighted && <span className="text-center">{ex.kind === 'weighted-bodyweight' ? '+ kg' : 'kg'}</span>}
         <span className="text-center">{timed ? 'secs' : 'reps'}</span>
         <span />

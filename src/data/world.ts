@@ -1,19 +1,19 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { fetchStream } from './api'
-import { BUILTIN_EXERCISES, SAMPLE_ROUTINES } from './exercises'
+import { BUILTIN_EXERCISES, SAMPLE_PROGRAMME, SAMPLE_ROUTINES } from './exercises'
 import { SAMPLE_PROFILE, buildSample, sampleStreamFor, type SampleData } from './sample'
 import { useStore } from './store'
-import type { Activity, BodyEntry, Daily, Exercise, GarminActivity, Match, Profile, Routine, Stream, TabKey, Workout } from './types'
+import type { Activity, BodyEntry, Daily, Exercise, GarminActivity, Match, Profile, Programme, Routine, Stream, TabKey, Workout } from './types'
 import { analyseFootball, gamesToRate, usualFormatAt, withWatchLines, type FootballAnalysis } from '../lib/football'
-import { liftSummary } from '../lib/lift'
+import { currentProgramme, liftSummary, mondayOf } from '../lib/lift'
 import { isoDay } from '../lib/format'
 import { loadModel, srpeLoad, trimp, zoneBounds, zoneSecondsFromAvg, type LoadModel } from '../lib/load'
 import { runModel, type RunModel } from '../lib/running'
 import { nextOccurrence, recurringSlots, type Slot } from '../lib/schedule'
 import { footballSeries, liftSeries, recoverySeries, runSeries, weightSeries } from '../lib/series'
 import { headline, standout, type Standout } from '../lib/standout'
-import { differenceInCalendarDays, format } from 'date-fns'
+import { differenceInCalendarDays, format, subWeeks } from 'date-fns'
 
 export interface World {
   now: Date
@@ -29,6 +29,10 @@ export interface World {
   exercises: Exercise[]
   exerciseById: Map<string, Exercise>
   routines: Routine[]
+  /** your programmes, and on sample data the sample lifter's */
+  programmes: Programme[]
+  /** the one you're on: Next up only comes from its workouts */
+  programme?: Programme
   body: BodyEntry[]
   analyses: Map<string, FootballAnalysis>
   load: LoadModel
@@ -127,6 +131,7 @@ export function useWorld(): World {
       custom: st.customExercises,
       edits: st.exerciseEdits,
       routines: st.routines,
+      programmes: st.programmes,
       body: st.body,
       sync: st.sync,
       garmin: st.garmin,
@@ -143,6 +148,13 @@ export function useWorld(): World {
     const demo = !!s.sync.demo
     const live = !demo && s.sync.mode === 'live' && !!s.garmin
     const sample = demo ? getSample(now, s.profile) : null
+
+    // on sample data the sample lifter's programme shows too, four weeks in, unless you've made it yours; the one you're
+    // on comes first, then theirs
+    const sampleProgrammes: Programme[] =
+      demo && !s.programmes.some((p) => p.id === SAMPLE_PROGRAMME.id) ? [{ ...SAMPLE_PROGRAMME, runs: [{ start: mondayOf(subWeeks(now, 4)) }] }] : []
+    const programmes = [...sampleProgrammes, ...s.programmes]
+    const programme = currentProgramme(s.programmes) ?? currentProgramme(sampleProgrammes)
 
     const exercises = [...BUILTIN_EXERCISES.map((e) => ({ ...e, ...s.edits[e.id] })), ...s.custom]
     const exerciseById = new Map(exercises.map((e) => [e.id, e]))
@@ -214,6 +226,8 @@ export function useWorld(): World {
       exerciseById,
       // your own list starts empty; on sample data the sample lifter's workouts fill in, yours over theirs
       routines: demo ? [...SAMPLE_ROUTINES.filter((r) => !s.routines.some((x) => x.id === r.id)), ...s.routines] : s.routines,
+      programmes,
+      programme,
       body,
       analyses: sample?.analyses ?? new Map(),
       load,

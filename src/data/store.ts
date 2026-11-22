@@ -2,17 +2,20 @@ import { get as idbGet, set as idbSet } from 'idb-keyval'
 import { create } from 'zustand'
 import { SAMPLE_PROFILE } from './sample'
 import { backupOf, merge, withoutStarters, type Backup } from '../lib/backup'
+import { isoDay } from '../lib/format'
 import { withPoints } from '../lib/football'
+import { openRun } from '../lib/lift'
 import { uid } from '../lib/rng'
-import type { BodyEntry, Daily, Exercise, GarminActivity, Match, Profile, Routine, SetEntry, SyncState, Workout } from './types'
+import type { BodyEntry, Daily, Exercise, GarminActivity, LiftGoal, Match, Profile, Programme, Routine, SetEntry, SyncState, Workout } from './types'
 
 /** Everything you type into the app. Garmin data lives in `garmin`, sample data is generated. */
 export interface UserData {
   /**
    * 2: matches have points (what went well and badly) instead of moments. 3: your workouts start empty, without
    * the four starters. 4: a phone that hasn't synced starts blank (sync mode 'off'), and sample data is the Demo switch.
+   * 5: programmes.
    */
-  version: 4
+  version: 5
   profile: Profile
   matches: Match[]
   hiddenMatchIds: string[]
@@ -22,6 +25,8 @@ export interface UserData {
   customExercises: Exercise[]
   exerciseEdits: Record<string, Partial<Exercise>>
   routines: Routine[]
+  /** sets of your workouts run for some weeks; the one with a run still open is the one you're on */
+  programmes: Programme[]
   body: BodyEntry[]
   active: Workout | null
   sync: SyncState
@@ -38,7 +43,7 @@ export interface GarminCache {
 const START_DEMO = !!import.meta.env && (import.meta.env.VITE_PREVIEW === '1' || import.meta.env.VITE_DEMO === '1')
 
 const EMPTY: UserData = {
-  version: 4,
+  version: 5,
   // the sample athlete's heart rates until the watch says otherwise, but no name: it's yours to give
   profile: { ...SAMPLE_PROFILE, name: '' },
   matches: [],
@@ -48,6 +53,7 @@ const EMPTY: UserData = {
   customExercises: [],
   exerciseEdits: {},
   routines: [],
+  programmes: [],
   body: [],
   active: null,
   sync: { mode: 'off', demo: START_DEMO || undefined },
@@ -72,6 +78,16 @@ interface State extends UserData {
   /** add a workout of your own, or change one in place */
   saveRoutine: (r: Routine) => void
   deleteRoutine: (id: string) => void
+  /** add a programme, or change one in place */
+  saveProgramme: (p: Programme) => void
+  /** a programme goes; its workouts stay */
+  deleteProgramme: (id: string) => void
+  /** run a programme from today, a new run if it's run before; the one you were on ends today */
+  startProgramme: (p: Programme) => void
+  /** end the programme you're on today: Next up comes from all your workouts again */
+  stopProgramme: (p: Programme) => void
+  /** the goals for the run of a programme you're on */
+  setGoals: (p: Programme, goals: LiftGoal[]) => void
   addBody: (e: BodyEntry) => void
   setSync: (s: Partial<SyncState>) => void
   setGarmin: (g: GarminCache | null) => void
@@ -79,6 +95,12 @@ interface State extends UserData {
   mergeBackup: (saved: Partial<Backup>) => void
   resetAll: () => void
 }
+
+/** A list with `x` in it: in its place if it's there already, at the end if not. */
+const upsert = <T extends { id: string }>(list: T[], x: T) => (list.some((y) => y.id === x.id) ? list.map((y) => (y.id === x.id ? x : y)) : [...list, x])
+
+/** A programme with the run it has open ended on `day`. */
+const endRun = (day: string) => (p: Programme) => (openRun(p) ? { ...p, runs: p.runs.map((r, i) => (i === p.runs.length - 1 ? { ...r, end: day } : r)) } : p)
 
 const KEY = 'overreach:user:v1'
 const GARMIN_KEY = 'overreach:garmin:v1'
@@ -121,9 +143,10 @@ async function save(key: string, value: unknown) {
 export function upgrade(u: UserData): UserData {
   return {
     ...u,
-    version: 4,
+    version: 5,
     matches: (u.matches ?? []).map(withPoints),
     routines: withoutStarters(u.routines ?? [], u.workouts ?? []),
+    programmes: u.programmes ?? [],
     // before 4, a phone that hadn't synced said 'sample' and showed sample data; now it shows only what you log
     sync: { ...u.sync, mode: u.sync?.mode === 'live' ? 'live' : 'off' },
   }
@@ -131,7 +154,7 @@ export function upgrade(u: UserData): UserData {
 
 function pickUser(s: State): UserData {
   return {
-    version: 4,
+    version: 5,
     profile: s.profile,
     matches: s.matches,
     hiddenMatchIds: s.hiddenMatchIds,
@@ -140,6 +163,7 @@ function pickUser(s: State): UserData {
     customExercises: s.customExercises,
     exerciseEdits: s.exerciseEdits,
     routines: s.routines,
+    programmes: s.programmes,
     body: s.body,
     active: s.active,
     sync: { ...s.sync, status: 'idle' },
@@ -236,7 +260,33 @@ export const useStore = create<State>()((set, get) => ({
 
   saveRoutine: (r) => set((s) => ({ routines: s.routines.some((x) => x.id === r.id) ? s.routines.map((x) => (x.id === r.id ? r : x)) : [...s.routines, r] })),
 
-  deleteRoutine: (id) => set((s) => ({ routines: s.routines.filter((x) => x.id !== id) })),
+  // a workout that goes leaves the programmes it was in too
+  deleteRoutine: (id) =>
+    set((s) => ({
+      routines: s.routines.filter((x) => x.id !== id),
+      programmes: s.programmes.map((p) => (p.routineIds.includes(id) ? { ...p, routineIds: p.routineIds.filter((x) => x !== id) } : p)),
+    })),
+
+  saveProgramme: (p) => set((s) => ({ programmes: upsert(s.programmes, p) })),
+
+  deleteProgramme: (id) => set((s) => ({ programmes: s.programmes.filter((x) => x.id !== id) })),
+
+  startProgramme: (p) =>
+    set((s) => {
+      const today = isoDay(new Date())
+      // only one runs at a time: whatever was going ends today, this one too if it's starting over
+      const ended = upsert(s.programmes, s.programmes.find((x) => x.id === p.id) ?? p).map(endRun(today))
+      const mine = ended.find((x) => x.id === p.id)!
+      return { programmes: upsert(ended, { ...mine, runs: [...mine.runs, { start: today }] }) }
+    }),
+
+  stopProgramme: (p) => set((s) => ({ programmes: upsert(s.programmes, endRun(isoDay(new Date()))(s.programmes.find((x) => x.id === p.id) ?? p)) })),
+
+  setGoals: (p, goals) =>
+    set((s) => {
+      const mine = s.programmes.find((x) => x.id === p.id) ?? p
+      return openRun(mine) ? { programmes: upsert(s.programmes, { ...mine, runs: mine.runs.map((r, i) => (i === mine.runs.length - 1 ? { ...r, goals } : r)) }) } : {}
+    }),
 
   addBody: (e) => set((s) => ({ body: [e, ...s.body] })),
 
