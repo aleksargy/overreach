@@ -2,13 +2,14 @@
 
 ## Next
 
-1. Floodlight on the iPhone: check that the tab bar stays 26 px off the foot on every screen, that each screen's first line is clear of the frost under the status bar, that sheets and the logger reach the bottom, and that while typing they sit on the keyboard (the picker's search, a new exercise's name, reps in the logger) without the page sliding away. The stand-in keyboard in `npm run screens` shows the layout, but not what iOS itself does. `npm run screens -- --phone` draws the insets and the frost, but the 62 px layout bug only happens on the phone itself.
-2. Alex's first weeks on the Lift tab: do the targets suit how he trains (when the weight goes up, when it waits, when a tenth comes off), and are each exercise's rep range and weight step right for him? He can change them per exercise, but the defaults should be close.
-3. Whether the readings picked out as worth a look are the ones he'd have picked, and whether it's the right amount. The bars are `min` on each series in `src/lib/series.ts` (three weeks for a morning's reading) and `headline` in `src/lib/standout.ts` for Today (twice that, and no more than a day and a half old). Replayed over 60 mornings of his data, Today picked something out on 17 and each tab on 11 to 15.
-4. Check that run weather gets filled in from Netlify (it does from the Mac).
-5. Once there are ten or so rated games in each format, revisit `PAR`, `ENGINE_RANGE` and `BIG_MARGIN` in `src/lib/football.ts`. They're judgement calls, not fitted to data. Since 18 Nov metres a minute and sprints per 10 minutes count minutes played, not half time, so they read about a tenth higher than before.
-6. Half time on Alex's own games: that the report's halves start and stop where he paused the watch, and where a game he didn't pause had its break. A lap pressed at half time would be one more thing to read, if he does that.
-7. Check the season heatmap's ends on real data (it says so when it can't tell). Ghosts: loops run the other way round would be the next step.
+1. Programmes, next: in a week of a programme, the sets each muscle gets (to compare a split with full body while making one); what past runs came to on a programme's page; a lift's goal on its own page.
+2. Floodlight on the iPhone: check that the tab bar stays 26 px off the foot on every screen, that each screen's first line is clear of the frost under the status bar, that sheets and the logger reach the bottom, and that while typing they sit on the keyboard (the picker's search, a new exercise's name, reps in the logger) without the page sliding away. The stand-in keyboard in `npm run screens` shows the layout, but not what iOS itself does. `npm run screens -- --phone` draws the insets and the frost, but the 62 px layout bug only happens on the phone itself.
+3. Alex's first weeks on the Lift tab: do the targets suit how he trains (when the weight goes up, when it waits, when a tenth comes off), and are each exercise's rep range and weight step right for him? He can change them per exercise, but the defaults should be close.
+4. Whether the readings picked out as worth a look are the ones he'd have picked, and whether it's the right amount. The bars are `min` on each series in `src/lib/series.ts` (three weeks for a morning's reading) and `headline` in `src/lib/standout.ts` for Today (twice that, and no more than a day and a half old). Replayed over 60 mornings of his data, Today picked something out on 17 and each tab on 11 to 15.
+5. Check that run weather gets filled in from Netlify (it does from the Mac).
+6. Once there are ten or so rated games in each format, revisit `PAR`, `ENGINE_RANGE` and `BIG_MARGIN` in `src/lib/football.ts`. They're judgement calls, not fitted to data. Since 18 Nov metres a minute and sprints per 10 minutes count minutes played, not half time, so they read about a tenth higher than before.
+7. Half time on Alex's own games: that the report's halves start and stop where he paused the watch, and where a game he didn't pause had its break. A lap pressed at half time would be one more thing to read, if he does that.
+8. Check the season heatmap's ends on real data (it says so when it can't tell). Ghosts: loops run the other way round would be the next step.
 
 ## Not checked yet
 
