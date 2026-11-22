@@ -1,5 +1,5 @@
 import { differenceInCalendarDays, format, parseISO } from 'date-fns'
-import { ChevronRight, Plus } from 'lucide-react'
+import { ChevronRight, Layers, Plus } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { IconButton, Screen } from '../../components/ui/Screen'
@@ -10,9 +10,10 @@ import { useStore } from '../../data/store'
 import type { Muscle, Routine } from '../../data/types'
 import { useUi } from '../../data/ui'
 import { useWorld, type World } from '../../data/world'
-import { amount, focusOf, historyFor, lastDone, nextRoutine, progressOf, recordsIn, supersetTags, targetText, topOf } from '../../lib/lift'
+import { amount, focusOf, historyFor, lastDone, nextRoutine, progressOf, recordsIn, routinesOf, supersetTags, targetText, topOf } from '../../lib/lift'
 import { uid } from '../../lib/rng'
 import { EQUIPMENT_LABEL, MUSCLE_LABEL, MoveNote, WorkoutRow, daysAgo, nextFor, useBegin } from './parts'
+import { WeekBars, programmeWhen } from './ProgrammeScreen'
 
 /** How long ago a workout was last done, in days; undefined if never. */
 const sinceDone = (r: Routine, w: World) => {
@@ -20,15 +21,24 @@ const sinceDone = (r: Routine, w: World) => {
   return last ? differenceInCalendarDays(w.now, parseISO(last.start)) : undefined
 }
 
-/** Make a blank workout and open it for editing. */
+/** Make a blank workout and open it for editing; it goes in the programme you're on, if you're on one. */
 export function useNewWorkout() {
   const save = useStore((s) => s.saveRoutine)
+  const saveProgramme = useStore((s) => s.saveProgramme)
+  const programme = useWorld().programme
   const nav = useNavigate()
   return () => {
     const id = `r-${uid()}`
     save({ id, name: 'New workout', focus: '', items: [] })
+    if (programme) saveProgramme({ ...programme, routineIds: [...programme.routineIds, id] })
     nav(`/lift/workout/${id}?edit=1`)
   }
+}
+
+/** The workouts Next up picks from: the programme you're on, when it has any, or all of yours. */
+const inPlay = (w: World) => {
+  const own = w.programme ? routinesOf(w.programme, w.routines) : []
+  return own.length ? own : w.routines
 }
 
 /** Lifting: what to do next, your workouts, and how the weights are moving. */
@@ -36,7 +46,8 @@ export function LiftScreen() {
   const w = useWorld()
   const active = useStore((s) => s.active)
   const create = useNewWorkout()
-  const next = useMemo(() => nextRoutine(w.routines, w.workouts), [w])
+  const nav = useNavigate()
+  const next = useMemo(() => nextRoutine(w.routines, w.workouts, w.programme), [w])
   // a workout that was started and left with nothing in it is tidied away on the way back here
   useEffect(() => {
     const { routines, deleteRoutine } = useStore.getState()
@@ -54,9 +65,14 @@ export function LiftScreen() {
         )
       }
       actions={
-        <IconButton label="New workout" onClick={create} active>
-          <Plus size={18} strokeWidth={2.2} />
-        </IconButton>
+        <>
+          <IconButton label="Programmes" onClick={() => nav('/lift/programmes')}>
+            <Layers size={17} />
+          </IconButton>
+          <IconButton label="New workout" onClick={create} active>
+            <Plus size={18} strokeWidth={2.2} />
+          </IconButton>
+        </>
       }
     >
       {active ? (
@@ -95,17 +111,29 @@ export function LiftScreen() {
   )
 }
 
-/** The workout that's waited longest, on the lilac tint, with what to lift on every exercise. */
+/**
+ * The workout that's waited longest, on the lilac tint, with what to lift on every exercise. On a programme, its
+ * name and week head it, with this week's sessions as dots.
+ */
 function NextUp({ w, routine }: { w: World; routine: Routine }) {
   const begin = useBegin()
   const since = sinceDone(routine, w)
   const focus = focusOf(routine, w.exerciseById)
+  const p = w.programme
+  const when = p && programmeWhen(p, w.now)
   return (
     <section className="hero flex flex-col gap-1 bg-strength-tint">
-      <div className="flex items-center justify-between gap-3 text-strength-label">
-        <h2 className="text-[13px] font-bold">Next up</h2>
-        <span className="text-[12.5px] font-semibold">{since === undefined ? 'Not done yet' : `Last done ${daysAgo(since).toLowerCase()}`}</span>
-      </div>
+      {p ? (
+        <Link to={`/lift/programme/${p.id}`} className="press flex items-center justify-between gap-3 text-strength-label">
+          <h2 className="min-w-0 truncate text-[13px] font-bold">{when ? `${p.name} · ${when.charAt(0).toLowerCase()}${when.slice(1)}` : p.name}</h2>
+          <WeekBars p={p} w={w} tinted />
+        </Link>
+      ) : (
+        <div className="flex items-center justify-between gap-3 text-strength-label">
+          <h2 className="text-[13px] font-bold">Next up</h2>
+          <span className="text-[12.5px] font-semibold">{since === undefined ? 'Not done yet' : `Last done ${daysAgo(since).toLowerCase()}`}</span>
+        </div>
+      )}
       <Link to={`/lift/workout/${routine.id}`} className="press mt-1 block">
         <h3 className="display text-balance text-[44px] font-extrabold leading-none tracking-[-0.035em] text-strength-head">{routine.name}</h3>
       </Link>
@@ -172,12 +200,16 @@ function InProgress() {
   )
 }
 
-/** Your workouts as chips that scroll sideways: the next one up tinted, and a dashed one to make another. */
+/**
+ * Your workouts as chips that scroll sideways (on a programme, its workouts in its order): the next one up tinted,
+ * and a dashed one to make another.
+ */
 function Workouts({ w, next, onNew }: { w: World; next?: string; onNew: () => void }) {
-  if (!w.routines.length) return null
+  const list = inPlay(w)
+  if (!list.length) return null
   return (
     <div className="no-scrollbar -mx-4 mt-2.5 flex gap-2 overflow-x-auto px-4">
-      {w.routines.map((r) => (
+      {list.map((r) => (
         <Link key={r.id} to={`/lift/workout/${r.id}`} className={`chip shrink-0 px-3.5 text-[14px] ${r.id === next ? 'bg-strength-tint text-strength-head' : 'text-fg'}`}>
           {r.name}
         </Link>

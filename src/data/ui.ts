@@ -8,6 +8,10 @@ export type SheetState =
   | { type: 'exercise'; exerciseId?: string; name?: string; onSaved?: (id: string) => void }
   // `many` keeps the sheet open while you build a workout, so several can go in at one sitting
   | { type: 'pickExercise'; onPick: (id: string) => void; many?: boolean }
+  // workouts to put in a programme: the ones not in it yet, or a new one
+  | { type: 'pickRoutine'; onPick: (id: string) => void; exclude: string[] }
+  // the goals for the run of a programme you're on
+  | { type: 'goals'; programmeId: string }
   | { type: 'finishWorkout' }
 
 interface Ui {

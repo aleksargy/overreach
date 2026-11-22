@@ -1,4 +1,4 @@
-import type { Equipment, Exercise, ExerciseKind, Muscle, Routine } from './types'
+import type { Equipment, Exercise, ExerciseKind, Muscle, Programme, Routine } from './types'
 
 type Def = [id: string, name: string, muscle: Muscle, equipment: Equipment, kind: ExerciseKind, range: [number, number], increment: number, extra?: Partial<Exercise>]
 
@@ -144,3 +144,15 @@ export const SAMPLE_ROUTINES: Routine[] = [
     ],
   },
 ]
+
+/**
+ * The sample lifter's programme: their four workouts, three times a week for ten weeks, started four weeks before
+ * today (the world gives it its run). On sample data only.
+ */
+export const SAMPLE_PROGRAMME: Omit<Programme, 'runs'> = {
+  id: 'p-sample',
+  name: 'Push pull legs',
+  routineIds: SAMPLE_ROUTINES.map((r) => r.id),
+  perWeek: 3,
+  weeks: 10,
+}

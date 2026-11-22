@@ -21,6 +21,7 @@ import { ExerciseScreen } from './screens/lift/ExerciseScreen'
 import { ExerciseSheet, PickExerciseSheet } from './screens/lift/ExerciseSheets'
 import { ExercisesScreen, LiftHistoryScreen, LiftScreen } from './screens/lift/LiftScreen'
 import { RoutineScreen } from './screens/lift/RoutineScreen'
+import { GoalsSheet, PickRoutineSheet, ProgrammeScreen, ProgrammesScreen } from './screens/lift/ProgrammeScreen'
 import { MiniWorkoutBar, WorkoutOverlay } from './screens/lift/WorkoutOverlay'
 import { WorkoutScreen } from './screens/lift/WorkoutScreen'
 import { HelpScreen } from './screens/settings/HelpScreen'
@@ -42,6 +43,8 @@ const routes: RouteObject[] = [
       { path: '/match/:id', element: <MatchReportScreen /> },
       { path: '/lift', element: <LiftScreen /> },
       { path: '/lift/workout/:id', element: <RoutineScreen /> },
+      { path: '/lift/programmes', element: <ProgrammesScreen /> },
+      { path: '/lift/programme/:id', element: <ProgrammeScreen /> },
       { path: '/lift/exercises', element: <ExercisesScreen /> },
       { path: '/lift/exercise/:id', element: <ExerciseScreen /> },
       { path: '/lift/history', element: <LiftHistoryScreen /> },
@@ -108,6 +111,8 @@ function Shell() {
       <LogBodySheet />
       <ExerciseSheet />
       <PickExerciseSheet />
+      <PickRoutineSheet />
+      <GoalsSheet />
       <WorkoutOverlay />
       <RatingReveal />
       <Toast />

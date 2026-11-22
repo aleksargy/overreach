@@ -293,6 +293,44 @@ export interface Routine {
   items: RoutineItem[]
 }
 
+/** One go at a programme: from the day it started to the day it ended; the one you're on has no end yet. */
+export interface ProgrammeRun {
+  /** yyyy-MM-dd */
+  start: string
+  end?: string
+  /** what you're aiming for on some of its lifts by the end of this run */
+  goals?: LiftGoal[]
+}
+
+/** A set to reach on a lift by a day: its weight (added weight, for weight added to you) and reps. */
+export interface LiftGoal {
+  exerciseId: string
+  kg: number
+  reps: number
+  /** where the lift stood when the goal was set: its best set that week */
+  from: { kg: number; reps: number }
+  /** yyyy-MM-dd: when it was set, and the day it's aimed for (the run's last, or ten weeks on with no end) */
+  set: string
+  by: string
+}
+
+/**
+ * A programme: some of your workouts, run so many times a week, for a number of weeks or with no end. Next up only
+ * comes from the one you're on; your other workouts stay saved. A workout can be in more than one.
+ */
+export interface Programme {
+  id: string
+  name: string
+  /** its workouts, in the order they come round */
+  routineIds: string[]
+  /** sessions a week */
+  perWeek: number
+  /** how many weeks it runs; none for no end */
+  weeks?: number
+  /** each time you've run it, oldest first */
+  runs: ProgrammeRun[]
+}
+
 export interface BodyEntry {
   id: string
   date: string

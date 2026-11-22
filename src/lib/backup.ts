@@ -2,7 +2,7 @@
 // (src/data/backup.ts), Settings downloads one, and either folds back in.
 
 import { SAMPLE_ROUTINES } from '../data/exercises'
-import type { BodyEntry, Exercise, Match, Profile, Routine, Workout } from '../data/types'
+import type { BodyEntry, Exercise, Match, Profile, Programme, Routine, Workout } from '../data/types'
 import { withPoints } from './football'
 
 export interface Backup {
@@ -14,6 +14,7 @@ export interface Backup {
   customExercises: Exercise[]
   exerciseEdits: Record<string, Partial<Exercise>>
   routines: Routine[]
+  programmes: Programme[]
   body: BodyEntry[]
 }
 
@@ -26,14 +27,15 @@ export const BACKUP_KEYS = [
   'customExercises',
   'exerciseEdits',
   'routines',
+  'programmes',
   'body',
 ] as const satisfies readonly (keyof Backup)[]
 
-const LISTS = ['matches', 'workouts', 'customExercises', 'routines', 'body'] as const
+const LISTS = ['matches', 'workouts', 'customExercises', 'routines', 'programmes', 'body'] as const
 
 export function backupOf(s: Backup): Backup {
-  const { profile, matches, hiddenMatchIds, skippedRatings, workouts, customExercises, exerciseEdits, routines, body } = s
-  return { profile, matches, hiddenMatchIds, skippedRatings, workouts, customExercises, exerciseEdits, routines, body }
+  const { profile, matches, hiddenMatchIds, skippedRatings, workouts, customExercises, exerciseEdits, routines, programmes, body } = s
+  return { profile, matches, hiddenMatchIds, skippedRatings, workouts, customExercises, exerciseEdits, routines, programmes, body }
 }
 
 /** the four workouts every phone used to start with, as they were handed out */
@@ -48,9 +50,9 @@ export function withoutStarters(routines: Routine[], workouts: Workout[]): Routi
   return routines.filter((r) => STARTERS.get(r.id) !== JSON.stringify(r) || workouts.some((w) => w.routineId === r.id))
 }
 
-/** Anything you'd miss: a match, a session, a weigh-in, or an exercise or a workout of your own. */
+/** Anything you'd miss: a match, a session, a weigh-in, or an exercise, a workout or a programme of your own. */
 export const hasContent = (b: Partial<Backup>) =>
-  !!(b.matches?.length || b.workouts?.length || b.body?.length || b.customExercises?.length || withoutStarters(b.routines ?? [], b.workouts ?? []).length)
+  !!(b.matches?.length || b.workouts?.length || b.body?.length || b.customExercises?.length || b.programmes?.length || withoutStarters(b.routines ?? [], b.workouts ?? []).length)
 
 /**
  * Fold a saved copy into what's on the phone. Lists join by id and the phone's
@@ -70,6 +72,7 @@ export function merge(mine: Backup, saved: Partial<Backup>): Backup {
     customExercises: join(mine.customExercises, saved.customExercises),
     exerciseEdits: { ...saved.exerciseEdits, ...mine.exerciseEdits },
     routines: withoutStarters(join(mine.routines, saved.routines), join(mine.workouts, saved.workouts)),
+    programmes: join(mine.programmes ?? [], saved.programmes),
     body: join(mine.body, saved.body),
   }
 }
