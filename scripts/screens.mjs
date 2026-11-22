@@ -243,6 +243,121 @@ const SCREENS = [
   ['lift-exercise', { from: '/lift', link: 'a[href^="/lift/exercise/"]' }],
   ['lift-session', { from: '/lift', link: 'a[href^="/lift/history/"]' }],
   ['lift-history', '/lift/history'],
+  // programmes: the list, the one you're on, editing it, adding workouts to it, and a new one being named
+  ['lift-programmes', '/lift/programmes'],
+  ['lift-programme', { from: '/lift/programmes', link: 'a[href^="/lift/programme/"]' }],
+  [
+    'lift-programme-edit',
+    {
+      from: '/lift/programmes',
+      async sheet(page) {
+        const first = page.locator('a[href^="/lift/programme/"]').first()
+        if (!(await first.count())) return false
+        await first.click()
+        await page.waitForTimeout(600)
+        await page.getByRole('button', { name: 'Edit programme' }).click()
+        await page.waitForTimeout(400)
+      },
+    },
+  ],
+  // goals for the programme you're on: the sheet as first suggested, then the page once they're saved
+  [
+    'lift-goals',
+    {
+      from: '/lift/programmes',
+      async sheet(page) {
+        const first = page.locator('a[href^="/lift/programme/"]').first()
+        if (!(await first.count())) return false
+        await first.click()
+        await page.waitForTimeout(600)
+        const set = page.getByRole('button', { name: 'Set goals' })
+        await ((await set.count()) ? set : page.getByRole('button', { name: 'Edit', exact: true })).click()
+        await page.waitForTimeout(500)
+      },
+    },
+  ],
+  [
+    'lift-programme-goals',
+    {
+      from: '/lift/programmes',
+      async sheet(page) {
+        const first = page.locator('a[href^="/lift/programme/"]').first()
+        if (!(await first.count())) return false
+        await first.click()
+        await page.waitForTimeout(600)
+        const set = page.getByRole('button', { name: 'Set goals' })
+        if (await set.count()) {
+          await set.click()
+          await page.waitForTimeout(500)
+          await page.getByRole('button', { name: 'Save goals' }).click()
+          await page.waitForTimeout(500)
+        }
+      },
+    },
+  ],
+  [
+    'lift-programme-add',
+    {
+      from: '/lift/programmes',
+      async sheet(page) {
+        await page.getByRole('button', { name: 'New programme' }).first().click()
+        await page.waitForTimeout(500)
+        await page.keyboard.type('Full body')
+        await blur(page)
+        await page.getByRole('button', { name: 'Add workouts' }).click()
+        await page.waitForTimeout(500)
+      },
+    },
+  ],
+  // a programme of two of your workouts made and started: the Lift tab it leads back to (stopped again afterwards,
+  // so the shots after it see the programme they would have)
+  [
+    'lift-programme-started',
+    {
+      from: '/lift/programmes',
+      async sheet(page) {
+        await page.getByRole('button', { name: 'New programme' }).first().click()
+        await page.waitForTimeout(500)
+        await page.keyboard.type('Full body')
+        await blur(page)
+        await page.getByRole('button', { name: 'Add workouts' }).click()
+        await page.waitForTimeout(500)
+        // the workouts listed in the sheet, under New workout
+        const rows = page.getByRole('dialog').locator('button.border-b')
+        if (!(await rows.count())) return false
+        for (let i = 0; i < Math.min(2, await rows.count()); i++) await rows.nth(i).click()
+        await page.getByRole('dialog').getByRole('button', { name: 'Done' }).click()
+        await page.waitForTimeout(600)
+        // the editor's Done, at the top (the sheet's may still be on its way out)
+        await page.getByRole('button', { name: 'Done' }).first().click()
+        await page.waitForTimeout(300)
+        await page.getByRole('button', { name: 'Start programme' }).click()
+        await page.waitForTimeout(900)
+      },
+      async after(page) {
+        await page.goto(`${base}/lift/programmes`)
+        await page.waitForTimeout(700)
+        await page.locator('a[href^="/lift/programme/"]').first().click()
+        await page.waitForTimeout(600)
+        await page.getByRole('button', { name: 'Stop programme' }).click()
+        await page.getByRole('button', { name: 'Tap again to stop it' }).click()
+        await page.waitForTimeout(300)
+      },
+    },
+  ],
+  [
+    'lift-programme-new',
+    {
+      from: '/lift/programmes',
+      async sheet(page) {
+        await page.getByRole('button', { name: 'New programme' }).first().click()
+        await page.waitForTimeout(500)
+        await page.keyboard.type('Full body')
+        await blur(page)
+        await page.waitForTimeout(300)
+      },
+    },
+  ],
   // the + on Today, the weigh-in, and a new exercise of your own
   [
     'log-sheet',
@@ -304,6 +419,7 @@ const SCREENS = [
   // how it works, from the ⓘ in Settings, and with what to lift and the match numbers open
   ['help', '/help'],
   ['help-lift', '/help#lift'],
+  ['help-programme', '/help#programme'],
   ['help-football', '/help#football'],
   // a match logged from scratch and rated: the number counting up on the gold tile. Last, since it saves a match.
   [
