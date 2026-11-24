@@ -24,7 +24,7 @@ const TOPICS: { key: string; title: string; lines: string[] }[] = [
       'Four weeks off, or three times your usual gap if that’s longer: a tenth off.',
       'Fewer sets than the workout has, or a set done lighter after the working weight: the weight waits until they’re all done at the top.',
       'Bodyweight: one more rep each time. Holds: five more seconds. Weight added to you counts with your body weight.',
-      'Reverse pyramid (set on the exercise): your top set first, then each set two reps higher. Every set moves on its own by the same rules, and a new one starts a tenth lighter than the one above.',
+      'Reverse pyramid (set on the exercise): your top set first, then each set two reps higher. Lighter sets before the top one are a warm-up to it. Every set moves on its own by the same rules, a set that beats the top of its range goes up to what it says you’d lift at the bottom of it, and a new one starts a tenth lighter than the one above.',
       'A superset is exercises linked in a workout and done in turns, A1 then A2. Each still moves on its own.',
       'Tap a set’s number to make it a warm-up (W) or a drop set (D). A drop set starts a fifth lighter, or as far down as last time. Warm-ups and drop sets count as work but never move a target or set a best.',
       'A best is the heaviest you’ve lifted, or the most reps at that weight or heavier.',

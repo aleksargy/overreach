@@ -17,6 +17,7 @@ import {
   loaded,
   mainSets,
   plates,
+  pyramidOf,
   pyramidRange,
   pyramidStep,
   setText,
@@ -169,7 +170,8 @@ function ExerciseBlock({ w, we, index, count, tag }: { w: World; we: WorkoutExer
   const weighted = loaded(ex)
   const timed = ex.kind === 'duration'
   const prev = base
-  const prevWork = prev ? mainSets(prev.sets) : []
+  // last time's sets beside today's; in a reverse pyramid from its top set, the warm-up to it left out
+  const prevWork = prev ? (ex.pyramid && loaded(ex) ? pyramidOf(ex, prev.sets) : mainSets(prev.sets)) : []
   const prevWarm = prev?.sets.filter((s) => s.kind === 'warmup') ?? []
   const prevDrops = prev ? dropsBySet(prev.sets) : new Map<number, SetEntry[]>()
 
