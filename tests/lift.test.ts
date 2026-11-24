@@ -355,6 +355,32 @@ test('a reverse pyramid moves set by set, each two reps higher than the one befo
   assert.deepEqual(more.perSet[2], { kg: 65, count: 10 })
 })
 
+test('a reverse pyramid starts at its top set, and a set that beats its range goes up to what it says you’d lift at the bottom of it', () => {
+  // Alex's RDL, made a pyramid of 5–8 after ramping 40 × 10 and 60 × 10 to 80 × 9: the ramp isn't the pyramid's sets,
+  // and 80 × 9 says about 89 kg for 5, so the top set is 87.5 × 5 rather than a step; the two after it a tenth lighter
+  const rdlRpt: Exercise = { ...rdl, repRange: [5, 8], pyramid: true }
+  const t = nextWith(rdlRpt, { sets: 3 }, session(rdlRpt, 3, [set(40, 10), set(60, 10), set(80, 9)]))
+  assert.deepEqual([t.move, t.kg, t.count, t.note], ['up', 87.5, 5, '+7.5 kg'])
+  assert.deepEqual(
+    t.perSet.map((x) => [x.kg, x.count]),
+    [
+      [87.5, 5],
+      [80, 7],
+      [72.5, 9],
+    ],
+  )
+  // warm-ups left unmarked before a pyramid aren't its sets either
+  const warmed = nextWith(rdlRpt, { sets: 3 }, session(rdlRpt, 3, [set(40, 10), set(60, 5), set(87.5, 6), set(80, 8), set(72.5, 10)]))
+  assert.deepEqual(
+    warmed.perSet.map((x) => [x.kg, x.count]),
+    [
+      [87.5, 7],
+      [80, 9],
+      [72.5, 11],
+    ],
+  )
+})
+
 test('a drop set is logged and counted as work, but never moves a target or sets a best', () => {
   const drop = (kg: number, reps: number) => set(kg, reps, 'drop')
   const squats = session(bench, 3, [...three(60, 10), drop(45, 12)])

@@ -106,6 +106,11 @@ export interface TargetOptions {
   now?: Date
   /** your body weight, for lifts that add weight to you */
   bodyKg?: number
+  /**
+   * each set is one all-out set of its own (a reverse pyramid's): one that beats the top of its range goes up to what
+   * it says you'd lift for the bottom of it, rather than a step
+   */
+  single?: boolean
 }
 
 const DAY = 86_400_000
@@ -302,7 +307,8 @@ export function targetFor(ex: Exercise, sessions: ExerciseSession[], o: TargetOp
     const missing = (o.sets ?? 0) - sets.length
     if (missing > 0) return more(hi, `+${plural(missing, 'set')}`)
     // a step too big to make the bottom of the range waits for more reps, unless they've stopped coming
-    const next = round(kg + step, 2)
+    let next = round(kg + step, 2)
+    if (o.single && known && least > hi) next = Math.max(next, floorTo(kgFor(load(kg), least, lo) - (body ?? 0), step))
     if (known && repsAt(load(kg), least, load(next)) < lo && least < 2 * hi && !stalled) return more(least + 1)
     return at(next, 'up', lo)
   }
@@ -322,13 +328,23 @@ export const pyramidRange = (ex: Pick<Exercise, 'repRange'>, k: number): [number
 export const pyramidStep = (ex: Pick<Exercise, 'increment'>, kg: number) => Math.max(0, roundTo(kg * PYRAMID_LIGHTER, ex.increment || 2.5)) || undefined
 
 /**
+ * A session's reverse pyramid: its sets from the top one on. Lighter sets before the top set were a warm-up to it
+ * (marked or not, or a ramp from before you ran it as a pyramid), so they aren't its sets.
+ */
+export const pyramidOf = (ex: Pick<Exercise, 'kind'>, sets: SetEntry[]) => {
+  const main = work(sets)
+  return main.slice(rampOf(main, topOf(ex, main)))
+}
+
+/**
  * A reverse pyramid, set by set: each set moves by the same rules as straight sets, from that set in the sessions
- * before, within its own rep range. A set the last session didn't have starts a tenth lighter than the one above it,
- * at the bottom of its range. The headline (`kg`, `count`, `move`, `note`) is the top set's.
+ * before (counted from the top set), within its own rep range, as one all-out set: beating the top of its range takes
+ * it to what it says you'd lift for the bottom. A set the last session didn't have starts a tenth lighter than the one
+ * above it, at the bottom of its range. The headline (`kg`, `count`, `move`, `note`) is the top set's.
  */
 function pyramidTarget(ex: Exercise, history: ExerciseSession[], sessions: ExerciseSession[], o: TargetOptions): Target {
-  // as many sets as the week's best session had
-  const last = work(history[0].sets)
+  // as many sets as the week's best session had, from its top set
+  const last = pyramidOf(ex, history[0].sets)
   const step = ex.increment || 2.5
   const body = ex.kind === 'weighted-bodyweight' ? (o.bodyKg ?? 0) : 0
   const sets: Target[] = []
@@ -336,8 +352,8 @@ function pyramidTarget(ex: Exercise, history: ExerciseSession[], sessions: Exerc
     const range = pyramidRange(ex, k)
     if (k < last.length) {
       // this set in the sessions that had it, each week its best: the latest did
-      const own = sessions.map((h) => ({ ...h, sets: work(h.sets).slice(k, k + 1) })).filter((h) => h.sets.length)
-      sets.push(targetFor({ ...ex, pyramid: false, repRange: range }, own, { now: o.now, bodyKg: o.bodyKg }))
+      const own = sessions.map((h) => ({ ...h, sets: pyramidOf(ex, h.sets).slice(k, k + 1) })).filter((h) => h.sets.length)
+      sets.push(targetFor({ ...ex, pyramid: false, repRange: range }, own, { now: o.now, bodyKg: o.bodyKg, single: true }))
     } else {
       const above = sets[k - 1]
       const kg = above.kg !== undefined ? Math.max(0, roundTo((above.kg + body) * PYRAMID_LIGHTER - body, step)) : undefined
