@@ -6,22 +6,41 @@ import type { Exercise, Routine, Workout } from '../../data/types'
 import { useUi } from '../../data/ui'
 import type { World } from '../../data/world'
 import { dur, fmt } from '../../lib/format'
-import { historyFor, targetFor, workingSets, type Target } from '../../lib/lift'
+import { historyFor, lastDone, planFor, routinesOf, targetFor, workingSets, type PlanItem, type Target } from '../../lib/lift'
 
 export const MUSCLE_LABEL = Object.fromEntries(MUSCLES.map((m) => [m.key, m.label])) as Record<string, string>
 export const EQUIPMENT_LABEL = Object.fromEntries(EQUIPMENT.map((m) => [m.key, m.label])) as Record<string, string>
 
+/** Your latest weigh-in: the body weight that counts with weight added to you. */
+export const bodyKgOf = (w: World) => w.body.find((b) => b.weightKg)?.weightKg
+
 /**
- * What to lift on an exercise next time, from every session of it, today's date (for a long break) and your
- * latest weigh-in (for weight added to you). `sets` is how many working sets the workout has, when that's known.
+ * What to lift on every exercise of a workout (or of the one in progress), in its order: from every session of each,
+ * today's date (for a long break) and your latest weigh-in, with the belt shared between lifts done in turns.
  */
-export function nextFor(w: World, ex: Exercise, sets?: number): Target {
-  return targetFor(ex, historyFor(ex.id, w.workouts), { sets, now: w.now, bodyKg: w.body.find((b) => b.weightKg)?.weightKg })
+export function planOf(w: World, items: PlanItem[]): (Target | undefined)[] {
+  return planFor(items, w.exerciseById, w.workouts, { now: w.now, bodyKg: bodyKgOf(w) })
 }
 
-/** How many working sets your workouts give an exercise: the most any of them does. */
-export const plannedSets = (w: World, exerciseId: string) =>
-  Math.max(0, ...w.routines.flatMap((r) => r.items.filter((i) => i.exerciseId === exerciseId).map((i) => i.sets))) || undefined
+/** The workouts Next up picks from: the programme you're on, when it has any, or all of yours. */
+export const inPlay = (w: World) => {
+  const own = w.programme ? routinesOf(w.programme, w.routines) : []
+  return own.length ? own : w.routines
+}
+
+/**
+ * What to lift on an exercise next time: what the workout it comes round in next will ask for (its sets there, and
+ * the belt it shares in a superset), so its page says what the logger will. In no workout, it's the lift on its own.
+ */
+export function nextFor(w: World, ex: Exercise): Target {
+  const when = (r: Routine) => Date.parse(lastDone(r, w.workouts)?.start ?? '') || 0
+  // the one that's waited longest of those in play, or failing that of all your workouts
+  const pick = (list: Routine[]) =>
+    list.filter((r) => r.items.some((i) => i.exerciseId === ex.id)).reduce<Routine | undefined>((a, r) => (!a || when(r) < when(a) ? r : a), undefined)
+  const r = pick(inPlay(w)) ?? pick(w.routines)
+  const planned = r && planOf(w, r.items)[r.items.findIndex((i) => i.exerciseId === ex.id)]
+  return planned ?? targetFor(ex, historyFor(ex.id, w.workouts), { now: w.now, bodyKg: bodyKgOf(w) })
+}
 
 /**
  * The link on the line between two exercises: tap it and the one above and the one below become a superset, done

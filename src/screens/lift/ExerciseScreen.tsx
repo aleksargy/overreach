@@ -9,7 +9,7 @@ import { useUi } from '../../data/ui'
 import { useWorld } from '../../data/world'
 import { fmt } from '../../lib/format'
 import { amount, historyFor, loaded, mainSets, setText, setsLine, targetText, topOf } from '../../lib/lift'
-import { EQUIPMENT_LABEL, MUSCLE_LABEL, MoveNote, nextFor, plannedSets } from './parts'
+import { EQUIPMENT_LABEL, MUSCLE_LABEL, MoveNote, nextFor } from './parts'
 
 /** One lift: what to do next time, how it's moved, and every session you've logged. */
 export function ExerciseScreen() {
@@ -25,7 +25,7 @@ export function ExerciseScreen() {
       </Screen>
     )
   }
-  const t = nextFor(w, ex, plannedSets(w, ex.id))
+  const t = nextFor(w, ex)
   const points = [...history].reverse().map((h) => ({ t: Date.parse(h.date), v: topOf(ex, h.sets) }))
   const all = history.flatMap((h) => mainSets(h.sets))
   const top = points.length ? Math.max(...points.map((p) => p.v)) : 0

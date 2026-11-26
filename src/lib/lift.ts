@@ -3,24 +3,34 @@
 // The plan is double progression, worked out from what you lifted: every
 // exercise has a rep range and one working weight. The weakest set aims for one
 // more rep each session and the others for what they did last time; every set at
-// the top of the range earns the next weight, starting again from the bottom.
+// the top of the range earns more weight: a step, or as many as it takes to bring
+// the reps back inside the range, and the reps start again from what an estimated
+// one-rep max says the new weight leaves you, never under the bottom of the range.
 // Lighter sets before the first at the working weight are the ramp up to it: they
 // keep their weight and reps, and the rules run on the sets from there.
-// Around that: a step too big to make the bottom of the range waits for more reps
-// (an estimated one-rep max says when it's in reach); every set at the working
-// weight far over or under the range sets it again from the weakest; under the
-// range twice, or no reps gained in two sessions, takes a tenth off to build back
-// from; so does a long break. Weight added to you counts with your body weight.
+// Around that: a step too big to make the bottom of the range waits for more
+// reps; every set at the working weight far under the range sets it again from
+// the weakest; under the range two weeks running takes a tenth off to build back
+// from, and so does a long break; five weeks at a weight with nothing gained is
+// stuck, which takes the next step if it's in reach and a tenth off if it isn't.
+// Weight added to you counts with your body weight.
 //
 // Each week (Monday to Sunday) counts once, as its best session of the lift: a
 // lift done twice a week moves on from the better of the two, so a tired second
-// go doesn't pull it down, and backing off needs two weeks, not two sessions.
+// go doesn't pull it down, and backing off counts weeks, not sessions.
 //
-// A reverse pyramid (`Exercise.pyramid`) runs the same rules set by set: the top
-// set first, then each set lighter and two reps higher, each moving on its own.
+// A reverse pyramid (`Exercise.pyramid`) is a top set and the sets that follow it
+// down. The top set moves by the rules above as one all-out set: at the top of
+// its range it goes up to the weight it says you'd lift for a rep over the
+// bottom of it. Each set after it sits a tenth of the load under the one above,
+// two reps higher, at the reps its last go says it would get there; one that was
+// already a step down the pyramid and still fits under the set above keeps its
+// weight and aims for one more rep. So the sets come down in even steps, whatever
+// shape the last session had.
 // A drop set is extra work logged after a set: it counts in the volume but never
-// moves a target. Exercises in a superset are done in turns and still move on
-// their own.
+// moves a target. Exercises in a superset are done in turns and move on their
+// own, except lifts that add weight to you: they go round on one belt, at the
+// weaker lift's weight, and the other does more reps (`planFor`).
 //
 // A programme is some of your workouts run so many times a week, for a number of
 // weeks or with no end: Next up only comes from the one you're on.
@@ -107,8 +117,8 @@ export interface TargetOptions {
   /** your body weight, for lifts that add weight to you */
   bodyKg?: number
   /**
-   * each set is one all-out set of its own (a reverse pyramid's): one that beats the top of its range goes up to what
-   * it says you'd lift for the bottom of it, rather than a step
+   * one all-out set (a reverse pyramid's top set): at the top of its range it goes up to what it says you'd lift for a
+   * rep over the bottom of it, rather than the fewest steps that bring the reps back inside the range
    */
   single?: boolean
 }
@@ -120,6 +130,10 @@ const FAR = 3
 const BACK_OFF = 0.9
 /** the shortest break that takes a tenth off; three times your usual gap if that's longer */
 const BREAK_DAYS = 28
+/** the most the weight goes up in one go: a quarter of the load */
+const MOST_UP = 1.25
+/** weeks at one weight before it can count as stuck: a month, so a good day or a bad one isn't taken for a trend */
+const STUCK = 5
 
 const roundTo = (x: number, step: number) => round(Math.round(x / step) * step, 2)
 const floorTo = (x: number, step: number) => round(Math.floor(x / step + 1e-9) * step, 2)
@@ -130,6 +144,8 @@ const plural = (n: number, one: string) => `${n} ${n === 1 ? one : `${one}s`}`
 export const repsAt = (from: number, reps: number, kg: number) => 30 * ((from * (1 + reps / 30)) / kg - 1)
 /** The weight a set of `reps0` at `from` kg says you'd lift for `reps`. */
 export const kgFor = (from: number, reps0: number, reps: number) => (from * (1 + reps0 / 30)) / (1 + reps / 30)
+/** A set moved to another weight: the reps it says you'd get there, to the nearest one. */
+const repsFor = (from: number, reps: number, kg: number) => Math.round(repsAt(from, reps, kg))
 
 /** How long off before a tenth comes off: four weeks, or three times your usual gap between sessions if that's longer. */
 export function breakDays(history: ExerciseSession[]): number {
@@ -200,11 +216,14 @@ export function weeksOf(ex: Exercise, history: ExerciseSession[], bodyKg?: numbe
  * What to do next time, from the sessions before (newest first), each week as its best session. Nothing to
  * load: one more rep on the weakest set, or five more seconds. Loaded, the ramp
  * up to the working weight stays as it was and, in order: a long break takes a
- * tenth off; every set at the working weight far over or under the range sets it
- * again from the weakest, to land mid-range; under the range two weeks running, or
- * no reps gained in two weeks, takes a tenth off; every set at the top earns the next
- * weight, once the workout's sets are all done and the step is in reach;
- * otherwise the weakest set aims for one more rep.
+ * tenth off; every set at the working weight far under the range sets it again
+ * from the weakest, to land mid-range; under the range two weeks running takes a
+ * tenth off; stuck for five weeks takes the next step if it's in reach, else a
+ * tenth off; every set at the top earns more weight, once the workout's sets are
+ * all done and the step is in reach: as many steps as bring the reps back inside
+ * the range, at the reps that weight should leave you; otherwise the weakest set
+ * aims for one more rep. This is one exercise on its own: `planFor` is what a
+ * workout asks, with the belt shared in a superset.
  */
 export function targetFor(ex: Exercise, sessions: ExerciseSession[], o: TargetOptions = {}): Target {
   const [lo, hi] = ex.repRange
@@ -274,43 +293,52 @@ export function targetFor(ex: Exercise, sessions: ExerciseSession[], o: TargetOp
     if (next !== undefined) return at(next, 'back', mid)
   }
 
-  // every set at the working weight far over or under the range: the weight was wrong, so set it again from the
-  // weakest, aiming mid-range. One set falling away is the day, not the weight, and a lighter set (or one done
-  // lighter) never says you failed at it.
-  const farOver = least >= hi + FAR
-  const farUnder = Math.max(...atKg) <= lo - FAR
-  if (known && (farOver || farUnder)) {
+  // every set at the working weight far under the range: the weight was wrong, so set it again from the weakest,
+  // aiming mid-range. One set falling away is the day, not the weight, and a lighter set (or one done lighter) never
+  // says you failed at it. (Far over the range is the top of the range, below: the weight goes up as far as it takes.)
+  if (known && Math.max(...atKg) <= lo - FAR) {
     const fit = floorTo(kgFor(load(kg), Math.min(...atKg), mid) - (body ?? 0), step)
-    // more than a step up goes straight there, a quarter more at most; a single step goes the usual way, below
-    if (farOver) {
-      if (fit >= kg + 2 * step) return at(Math.min(fit, floorTo(load(kg) * 1.25 - (body ?? 0), step)), 'up', mid)
-    } else {
-      // the bar can't go under a step, though weight added to you can go back to none
-      const minKg = ex.kind === 'weight' ? step : 0
-      const next = Math.min(kg - step, Math.max(minKg, fit))
-      if (next >= minKg && next < kg) return at(next, 'back', mid)
-    }
+    // the bar can't go under a step, though weight added to you can go back to none
+    const minKg = ex.kind === 'weight' ? step : 0
+    const next = Math.min(kg - step, Math.max(minKg, fit))
+    if (next >= minKg && next < kg) return at(next, 'back', mid)
   }
 
-  // under the range two sessions running, or no reps gained in either of the last two (on average a set): a tenth off
-  const recent = atWeight(history, kg, 3)
+  // under the range two weeks running: a tenth off. Stuck, which is five weeks at this weight and the better of the
+  // last two no better (on average a set) than the worse of the first two: the next step if it's in reach, at the
+  // reps it should leave you, and otherwise a tenth off. (Two weeks was too quick to call: replayed, someone
+  // gaining a rep a set every couple of months had a tenth taken off every six or seven weeks, with nothing wrong.)
+  const recent = atWeight(history, kg, STUCK)
   const under = recent.length >= 2 && recent[0].least < lo && recent[1].least < lo
-  const stalled = recent.length === 3 && Math.max(recent[0].mean, recent[1].mean) <= recent[2].mean
+  const stalled = recent.length === STUCK && Math.max(recent[0].mean, recent[1].mean) <= Math.min(recent[STUCK - 2].mean, recent[STUCK - 1].mean)
   if (under || (stalled && least < hi)) {
+    const up = round(kg + step, 2)
+    const left = known ? repsAt(load(kg), least, load(up)) + 1e-9 : 0
+    if (!under && left >= lo) return at(up, 'up', Math.min(hi, Math.floor(left)))
     const next = lighter()
     if (next !== undefined) return at(next, 'back', mid)
   }
 
   // every set at the top of the range
   if (least >= hi) {
-    // the workout has more sets than you did: they all get to the top first
+    // the workout has more sets than you did: they all get to the top first, unless the weight was far too light
     const missing = (o.sets ?? 0) - sets.length
-    if (missing > 0) return more(hi, `+${plural(missing, 'set')}`)
-    // a step too big to make the bottom of the range waits for more reps, unless they've stopped coming
+    if (missing > 0 && !(known && least >= hi + FAR)) return more(hi, `+${plural(missing, 'set')}`)
     let next = round(kg + step, 2)
-    if (o.single && known && least > hi) next = Math.max(next, floorTo(kgFor(load(kg), least, lo) - (body ?? 0), step))
-    if (known && repsAt(load(kg), least, load(next)) < lo && least < 2 * hi && !stalled) return more(least + 1)
-    return at(next, 'up', lo)
+    // without the whole load there's nothing to estimate from: a step, and the bottom of the range
+    if (!known) return at(next, 'up', lo)
+    // the reps the weakest set says you'd get at a weight
+    const reps = (x: number) => repsAt(load(kg), least, load(x)) + 1e-9
+    const most = floorTo(load(kg) * MOST_UP - (body ?? 0), step)
+    // one all-out set starts again from the bottom of its range: the weight it says you'd lift for a rep more than
+    // that, so an ordinary day still makes the range
+    if (o.single) next = Math.max(next, Math.min(most, floorTo(kgFor(load(kg), least, Math.min(lo + 1, Math.max(lo, hi - 1))) - (body ?? 0), step)))
+    // straight sets take the fewest steps that bring the reps back under the top of the range
+    else while (reps(next) >= hi && round(next + step, 2) <= most && reps(round(next + step, 2)) >= lo) next = round(next + step, 2)
+    // a step too big to make the bottom of the range waits for more reps, unless they've stopped coming
+    if (reps(next) < lo && least < 2 * hi && !stalled) return more(least + 1)
+    // and the reps start again from what that weight should leave you
+    return at(next, 'up', Math.min(hi, Math.max(lo, Math.floor(reps(next)))))
   }
 
   return more(Math.min(hi, Math.max(lo, least + 1)))
@@ -318,14 +346,24 @@ export function targetFor(ex: Exercise, sessions: ExerciseSession[], o: TargetOp
 
 /** In a reverse pyramid each set after the top one aims this many reps higher than the set before. */
 export const PYRAMID_REPS = 2
-/** and a set with nothing to go on starts this much lighter than the set before */
+/** and sits this much of the load under it: a tenth lighter */
 const PYRAMID_LIGHTER = 0.9
 
 /** A set's rep range in a reverse pyramid: the exercise's for the top set, two reps higher for each set after it. */
 export const pyramidRange = (ex: Pick<Exercise, 'repRange'>, k: number): [number, number] => [ex.repRange[0] + PYRAMID_REPS * k, ex.repRange[1] + PYRAMID_REPS * k]
 
-/** The next set down a reverse pyramid with nothing else to go on: a tenth lighter than `kg`, on the weight's own steps. */
-export const pyramidStep = (ex: Pick<Exercise, 'increment'>, kg: number) => Math.max(0, roundTo(kg * PYRAMID_LIGHTER, ex.increment || 2.5)) || undefined
+/** The lightest a lift is planned at: a step on the bar, nothing added to you. */
+const leastKg = (ex: Pick<Exercise, 'increment' | 'kind'>) => (ex.kind === 'weight' ? ex.increment || 2.5 : 0)
+
+/**
+ * The next set down a reverse pyramid from one at `kg`: a tenth of the load lighter (your body weight counts in what's
+ * added to you), on the weight's own steps and at least a step down.
+ */
+export const pyramidStep = (ex: Pick<Exercise, 'increment' | 'kind'>, kg: number, bodyKg = 0) => {
+  const step = ex.increment || 2.5
+  const body = ex.kind === 'weighted-bodyweight' ? bodyKg : 0
+  return Math.max(leastKg(ex), Math.min(round(kg - step, 2), roundTo((kg + body) * PYRAMID_LIGHTER - body, step))) || undefined
+}
 
 /**
  * A session's reverse pyramid: its sets from the top one on. Lighter sets before the top set were a warm-up to it
@@ -337,30 +375,52 @@ export const pyramidOf = (ex: Pick<Exercise, 'kind'>, sets: SetEntry[]) => {
 }
 
 /**
- * A reverse pyramid, set by set: each set moves by the same rules as straight sets, from that set in the sessions
- * before (counted from the top set), within its own rep range, as one all-out set: beating the top of its range takes
- * it to what it says you'd lift for the bottom. A set the last session didn't have starts a tenth lighter than the one
- * above it, at the bottom of its range. The headline (`kg`, `count`, `move`, `note`) is the top set's.
+ * A reverse pyramid: the top set, and the sets that follow it down. The top set moves by the same rules as straight
+ * sets, from the top set of the sessions before, as one all-out set: at the top of its range it goes up to what it
+ * says you'd lift for a rep over the bottom of it. Each set after it is placed under the one above (`stepDown`), so
+ * the weights come down in even steps whatever shape the last session had. The headline (`kg`, `count`, `move`,
+ * `note`) is the top set's.
  */
 function pyramidTarget(ex: Exercise, history: ExerciseSession[], sessions: ExerciseSession[], o: TargetOptions): Target {
-  // as many sets as the week's best session had, from its top set
+  // the week's best session, from its top set
   const last = pyramidOf(ex, history[0].sets)
+  const tops = sessions.map((h) => ({ ...h, sets: pyramidOf(ex, h.sets).slice(0, 1) })).filter((h) => h.sets.length)
+  const top = targetFor({ ...ex, pyramid: false }, tops, { now: o.now, bodyKg: o.bodyKg, single: true })
+  const perSet: Target['perSet'] = [{ kg: top.kg, count: top.count }]
+  // as many sets as the workout has, or as that session had
+  for (let k = 1; k < Math.max(1, o.sets ?? last.length); k++) perSet.push(stepDown(ex, k, perSet[k - 1], last, top.move === 'back', o.bodyKg))
+  return { ...top, perSet }
+}
+
+/**
+ * The set `k` down a reverse pyramid (1 for the one after the top set), under the set `above` as it's now planned: a
+ * tenth of the load lighter, at the reps this set's last go (in `last`, the pyramid the target builds on) says you'd
+ * get there, the top of its range at most, and lighter still if that's what it takes to make the bottom of it. A set
+ * that was a step down the pyramid last time and still sits between a tenth and a step under the one above keeps its
+ * weight and aims for one more rep, and over the top of its range it goes up a step, short of the set above: that's
+ * how it moves on its own. A set only just placed doesn't, so three sets done at one weight come back as even steps
+ * rather than bunched up under the top one. With nothing to go on, or when the top set is backing off (`fresh`) and
+ * takes the pyramid with it, it's a tenth lighter and two reps over the set above.
+ */
+export function stepDown(ex: Exercise, k: number, above: Target['perSet'][number], last: SetEntry[], fresh: boolean, bodyKg?: number): { kg?: number; count: number } {
+  const [lo, hi] = pyramidRange(ex, k)
   const step = ex.increment || 2.5
-  const body = ex.kind === 'weighted-bodyweight' ? (o.bodyKg ?? 0) : 0
-  const sets: Target[] = []
-  for (let k = 0; k < Math.max(1, o.sets ?? last.length); k++) {
-    const range = pyramidRange(ex, k)
-    if (k < last.length) {
-      // this set in the sessions that had it, each week its best: the latest did
-      const own = sessions.map((h) => ({ ...h, sets: pyramidOf(ex, h.sets).slice(k, k + 1) })).filter((h) => h.sets.length)
-      sets.push(targetFor({ ...ex, pyramid: false, repRange: range }, own, { now: o.now, bodyKg: o.bodyKg, single: true }))
-    } else {
-      const above = sets[k - 1]
-      const kg = above.kg !== undefined ? Math.max(0, roundTo((above.kg + body) * PYRAMID_LIGHTER - body, step)) : undefined
-      sets.push({ move: 'more', kg: kg || undefined, count: range[0], perSet: [], note: '' })
-    }
-  }
-  return { ...sets[0], perSet: sets.map((t) => ({ kg: t.kg, count: t.count })) }
+  const over = above.kg ?? 0
+  const rung = pyramidStep(ex, over, bodyKg) ?? 0
+  if (fresh || !last[k]) return { kg: rung || undefined, count: Math.min(hi, Math.max(lo, above.count + PYRAMID_REPS)) }
+  const body = ex.kind === 'weighted-bodyweight' ? bodyKg : 0
+  const was = last[k].kg ?? 0
+  const did = last[k].reps ?? 0
+  // the same weight again asks for one more rep; another weight, for what last time says you'd get there (and with
+  // no body weight to count for a lift that adds to it, the bottom of the range)
+  const reps = (kg: number) => (kg === was ? did + 1 : body !== undefined && was + body > 0 ? repsFor(was + body, did, kg + body) : lo)
+  const cap = Math.max(leastKg(ex), round(over - step, 2))
+  let kg = was < (last[k - 1].kg ?? 0) && was >= rung && was <= cap ? was : rung
+  // where it was last time, it has a step of its own to earn; just placed, the top of its range is all it's asked
+  const own = kg === was
+  if (own) while (reps(kg) > hi && round(kg + step, 2) <= cap) kg = round(kg + step, 2)
+  while (reps(kg) < lo && round(kg - step, 2) >= leastKg(ex)) kg = round(kg - step, 2)
+  return { kg: kg || undefined, count: Math.max(1, own && kg === was ? reps(kg) : Math.min(hi, reps(kg))) }
 }
 
 /** The drop sets in a session, by the main set they follow (0 for the first). */
@@ -377,12 +437,16 @@ export function dropsBySet(sets: SetEntry[]): Map<number, SetEntry[]> {
 
 /**
  * Where a drop set starts: as far down from the set before as last time's was, or a fifth, on the weight's own steps
- * and at least a step down; as many reps as last time's, or as the set before.
+ * and at least a step down; as many reps as last time's, or as the set before. Weight added to you counts with your
+ * body weight, so a drop from a little added is back to none.
  */
-export function dropFor(ex: Exercise, before: { kg?: number; count?: number }, last?: { from?: number; kg?: number; reps?: number }): { kg?: number; count?: number } {
+export function dropFor(ex: Exercise, before: { kg?: number; count?: number }, last?: { from?: number; kg?: number; reps?: number }, bodyKg = 0): { kg?: number; count?: number } {
   const step = ex.increment || 2.5
-  const ratio = last?.kg && last.from ? last.kg / last.from : 0.8
-  const kg = before.kg ? Math.max(0, Math.min(before.kg - step, floorTo(before.kg * ratio, step))) : undefined
+  const body = ex.kind === 'weighted-bodyweight' ? bodyKg : 0
+  // with the load known, a drop to nothing added still says how far down it went
+  const from = (last?.from ?? 0) + body
+  const ratio = last && from > 0 && (last.kg || body) ? ((last.kg ?? 0) + body) / from : 0.8
+  const kg = before.kg ? Math.max(0, Math.min(before.kg - step, floorTo((before.kg + body) * ratio - body, step))) : undefined
   return { kg: kg || undefined, count: last?.reps ?? before.count }
 }
 
@@ -425,6 +489,155 @@ export function toggleSuperset<T extends { superset?: string }>(items: T[], i: n
     for (let j = i + 1; j < out.length && (j === i + 1 || (!!old && out[j].superset === old)); j++) out[j].superset = key
   }
   return tidySupersets(out)
+}
+
+/**
+ * For each exercise of a workout, the others it shares a belt with: lifts that add weight to you, done in turns in the
+ * same superset, with the same kind of sets (all reverse pyramids, or none).
+ */
+export function beltMates(items: { exerciseId: string; superset?: string }[], exercises: Map<string, Exercise>): number[][] {
+  const out: number[][] = items.map(() => [])
+  for (let i = 0; i < items.length;) {
+    const key = items[i].superset
+    let j = i + 1
+    while (key && j < items.length && items[j].superset === key) j++
+    const belt: number[] = []
+    for (let a = i; a < j; a++) if (exercises.get(items[a].exerciseId)?.kind === 'weighted-bodyweight') belt.push(a)
+    const pyramid = (a: number) => !!exercises.get(items[a].exerciseId)?.pyramid
+    for (const a of belt) out[a] = belt.filter((b) => b !== a && pyramid(b) === pyramid(a))
+    i = j
+  }
+  return out
+}
+
+/** The reps a planned set comes to at another weight, by its estimated max: what's asked when the weight under it changes. */
+export function countAt(ex: Pick<Exercise, 'kind'>, plan: { kg?: number; count: number }, kg: number, bodyKg?: number): number {
+  const body = ex.kind === 'weighted-bodyweight' ? bodyKg : 0
+  const from = (plan.kg ?? 0) + (body ?? 0)
+  if (body === undefined || from <= 0 || kg + body <= 0) return plan.count
+  return Math.max(1, repsFor(from, plan.count, kg + body))
+}
+
+/** One exercise of a workout, as far as planning it goes: a workout's item, or an exercise of the one in progress. */
+export interface PlanItem {
+  exerciseId: string
+  /** working sets it has in this workout */
+  sets: number
+  superset?: string
+}
+
+/**
+ * What to lift on every exercise of a workout, in its order: each one's own target (`targetFor`), then the belt
+ * shared (`shareBelt`) between lifts that add weight to you and are done in turns. Nothing is shared without a body
+ * weight to count, and an exercise that isn't in your list has no target.
+ */
+export function planFor(items: PlanItem[], exercises: Map<string, Exercise>, workouts: Workout[], o: Pick<TargetOptions, 'now' | 'bodyKg'> = {}): (Target | undefined)[] {
+  const rows = items.map((it) => {
+    const ex = exercises.get(it.exerciseId)
+    if (!ex) return undefined
+    const sessions = historyFor(ex.id, workouts)
+    return { ex, sets: it.sets, sessions, target: targetFor(ex, sessions, { sets: it.sets, now: o.now, bodyKg: o.bodyKg }) }
+  })
+  const out = rows.map((r) => r?.target)
+  const bodyKg = o.bodyKg
+  if (bodyKg === undefined) return out
+  const done = new Set<number>()
+  beltMates(items, exercises).forEach((mates, i) => {
+    if (!mates.length || done.has(i)) return
+    const all = [i, ...mates].sort((a, b) => a - b)
+    for (const a of all) done.add(a)
+    // a lift with no session yet has no weight to share
+    const group = all.filter((a) => rows[a]!.target.move !== 'first')
+    if (group.length < 2) return
+    const members = group.map((a) => {
+      const { ex, sets, sessions, target } = rows[a]!
+      const best = weeksOf(ex, sessions, bodyKg)[0]
+      return { ex, sets, target, last: ex.pyramid ? pyramidOf(ex, best.sets) : work(best.sets) }
+    })
+    shareBelt(members, bodyKg).forEach((t, n) => (out[group[n]] = t))
+  })
+  return out
+}
+
+interface BeltMember {
+  ex: Exercise
+  sets: number
+  target: Target
+  /** the sets the target was built on, lined up with its `perSet` */
+  last: SetEntry[]
+}
+
+/**
+ * Belt lifts done in turns go round on one belt. The weaker of them (by the best estimated max of its last sets) sets
+ * the weight, by its own target, and the others take that weight at the reps their own last go says they'd get there:
+ * one more when it's the weight they did then. A lift is only ever held back this way, never taken under what it
+ * lifted last time (unless both are backing off, and then it's its own lighter target that moves), and it goes its own
+ * way when that would put a set three reps or more over its range, or under it. Straight sets share their working
+ * weight or nothing; in a pyramid the top set decides and each set after it follows the other lift's, placed again
+ * under whatever its own set above has become.
+ */
+function shareBelt(members: BeltMember[], bodyKg: number): Target[] {
+  const max = (m: BeltMember) => Math.max(...m.last.map((x) => ((x.kg ?? 0) + bodyKg) * (1 + (x.reps ?? 0) / 30)))
+  const lead = members.reduce((a, m) => (max(m) < max(a) ? m : a))
+  return members.map((m) => {
+    if (m === lead) return m.target
+    const { ex, target, last } = m
+    const slot = (k: number) => ({ ...(target.perSet[k] ?? { kg: target.kg, count: target.count }) })
+    const backing = target.move === 'back' && lead.target.move === 'back'
+    // the reps a set comes to on the belt
+    const on = (k: number, own: Target['perSet'][number], belt: number) => {
+      const was = last[k]
+      if (backing || !was) return countAt(ex, own, belt, bodyKg)
+      return (was.kg ?? 0) === belt ? (was.reps ?? 0) + 1 : countAt(ex, { kg: was.kg, count: was.reps ?? 0 }, belt, bodyKg)
+    }
+    const perSet: Target['perSet'] = []
+    if (ex.pyramid) {
+      let moved = false
+      for (let k = 0; k < m.sets; k++) {
+        const own = moved && k ? stepDown(ex, k, perSet[k - 1], last, target.move === 'back', bodyKg) : slot(k)
+        perSet.push(own)
+        if (k >= lead.sets) continue
+        const belt = lead.target.perSet[k]?.kg ?? 0
+        if (belt === (own.kg ?? 0) || (!k && !backing && belt < (last[0]?.kg ?? 0))) continue
+        const count = on(k, own, belt)
+        const [lo, hi] = pyramidRange(ex, k)
+        if (count >= hi + FAR || (!k && count < lo)) continue
+        perSet[k] = { kg: belt || undefined, count }
+        moved = true
+      }
+      if (!moved) return target
+    } else {
+      const belt = lead.target.kg ?? 0
+      const mine = target.kg ?? 0
+      if (belt === mine || (!backing && belt < topOf(ex, last))) return target
+      const [lo, hi] = ex.repRange
+      for (let k = 0; k < m.sets; k++) {
+        const own = slot(k)
+        // the ramp up to the working weight stays as it is, short of the belt
+        if ((own.kg ?? 0) !== mine) perSet.push((own.kg ?? 0) > belt ? { kg: belt || undefined, count: own.count } : own)
+        else {
+          const count = on(k, own, belt)
+          if (count >= hi + FAR || count < lo) return target
+          perSet.push({ kg: belt || undefined, count })
+        }
+      }
+    }
+    // the headline again: the top set of a pyramid, or the working weight and the least it asks for there
+    const top = Math.max(...perSet.map((x) => x.kg ?? 0))
+    const head = ex.pyramid ? perSet[0] : { kg: top || undefined, count: Math.min(...perSet.filter((x) => (x.kg ?? 0) === top).map((x) => x.count)) }
+    // and how that stands against last time
+    const before = ex.pyramid ? (last[0]?.kg ?? 0) : topOf(ex, last)
+    const did = ex.pyramid ? (last[0]?.reps ?? 0) : Math.min(...last.filter((x) => (x.kg ?? 0) === before).map((x) => x.reps ?? 0))
+    const d = round((head.kg ?? 0) - before, 2)
+    return {
+      // lighter than last time for the belt's sake is no backing off
+      move: d > 0 ? 'up' : 'more',
+      kg: head.kg,
+      count: head.count,
+      perSet,
+      note: d ? `${d > 0 ? '+' : '−'}${fmtKg(Math.abs(d))} kg` : head.count > did ? `+${plural(head.count - did, 'rep')}` : '',
+    }
+  })
 }
 
 /** The target in a glance: "62.5 kg × 8", "+10 kg × 6", "12 reps", "45 s"; the range when it's your first go. */

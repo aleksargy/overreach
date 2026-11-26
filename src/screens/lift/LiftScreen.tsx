@@ -10,9 +10,9 @@ import { useStore } from '../../data/store'
 import type { Muscle, Routine } from '../../data/types'
 import { useUi } from '../../data/ui'
 import { useWorld, type World } from '../../data/world'
-import { amount, focusOf, historyFor, lastDone, nextRoutine, progressOf, recordsIn, routinesOf, supersetTags, targetText, topOf } from '../../lib/lift'
+import { amount, focusOf, historyFor, lastDone, nextRoutine, progressOf, recordsIn, supersetTags, targetText, topOf } from '../../lib/lift'
 import { uid } from '../../lib/rng'
-import { EQUIPMENT_LABEL, MUSCLE_LABEL, MoveNote, WorkoutRow, daysAgo, nextFor, useBegin } from './parts'
+import { EQUIPMENT_LABEL, MUSCLE_LABEL, MoveNote, WorkoutRow, daysAgo, inPlay, planOf, useBegin } from './parts'
 import { WeekBars, programmeWhen } from './ProgrammeScreen'
 
 /** How long ago a workout was last done, in days; undefined if never. */
@@ -33,12 +33,6 @@ export function useNewWorkout() {
     if (programme) saveProgramme({ ...programme, routineIds: [...programme.routineIds, id] })
     nav(`/lift/workout/${id}?edit=1`)
   }
-}
-
-/** The workouts Next up picks from: the programme you're on, when it has any, or all of yours. */
-const inPlay = (w: World) => {
-  const own = w.programme ? routinesOf(w.programme, w.routines) : []
-  return own.length ? own : w.routines
 }
 
 /** Lifting: what to do next, your workouts, and how the weights are moving. */
@@ -150,12 +144,14 @@ function NextUp({ w, routine }: { w: World; routine: Routine }) {
 export function Targets({ w, routine, className = '', tinted }: { w: World; routine: Routine; className?: string; tinted?: boolean }) {
   // exercises done in turns are tagged A1, A2
   const tags = supersetTags(routine.items)
+  // what each is to lift, with the belt shared between lifts done in turns
+  const plan = useMemo(() => planOf(w, routine.items), [w, routine.items])
   return (
     <div className={`${tinted ? '' : 'list ruled'} ${className}`}>
       {routine.items.map((it, i) => {
         const ex = w.exerciseById.get(it.exerciseId)
-        if (!ex) return null
-        const t = nextFor(w, ex, it.sets)
+        const t = plan[i]
+        if (!ex || !t) return null
         return (
           <Link
             key={`${it.exerciseId}-${i}`}
@@ -168,7 +164,9 @@ export function Targets({ w, routine, className = '', tinted }: { w: World; rout
                 {ex.name}
               </span>
               <span className={`block text-[12px] ${tinted ? 'text-strength-head/80' : 'text-fg-3'}`}>
-                {it.sets} {it.sets === 1 ? 'set' : 'sets'} · <MoveNote t={t} plain={tinted} />
+                {it.sets} {it.sets === 1 ? 'set' : 'sets'}
+                {(t.move === 'first' || t.note) && ' · '}
+                <MoveNote t={t} plain={tinted} />
               </span>
             </span>
             <span className={`num shrink-0 text-right text-[18px] ${tinted ? 'text-strength-head' : ''}`}>{targetText(ex, t)}</span>
