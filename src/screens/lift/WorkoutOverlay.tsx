@@ -10,6 +10,8 @@ import type { SetEntry, WorkoutExercise } from '../../data/types'
 import { useUi } from '../../data/ui'
 import { useWorld, type World } from '../../data/world'
 import {
+  beltMates,
+  countAt,
   dropFor,
   dropsBySet,
   fmtKg,
@@ -18,17 +20,17 @@ import {
   mainSets,
   plates,
   pyramidOf,
-  pyramidRange,
-  pyramidStep,
   setText,
+  stepDown,
   supersetTags,
   targetText,
   tidySupersets,
   toggleSuperset,
   weeksOf,
+  type Target,
 } from '../../lib/lift'
 import { uid } from '../../lib/rng'
-import { MoveNote, SupersetLink, nextFor } from './parts'
+import { MoveNote, SupersetLink, bodyKgOf, planOf } from './parts'
 
 const blankSet = (kind: SetEntry['kind'] = 'working'): SetEntry => ({ id: uid(), kind, done: false })
 /** the sets that count towards the workout: not warm-ups or drop sets */
@@ -84,7 +86,26 @@ function Live() {
   const setOpen = useUi((s) => s.setWorkoutOpen)
   const open = useUi((s) => s.open)
   const [finishing, setFinishing] = useState(false)
+  // what to lift on each exercise, planned together so lifts done in turns share a belt; it only moves when the
+  // exercises, their sets or their supersets do, not with every rep typed in
+  const exercises = active?.exercises ?? []
+  const shape = exercises.map((we) => `${we.exerciseId} ${working(we).length} ${we.superset ?? ''}`).join('\n')
+  const { plan, mates } = useMemo(() => {
+    const items = exercises.map((we) => ({ exerciseId: we.exerciseId, sets: working(we).length, superset: we.superset }))
+    return { plan: planOf(w, items), mates: beltMates(items, w.exerciseById) }
+  }, [w, shape])
   if (!active) return null
+  // the weight a lift sharing the belt has put in for a round, where the two were planned at one weight
+  const planned = (i: number, k: number) => {
+    const t = plan[i]
+    return t ? ((t.perSet[k] ?? t).kg ?? 0) : undefined
+  }
+  const worn = (i: number) => (k: number) => {
+    for (const j of mates[i] ?? []) {
+      const kg = working(active.exercises[j])[k]?.kg
+      if (kg !== undefined && planned(j, k) !== undefined && planned(j, k) === planned(i, k)) return kg
+    }
+  }
   const done = active.exercises.reduce((a, we) => a + working(we).filter((s) => s.done).length, 0)
   const total = active.exercises.reduce((a, we) => a + working(we).length, 0)
 
@@ -139,7 +160,7 @@ function Live() {
                   />
                 </div>
               )}
-              <ExerciseBlock w={w} we={we} index={i} count={active.exercises.length} tag={tags[i]} />
+              <ExerciseBlock w={w} we={we} index={i} count={active.exercises.length} tag={tags[i]} target={plan[i]} worn={worn(i)} />
             </Fragment>
           ))}
           <button onClick={addExercise} className="btn-ghost mt-5 w-full">
@@ -153,17 +174,32 @@ function Live() {
   )
 }
 
-function ExerciseBlock({ w, we, index, count, tag }: { w: World; we: WorkoutExercise; index: number; count: number; tag?: string }) {
+function ExerciseBlock({
+  w,
+  we,
+  index,
+  count,
+  tag,
+  target,
+  worn,
+}: {
+  w: World
+  we: WorkoutExercise
+  index: number
+  count: number
+  tag?: string
+  /** what to lift, from the plan for the whole workout */
+  target?: Target
+  /** the weight a lift sharing the belt has put in for a round, if it has */
+  worn: (k: number) => number | undefined
+}) {
   const update = useStore((s) => s.updateActive)
   const say = useUi((s) => s.say)
   const ex = w.exerciseById.get(we.exerciseId)
   const history = useMemo(() => (ex ? historyFor(ex.id, w.workouts) : []), [ex, w.workouts])
   // the session the target builds on: the latest week's best, which a tired second go that week isn't
-  const bodyKg = w.body.find((b) => b.weightKg)?.weightKg
+  const bodyKg = bodyKgOf(w)
   const base = useMemo(() => (ex ? weeksOf(ex, history, bodyKg)[0] : undefined), [ex, history, bodyKg])
-  // the sets it has today: fewer last time and the weight waits for them
-  const sets = working(we).length
-  const target = useMemo(() => (ex ? nextFor(w, ex, sets) : null), [w, ex, sets])
   const [menu, setMenu] = useState(false)
   if (!ex || !target) return null
 
@@ -194,7 +230,7 @@ function ExerciseBlock({ w, we, index, count, tag }: { w: World; we: WorkoutExer
   // straight sets: the weight you last put in on a set today carries down the sets after it planned at the same weight,
   // whatever the plan said (so not from the ramp up to the working weight onto it)
   let typed: { plan?: number; kg: number } | undefined
-  // the set above, as it stands: a drop set goes down from it, and a pyramid set with nothing to go on a tenth below it
+  // the set above, as it stands: a drop set goes down from it, and so does the next set of a pyramid
   let above: { kg?: number; count?: number } = {}
   let main: { kg?: number; count?: number } = {}
   // what ticking a set writes down if you leave it as it is: its target, or for a warm-up what you did last time
@@ -208,19 +244,36 @@ function ExerciseBlock({ w, we, index, count, tag }: { w: World; we: WorkoutExer
       const previous = prevDrops.get(k)?.[nDrop]
       const from = nDrop ? prevDrops.get(k)?.[nDrop - 1]?.kg : prevWork[k]?.kg
       nDrop++
-      const t = dropFor(ex, above, previous && { from, kg: previous.kg, reps: countOf(previous) })
+      const t = dropFor(ex, above, previous && { from, kg: previous.kg, reps: countOf(previous) }, bodyKg)
       above = { kg: s.kg ?? t.kg, count: countOf(s) ?? t.count }
       return { s, label: 'D', previous, phKg: t.kg, phCount: t.count }
     }
     const k = nWork++
     nDrop = 0
     const slot = target.perSet[k]
-    // what the set was planned at: its own weight, else the target's; weight added to you with none is bodyweight
-    // (not last time's added weight, which is what a target down to bodyweight comes from)
-    const plan = slot?.kg ?? target.kg ?? (ex.kind === 'weighted-bodyweight' ? 0 : undefined)
-    const phKg = ex.pyramid ? (slot?.kg ?? (k && main.kg ? pyramidStep(ex, main.kg) : undefined)) : typed && typed.plan === plan ? typed.kg : plan
-    const phCount = slot?.count ?? (ex.pyramid ? pyramidRange(ex, k)[0] : target.count)
-    if (s.kg !== undefined) typed = { plan, kg: s.kg }
+    // what the set was planned at: its own weight and reps, else the target's; weight added to you with none is
+    // bodyweight (a set planned at bodyweight isn't the target's weight, nor the set above's)
+    const none = ex.kind === 'weighted-bodyweight' ? 0 : undefined
+    let kgPlan = (slot ? slot.kg : target.kg) ?? none
+    let countPlan = slot?.count ?? target.count
+    // down a pyramid a set sits under the one above as it stands: when that isn't what was planned (you loaded more
+    // or less than it said), or this set has no plan, it's placed again under it, as the plan would have
+    if (ex.pyramid && weighted && k && main.kg !== undefined && (!slot || main.kg !== (target.perSet[k - 1]?.kg ?? none))) {
+      const t = stepDown(ex, k, { kg: main.kg || undefined, count: main.count ?? countPlan }, prevWork, target.move === 'back', bodyKg)
+      kgPlan = t.kg ?? none
+      countPlan = t.count
+    }
+    // straight sets: the weight you put in above carries down the sets planned at the same weight. And lifts done
+    // in turns go round on one belt: the weight the other has put on it this round
+    const phKg = worn(k) ?? (!ex.pyramid && typed && typed.plan === kgPlan ? typed.kg : kgPlan)
+    // the reps go with the weight that's on the set, typed or not: what the plan for it comes to there. A first go
+    // has no reps planned at a weight, and a weight half typed in (8 on the way to 80) is nothing to go by, so only
+    // one within half the planned load of it moves them
+    const on = s.kg ?? phKg
+    const body = ex.kind === 'weighted-bodyweight' ? (bodyKg ?? 0) : 0
+    const near = on !== undefined && kgPlan !== undefined && on !== kgPlan && Math.abs(on - kgPlan) <= (kgPlan + body) / 2
+    const phCount = weighted && target.move !== 'first' && near ? countAt(ex, { kg: kgPlan, count: countPlan }, on, bodyKg) : countPlan
+    if (s.kg !== undefined) typed = { plan: kgPlan, kg: s.kg }
     main = above = { kg: s.kg ?? phKg, count: countOf(s) ?? phCount }
     return { s, label: String(k + 1), previous: prevWork[k], phKg, phCount }
   })
@@ -233,7 +286,7 @@ function ExerciseBlock({ w, we, index, count, tag }: { w: World; we: WorkoutExer
       if (s.secs === undefined) p.secs = r.phCount
     } else {
       if (s.reps === undefined) p.reps = r.phCount
-      if (weighted && s.kg === undefined && r.phKg !== undefined) p.kg = r.phKg
+      if (weighted && s.kg === undefined && r.phKg) p.kg = r.phKg
     }
     if (!(timed ? (p.secs ?? s.secs) : (p.reps ?? s.reps))) return say(timed ? 'Add the seconds first' : 'Add your reps first')
     if (ex.kind === 'weight' && !(p.kg ?? s.kg)) return say('Add the weight first')
