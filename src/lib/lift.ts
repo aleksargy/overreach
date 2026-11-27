@@ -36,8 +36,8 @@
 // weeks or with no end: Next up only comes from the one you're on.
 
 import { differenceInCalendarWeeks, parseISO, startOfWeek } from 'date-fns'
-import { MUSCLES } from '../data/exercises'
-import type { Exercise, LiftSummary, Muscle, Programme, ProgrammeRun, Routine, SetEntry, Workout } from '../data/types'
+import { EQUIPMENT, MUSCLES } from '../data/exercises'
+import type { Equipment, Exercise, LiftSummary, Muscle, Programme, ProgrammeRun, Routine, SetEntry, Workout } from '../data/types'
 import { isoDay } from './format'
 import { median, round } from './math'
 
@@ -80,6 +80,78 @@ export function historyFor(exerciseId: string, workouts: Workout[], excludeId?: 
     }
   }
   return out.sort((a, b) => b.date.localeCompare(a.date))
+}
+
+// ---- equipment: one lift, a history for each thing it's done with
+//
+// Switch lateral raises from dumbbells to a cable and the weights mean something else: 5 kg on the stack after 9 kg
+// dumbbells is no step back. So every logged exercise says what it was done with (`WorkoutExercise.equipment`,
+// written down as the session is saved), and a lift only goes on from its sessions on the equipment it's on now. The
+// rest stay, as the same lift on the other equipment: a history of their own, picked up again if you go back to it.
+
+/** the id a lift's sessions on other equipment go by: its own, then the equipment */
+const variantId = (id: string, equipment: Equipment) => `${id}~${equipment}`
+/** A lift's own id, from its own or from one of its other equipment's. */
+export const baseId = (id: string) => id.split('~')[0]
+
+/**
+ * Sessions with what each exercise was done with written down: any that doesn't say yet takes what the exercise is on
+ * now. That's every session logged before the app kept track, so the day it starts, nothing has moved.
+ */
+export function withEquipment(workouts: Workout[], exercises: Map<string, Exercise>): Workout[] {
+  return workouts.map((w) =>
+    w.exercises.every((we) => we.equipment || !exercises.has(we.exerciseId))
+      ? w
+      : { ...w, exercises: w.exercises.map((we) => (we.equipment ? we : { ...we, equipment: exercises.get(we.exerciseId)?.equipment })) },
+  )
+}
+
+/**
+ * Sessions and exercises with each lift's history split by equipment: an exercise logged with something other than
+ * what the lift is on now counts as a lift beside it (`variantOf`), named with what it was done with. So targets,
+ * bests, progress and goals, which all go by the lift, only ever see one equipment's sessions. An exercise that
+ * doesn't say what it was done with (the sample lifter's) goes with what the lift is on now.
+ */
+export function byEquipment(workouts: Workout[], exercises: Map<string, Exercise>): { workouts: Workout[]; exercises: Map<string, Exercise> } {
+  const all = new Map(exercises)
+  const split = workouts.map((w) => {
+    if (w.exercises.every((we) => !we.equipment || we.equipment === exercises.get(we.exerciseId)?.equipment)) return w
+    return {
+      ...w,
+      exercises: w.exercises.map((we) => {
+        const ex = exercises.get(we.exerciseId)
+        if (!ex || !we.equipment || we.equipment === ex.equipment) return we
+        const id = variantId(ex.id, we.equipment)
+        if (!all.has(id))
+          all.set(id, { ...ex, id, equipment: we.equipment, name: `${ex.name} · ${EQUIPMENT.find((e) => e.key === we.equipment)?.label ?? we.equipment}`, variantOf: ex.id })
+        return { ...we, exerciseId: id }
+      }),
+    }
+  })
+  return { workouts: split, exercises: all }
+}
+
+/** A lift on everything it's been done with that has sessions, the equipment it's on now first. */
+export function setupsOf(ex: Exercise, workouts: Workout[], exercises: Map<string, Exercise>): Exercise[] {
+  const base = exercises.get(ex.variantOf ?? ex.id) ?? ex
+  const others = [...exercises.values()].filter((e) => e.variantOf === base.id && workouts.some((w) => w.exercises.some((we) => we.exerciseId === e.id)))
+  return [base, ...others]
+}
+
+/**
+ * Say what a lift was done with in one session, and in every session before it that was on the same thing as that
+ * one: the day you changed equipment, everything up to it was on the old one. Later sessions, and earlier ones already
+ * on something else, stay as they are.
+ */
+export function doneWith(workouts: Workout[], exerciseId: string, workoutId: string, equipment: Equipment): Workout[] {
+  const at = workouts.find((w) => w.id === workoutId)
+  const was = at?.exercises.find((we) => we.exerciseId === exerciseId)?.equipment
+  if (!at) return workouts
+  return workouts.map((w) =>
+    w.start <= at.start && w.exercises.some((we) => we.exerciseId === exerciseId && we.equipment === was)
+      ? { ...w, exercises: w.exercises.map((we) => (we.exerciseId === exerciseId && we.equipment === was ? { ...we, equipment } : we)) }
+      : w,
+  )
 }
 
 /** The sets the targets go on, in order: not warm-ups, and not drop sets. */

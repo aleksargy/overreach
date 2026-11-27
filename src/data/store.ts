@@ -1,21 +1,22 @@
 import { get as idbGet, set as idbSet } from 'idb-keyval'
 import { create } from 'zustand'
+import { exercisesOf } from './exercises'
 import { SAMPLE_PROFILE } from './sample'
 import { backupOf, merge, withoutStarters, type Backup } from '../lib/backup'
 import { isoDay } from '../lib/format'
 import { withPoints } from '../lib/football'
-import { openRun } from '../lib/lift'
+import { baseId, doneWith, openRun, withEquipment } from '../lib/lift'
 import { uid } from '../lib/rng'
-import type { BodyEntry, Daily, Exercise, GarminActivity, LiftGoal, Match, Profile, Programme, Routine, SetEntry, SyncState, Workout } from './types'
+import type { BodyEntry, Daily, Equipment, Exercise, GarminActivity, LiftGoal, Match, Profile, Programme, Routine, SetEntry, SyncState, Workout } from './types'
 
 /** Everything you type into the app. Garmin data lives in `garmin`, sample data is generated. */
 export interface UserData {
   /**
    * 2: matches have points (what went well and badly) instead of moments. 3: your workouts start empty, without
    * the four starters. 4: a phone that hasn't synced starts blank (sync mode 'off'), and sample data is the Demo switch.
-   * 5: programmes.
+   * 5: programmes. 6: every logged exercise says what it was done with (`withEquipment`).
    */
-  version: 5
+  version: 6
   profile: Profile
   matches: Match[]
   hiddenMatchIds: string[]
@@ -43,7 +44,7 @@ export interface GarminCache {
 const START_DEMO = !!import.meta.env && (import.meta.env.VITE_PREVIEW === '1' || import.meta.env.VITE_DEMO === '1')
 
 const EMPTY: UserData = {
-  version: 5,
+  version: 6,
   // the sample athlete's heart rates until the watch says otherwise, but no name: it's yours to give
   profile: { ...SAMPLE_PROFILE, name: '' },
   matches: [],
@@ -75,6 +76,8 @@ interface State extends UserData {
   deleteWorkout: (id: string) => void
   saveExercise: (e: Exercise) => void
   editExercise: (id: string, patch: Partial<Exercise>) => void
+  /** what a lift was done with in a session, and in the ones before it that were on the same thing (`doneWith`) */
+  setDoneWith: (exerciseId: string, workoutId: string, equipment: Equipment) => void
   /** add a workout of your own, or change one in place */
   saveRoutine: (r: Routine) => void
   deleteRoutine: (id: string) => void
@@ -143,8 +146,10 @@ async function save(key: string, value: unknown) {
 export function upgrade(u: UserData): UserData {
   return {
     ...u,
-    version: 5,
+    version: 6,
     matches: (u.matches ?? []).map(withPoints),
+    // before 6 a session didn't say what each exercise was done with: it takes what the exercise is on now
+    workouts: withEquipment(u.workouts ?? [], new Map(exercisesOf(u.customExercises ?? [], u.exerciseEdits ?? {}).map((e) => [e.id, e]))),
     routines: withoutStarters(u.routines ?? [], u.workouts ?? []),
     programmes: u.programmes ?? [],
     // before 4, a phone that hadn't synced said 'sample' and showed sample data; now it shows only what you log
@@ -154,7 +159,7 @@ export function upgrade(u: UserData): UserData {
 
 function pickUser(s: State): UserData {
   return {
-    version: 5,
+    version: 6,
     profile: s.profile,
     matches: s.matches,
     hiddenMatchIds: s.hiddenMatchIds,
@@ -214,7 +219,8 @@ export const useStore = create<State>()((set, get) => ({
   startWorkout: (routine) => {
     const exercises = (routine?.items ?? []).map((item) => ({
       id: uid(),
-      exerciseId: item.exerciseId,
+      // a session started again from one on other equipment is the lift itself, on what it's on now
+      exerciseId: baseId(item.exerciseId),
       sets: Array.from({ length: item.sets }, (): SetEntry => ({ id: uid(), kind: 'working', done: false })),
       superset: item.superset,
     }))
@@ -235,11 +241,13 @@ export const useStore = create<State>()((set, get) => ({
   finishWorkout: (srpe) => {
     const w = get().active
     if (!w) return null
+    // each exercise says what it was done with: what it's on today
+    const on = new Map(exercisesOf(get().customExercises, get().exerciseEdits).map((e) => [e.id, e.equipment]))
     const done: Workout = {
       ...w,
       end: new Date().toISOString(),
       srpe,
-      exercises: w.exercises.map((we) => ({ ...we, sets: we.sets.filter((x) => x.done) })).filter((we) => we.sets.length),
+      exercises: w.exercises.map((we) => ({ ...we, equipment: on.get(we.exerciseId), sets: we.sets.filter((x) => x.done) })).filter((we) => we.sets.length),
     }
     set((s) => ({ active: null, workouts: [done, ...s.workouts] }))
     return done
@@ -252,11 +260,21 @@ export const useStore = create<State>()((set, get) => ({
   saveExercise: (e) => set((s) => ({ customExercises: [...s.customExercises.filter((x) => x.id !== e.id), e] })),
 
   editExercise: (id, patch) =>
-    set((s) =>
-      s.customExercises.some((x) => x.id === id)
+    set((s) => {
+      const was = exercisesOf(s.customExercises, s.exerciseEdits).find((e) => e.id === id)?.equipment
+      const edited = s.customExercises.some((x) => x.id === id)
         ? { customExercises: s.customExercises.map((x) => (x.id === id ? { ...x, ...patch } : x)) }
-        : { exerciseEdits: { ...s.exerciseEdits, [id]: { ...s.exerciseEdits[id], ...patch } } },
-    ),
+        : { exerciseEdits: { ...s.exerciseEdits, [id]: { ...s.exerciseEdits[id], ...patch } } }
+      if (!patch.equipment || patch.equipment === was) return edited
+      // on other equipment the lift starts a history of its own, so a goal set from the old one's numbers goes
+      const drop = (p: Programme) =>
+        openRun(p)?.goals?.some((g) => g.exerciseId === id)
+          ? { ...p, runs: p.runs.map((r, i) => (i === p.runs.length - 1 ? { ...r, goals: r.goals?.filter((g) => g.exerciseId !== id) } : r)) }
+          : p
+      return { ...edited, programmes: s.programmes.map(drop) }
+    }),
+
+  setDoneWith: (exerciseId, workoutId, equipment) => set((s) => ({ workouts: doneWith(s.workouts, exerciseId, workoutId, equipment) })),
 
   saveRoutine: (r) => set((s) => ({ routines: s.routines.some((x) => x.id === r.id) ? s.routines.map((x) => (x.id === r.id ? r : x)) : [...s.routines, r] })),
 

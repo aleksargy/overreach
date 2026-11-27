@@ -87,6 +87,9 @@ export const KINDS: { key: ExerciseKind; label: string }[] = [
   { key: 'duration', label: 'Time hold' },
 ]
 
+/** Every exercise as it stands: the built-in ones with what you've changed on them, then your own. */
+export const exercisesOf = (custom: Exercise[], edits: Record<string, Partial<Exercise>>): Exercise[] => [...BUILTIN_EXERCISES.map((e) => ({ ...e, ...edits[e.id] })), ...custom]
+
 /**
  * The sample lifter's workouts: what the Lift tab shows on sample data. Your own
  * list starts empty. Until 10 Nov 2026 every phone began with these four, so a

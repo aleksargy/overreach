@@ -102,3 +102,38 @@ test('describes what came back in plain words', () => {
   assert.equal(describe({ matches: 1, workouts: 0, body: 1 }), '1 match and 1 weigh-in')
   assert.equal(describe({ matches: 0, workouts: 0, body: 0 }), '')
 })
+
+test('a copy from before sessions said what they were done with takes what each exercise is on now', () => {
+  const session = (id: string, exerciseId: string, equipment?: string) => ({
+    id,
+    name: 'Pull',
+    start: '2026-11-20T18:00:00.000Z',
+    end: '2026-11-20T19:00:00.000Z',
+    source: 'manual',
+    exercises: [{ id: `${id}-e`, exerciseId, equipment, sets: [] }],
+  })
+  const empty = {
+    profile: { name: '', hrMax: 190, hrRest: 50 },
+    matches: [],
+    hiddenMatchIds: [],
+    skippedRatings: [],
+    workouts: [],
+    customExercises: [],
+    exerciseEdits: {},
+    routines: [],
+    programmes: [],
+    body: [],
+  }
+  const mine = { ...empty, workouts: [session('new', 'lateral-raise', 'cable')], exerciseEdits: { 'lateral-raise': { equipment: 'cable' } } } as unknown as Parameters<
+    typeof merge
+  >[0]
+  const saved = { workouts: [session('old', 'lateral-raise'), session('older', 'barbell-row')] } as unknown as Parameters<typeof merge>[1]
+  assert.deepEqual(
+    merge(mine, saved).workouts.map((w) => [w.id, w.exercises[0].equipment]),
+    [
+      ['new', 'cable'],
+      ['old', 'cable'],
+      ['older', 'barbell'],
+    ],
+  )
+})
