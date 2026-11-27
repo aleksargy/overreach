@@ -16,6 +16,7 @@ import {
   gainText,
   historyFor,
   liftSummary,
+  musclesOf,
   nextRoutine,
   openRun,
   planFor,
@@ -732,4 +733,30 @@ test('a best is marked set by set, as it’s ticked: the same record the session
     const today = session(bench, 0, sets)
     assert.equal(recordsIn(today, [before, today], byId).length > 0, bestSets(bench, sets, was).size > 0)
   }
+})
+
+test('a programme’s week by muscle: a set for the main one, half for each that helps', () => {
+  const r = (id: string, ...items: [string, number][]): Routine => ({ id, name: id, focus: '', items: items.map(([exerciseId, sets]) => ({ exerciseId, sets })) })
+  // bench also works triceps and shoulders, chin-ups biceps, squats glutes
+  const routines = [r('a', ['bench-press', 3], ['chin-up', 3]), r('b', ['back-squat', 4], ['barbell-curl', 2]), r('empty')]
+  const p: Programme = { id: 'p', name: 'P', routineIds: ['a', 'b', 'empty', 'gone'], perWeek: 2, weeks: 10, runs: [] }
+  const week = musclesOf(p, routines, byId)
+  // two workouts with something in them, twice a week: each once
+  assert.equal(week.total, 12)
+  assert.deepEqual(
+    week.list.map((m) => [m.muscle, m.sets]),
+    [
+      ['quads', 4],
+      ['biceps', 3.5],
+      ['chest', 3],
+      ['back', 3],
+      ['glutes', 2],
+      ['triceps', 1.5],
+      ['shoulders', 1.5],
+    ],
+  )
+  // four times a week they each come round twice
+  assert.equal(musclesOf({ ...p, perWeek: 4 }, routines, byId).total, 24)
+  assert.equal(musclesOf({ ...p, perWeek: 3 }, routines, byId).list[0].sets, 6)
+  assert.deepEqual(musclesOf({ ...p, routineIds: ['empty'] }, routines, byId), { list: [], total: 0 })
 })

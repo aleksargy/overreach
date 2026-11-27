@@ -1,6 +1,7 @@
 import { ArrowDown, ArrowUp, Check, ChevronRight, Minus, Pencil, Plus, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
+import { MuscleFigure } from '../../components/charts/MuscleFigure'
 import { IconButton, Screen } from '../../components/ui/Screen'
 import { Sheet } from '../../components/ui/Sheet'
 import { Empty, Section, Segmented, inputCls, plainText, useAutoFocus } from '../../components/ui/bits'
@@ -9,8 +10,9 @@ import type { Exercise, LiftGoal, Programme, ProgrammeRun, Routine, SetEntry } f
 import { useUi } from '../../data/ui'
 import { useWorld, type World } from '../../data/world'
 import { goalDay, goalProgress, isStretch, liftsOf, mainLiftsOf, nudge, suggestGoal } from '../../lib/goals'
-import { doneThisWeek, focusOf, historyFor, nextRoutine, openRun, routinesOf, sessionsByWeek, setText, weekOfRun } from '../../lib/lift'
+import { doneThisWeek, focusOf, historyFor, musclesOf, nextRoutine, openRun, routinesOf, sessionsByWeek, setText, weekOfRun } from '../../lib/lift'
 import { uid } from '../../lib/rng'
+import { MUSCLE_LABEL } from './parts'
 
 /** a new programme runs this many weeks until you say otherwise */
 export const DEFAULT_WEEKS = 10
@@ -78,6 +80,37 @@ function RunWeeks({ p, run, w }: { p: Programme; run: ProgrammeRun; w: World }) 
         </div>
       ))}
     </div>
+  )
+}
+
+/**
+ * What a week of a programme works: a body from the front and from behind, each muscle filled by its sets a week,
+ * and the sets beside it, the most worked first. A muscle the programme leaves out stays graphite and isn't listed.
+ */
+function Muscles({ p, w }: { p: Programme; w: World }) {
+  const week = useMemo(() => musclesOf(p, w.routines, w.exerciseById), [p, w.routines, w.exerciseById])
+  const shown = week.list.filter((m) => Math.round(m.sets) > 0)
+  if (!shown.length) return null
+  const sets = Object.fromEntries(week.list.map((m) => [m.muscle, m.sets]))
+  return (
+    <Section title="Sets a week" action={<span className="label">{Math.round(week.total)}</span>}>
+      <div className="grid grid-cols-[92px_92px_minmax(0,1fr)] items-start gap-1.5">
+        {(['front', 'back'] as const).map((side) => (
+          <figure key={side} className="flex flex-col items-center gap-1.5">
+            <MuscleFigure side={side} sets={sets} className="w-full" />
+            <figcaption className="text-[11px] font-semibold leading-none text-fg-4">{side === 'front' ? 'Front' : 'Back'}</figcaption>
+          </figure>
+        ))}
+        <div className="flex flex-col gap-[3px] pl-2.5">
+          {shown.map((m) => (
+            <div key={m.muscle} className="flex items-baseline justify-between gap-2 text-[13px] font-semibold leading-[18px] text-fg-2">
+              <span className="truncate">{MUSCLE_LABEL[m.muscle]}</span>
+              <span className="num text-[15px] text-fg">{Math.round(m.sets)}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </Section>
   )
 }
 
@@ -422,6 +455,7 @@ export function ProgrammeScreen() {
               />
             </div>
           )}
+          {ready && <Muscles p={p} w={w} />}
           {ready && (!running || over) && (
             <button
               onClick={() => {
