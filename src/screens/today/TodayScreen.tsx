@@ -11,10 +11,12 @@ import { useUi } from '../../data/ui'
 import { useWorld, type World } from '../../data/world'
 import { dayLabel, isoDay, km, kmh, pace, swimPace } from '../../lib/format'
 import { ratingTone, result, usualFormatAt } from '../../lib/football'
+import { recordsIn } from '../../lib/lift'
 import { mean } from '../../lib/math'
 import { BEST_NAME } from '../../lib/running'
 import type { Standout } from '../../lib/standout'
 import { RateTile, formatOfGame } from '../football/RateTile'
+import { SessionBars, barsFor } from '../lift/parts'
 
 /** Today: the week so far, the next game and the one reading worth a look, a game to rate, and the latest session. */
 export function TodayScreen() {
@@ -318,12 +320,8 @@ function numbersOf(a: Activity): { v: string; u: string }[] {
     case 'football':
       return [{ v: km(a.distanceM, 1), u: 'km' }, mins, ...hr]
     case 'strength':
-      if (!a.lift) return [mins, ...hr]
-      return [
-        { v: String(a.lift.sets), u: 'sets' },
-        a.lift.volumeKg >= 1000 ? { v: (a.lift.volumeKg / 1000).toFixed(1), u: 't' } : { v: String(Math.round(a.lift.volumeKg)), u: 'kg' },
-        mins,
-      ]
+      // a session logged here is drawn as its sets (`Latest`); one only the watch saw has its time
+      return a.lift ? [{ v: String(a.lift.sets), u: 'sets' }, mins] : [mins, ...hr]
     default:
       return [mins, ...hr]
   }
@@ -339,6 +337,34 @@ function Latest({ w }: { w: World }) {
   // the latest session from a tab you show
   const a = w.activities.find((x) => !TAB_OF[x.sport] || w.shows(TAB_OF[x.sport]!))
   if (!a) return null
+  // a lifting session logged here is drawn as its sets, the way a run has its route
+  const lifted = a.workoutId ? w.workouts.find((x) => x.id === a.workoutId) : undefined
+  const bars = lifted ? barsFor(w, lifted) : []
+  if (lifted && bars.length) {
+    const bests = recordsIn(lifted, w.workouts, w.exerciseById).length
+    return (
+      <>
+        <Link to={linkTo(a, w)} className="press tile flex flex-col gap-3">
+          <span className="flex items-baseline justify-between gap-2">
+            <span className="truncate text-[15px] font-bold">{a.name}</span>
+            <span className="label shrink-0">{dayLabel(a.start, w.now)}</span>
+          </span>
+          <SessionBars lifts={bars} size="big" />
+          <span className="flex gap-4">
+            {[...numbersOf(a).slice(0, 1), ...(bests ? [{ v: String(bests), u: bests === 1 ? 'best' : 'bests', new: true }] : []), ...numbersOf(a).slice(1)].map((n) => (
+              <span key={n.u} className={`num whitespace-nowrap text-[20px] ${'new' in n ? 'text-football' : ''}`}>
+                {n.v}
+                <span className={`unit ml-0.5 text-[12px] ${'new' in n ? '!text-football' : ''}`}>{n.u}</span>
+              </span>
+            ))}
+          </span>
+        </Link>
+        <Link to="/feed" className="link self-center px-2 py-1">
+          All activity <ChevronRight size={14} strokeWidth={2.2} />
+        </Link>
+      </>
+    )
+  }
   return (
     <>
       <Link to={linkTo(a, w)} className="press tile flex items-center gap-3.5">

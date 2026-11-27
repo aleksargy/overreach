@@ -730,6 +730,31 @@ export function barsOf(ex: Pick<Exercise, 'kind'>, sets: { kg?: number }[], body
   return loads.map((l) => ({ rise: most > 0 ? Math.min(1, Math.max(0, (l / most - BAR_FLOOR) / (1 - BAR_FLOOR))) : 1, top: l === most }))
 }
 
+/** One exercise of a session, drawn: a bar for each set that counts, and whether that set was a new best. */
+export interface LiftBars {
+  /** the logged exercise's own id */
+  id: string
+  exerciseId: string
+  bars: { rise: number; top: boolean; best: boolean }[]
+}
+
+/**
+ * A session as its sets, the way a run has its route: for each exercise with sets that count, a bar a set (`barsOf`),
+ * the ones that were a new best when they were done marked (`bestSets`, against the sessions before this one).
+ */
+export function sessionBars(w: Workout, all: Workout[], exercises: Map<string, Exercise>, bodyKg?: number): LiftBars[] {
+  return w.exercises.flatMap((we) => {
+    const ex = exercises.get(we.exerciseId)
+    const sets = we.sets.filter(isWorking)
+    if (!ex || !sets.length) return []
+    const before = historyFor(ex.id, all, w.id)
+      .filter((h) => h.date < w.start)
+      .flatMap((h) => h.sets)
+    const bests = bestSets(ex, we.sets, before)
+    return [{ id: we.id, exerciseId: ex.id, bars: barsOf(ex, sets, bodyKg).map((b, i) => ({ ...b, best: bests.has(sets[i].id) })) }]
+  })
+}
+
 /** Sets that aren't all at one weight: a pyramid, or a ramp up to the working weight. Level sets are said in one number. */
 export const stepped = (ex: Pick<Exercise, 'kind'>, sets: { kg?: number }[]) => loaded(ex) && new Set(sets.map((s) => s.kg ?? 0)).size > 1
 
@@ -912,6 +937,8 @@ export interface Progress {
   now: string
   /** what it's gained since the first session in the window */
   gain: Gain
+  /** how its estimated max has moved over the window: more weight for fewer reps can be a gain that isn't one yet */
+  moved: number
   /** sessions in the window */
   sessions: number
 }
@@ -939,6 +966,7 @@ export function progressOf(workouts: Workout[], exercises: Map<string, Exercise>
       points: all.slice(-16).map((h) => ({ t: Date.parse(h.date), v: strengthOf(ex, h, bodyKg) })),
       now: bestText(ex, last, bodyKg),
       gain: gainOf(ex, recent[0], last, bodyKg),
+      moved: round(strengthOf(ex, last, bodyKg) - strengthOf(ex, recent[0], bodyKg), 2),
       sessions: recent.length,
     })
   }
