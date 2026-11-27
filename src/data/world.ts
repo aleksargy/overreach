@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { fetchStream } from './api'
-import { BUILTIN_EXERCISES, SAMPLE_PROGRAMME, SAMPLE_ROUTINES } from './exercises'
+import { SAMPLE_PROGRAMME, SAMPLE_ROUTINES, exercisesOf } from './exercises'
 import { SAMPLE_PROFILE, buildSample, sampleStreamFor, type SampleData } from './sample'
 import { useStore } from './store'
 import type { Activity, BodyEntry, Daily, Exercise, GarminActivity, Match, Profile, Programme, Routine, Stream, TabKey, Workout } from './types'
 import { analyseFootball, gamesToRate, usualFormatAt, withWatchLines, type FootballAnalysis } from '../lib/football'
-import { currentProgramme, liftSummary, mondayOf } from '../lib/lift'
+import { byEquipment, currentProgramme, liftSummary, mondayOf } from '../lib/lift'
 import { isoDay } from '../lib/format'
 import { loadModel, srpeLoad, trimp, zoneBounds, zoneSecondsFromAvg, type LoadModel } from '../lib/load'
 import { runModel, type RunModel } from '../lib/running'
@@ -156,10 +156,13 @@ export function useWorld(): World {
     const programmes = [...sampleProgrammes, ...s.programmes]
     const programme = currentProgramme(s.programmes) ?? currentProgramme(sampleProgrammes)
 
-    const exercises = [...BUILTIN_EXERCISES.map((e) => ({ ...e, ...s.edits[e.id] })), ...s.custom]
-    const exerciseById = new Map(exercises.map((e) => [e.id, e]))
-
-    const workouts = [...s.workouts, ...(sample?.workouts ?? [])].filter((w) => w.end).sort((a, b) => b.start.localeCompare(a.start))
+    const exercises = exercisesOf(s.custom, s.edits)
+    // a lift's sessions on equipment it isn't on now count as a lift beside it, with a history of their own: the
+    // list to pick from stays one of each
+    const { workouts, exercises: exerciseById } = byEquipment(
+      [...s.workouts, ...(sample?.workouts ?? [])].filter((w) => w.end).sort((a, b) => b.start.localeCompare(a.start)),
+      new Map(exercises.map((e) => [e.id, e])),
+    )
 
     const base = live ? fromGarmin(s.garmin!.activities, s.profile, s.workouts) : (sample?.activities ?? [])
     const linkedWorkouts = new Set(base.map((a) => a.workoutId).filter(Boolean))

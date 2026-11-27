@@ -4,12 +4,15 @@ import { BUILTIN_EXERCISES } from '../src/data/exercises'
 import type { Exercise, Programme, Routine, SetEntry, Workout } from '../src/data/types'
 import {
   barsOf,
+  baseId,
   beltMates,
   bestSets,
   bestText,
+  byEquipment,
   countAt,
   currentProgramme,
   doneThisWeek,
+  doneWith,
   dropFor,
   dropsBySet,
   focusOf,
@@ -26,6 +29,7 @@ import {
   recordsIn,
   setsLine,
   setsOf,
+  setupsOf,
   stepped,
   supersetTags,
   targetFor,
@@ -34,6 +38,7 @@ import {
   type Target,
   type TargetOptions,
   weekOfRun,
+  withEquipment,
 } from '../src/lib/lift'
 
 const byId = new Map(BUILTIN_EXERCISES.map((e) => [e.id, e]))
@@ -759,4 +764,87 @@ test('a programme’s week by muscle: a set for the main one, half for each that
   assert.equal(musclesOf({ ...p, perWeek: 4 }, routines, byId).total, 24)
   assert.equal(musclesOf({ ...p, perWeek: 3 }, routines, byId).list[0].sets, 6)
   assert.deepEqual(musclesOf({ ...p, routineIds: ['empty'] }, routines, byId), { list: [], total: 0 })
+})
+
+test('a lift done with something else keeps a history for each: dumbbells then a cable aren’t one lift going backwards', () => {
+  const raise: Exercise = { ...byId.get('lateral-raise')!, repRange: [6, 10] }
+  // the lift is on a cable now: three sessions with 9 kg dumbbells, then two at 5 kg on the stack
+  const cable: Exercise = { ...raise, equipment: 'cable' }
+  const lifts = new Map(byId).set(cable.id, cable)
+  const on = (w: Workout, equipment?: Exercise['equipment']): Workout => ({ ...w, exercises: w.exercises.map((we) => ({ ...we, equipment })) })
+  const sessions = [
+    on(session(raise, 2, three(5, 8)), 'cable'),
+    on(session(raise, 9, three(5, 7)), 'cable'),
+    on(session(raise, 16, three(9, 12)), 'dumbbell'),
+    on(session(raise, 23, three(9, 11)), 'dumbbell'),
+    on(session(raise, 30, three(9, 10)), 'dumbbell'),
+  ]
+  // as one history it's a lift that lost nearly half its weight
+  assert.equal(historyFor(raise.id, sessions).length, 5)
+  const split = byEquipment(sessions, lifts)
+  // split, the lift only has its cable sessions, and goes on from them
+  const mine = historyFor(cable.id, split.workouts)
+  assert.deepEqual(
+    mine.map((h) => h.sets[0].kg),
+    [5, 5],
+  )
+  const t = targetFor(cable, mine)
+  assert.deepEqual([t.move, t.kg, t.count], ['more', 5, 9])
+  // the dumbbell sessions are the same lift beside it, named for what it was done with
+  const other = split.exercises.get('lateral-raise~dumbbell')!
+  assert.deepEqual([other.name, other.equipment, other.variantOf, baseId(other.id)], ['Lateral Raise · Dumbbell', 'dumbbell', 'lateral-raise', 'lateral-raise'])
+  assert.equal(historyFor(other.id, split.workouts).length, 3)
+  assert.deepEqual(
+    setupsOf(cable, split.workouts, split.exercises).map((e) => e.equipment),
+    ['cable', 'dumbbell'],
+  )
+  assert.deepEqual(
+    setupsOf(other, split.workouts, split.exercises).map((e) => e.id),
+    ['lateral-raise', 'lateral-raise~dumbbell'],
+  )
+  // bests and progress go by the lift, so they're per equipment too: 5 × 8 on the cable is a best there
+  assert.deepEqual(recordsIn(split.workouts[0], split.workouts, split.exercises), [{ exerciseId: 'lateral-raise', value: '5 × 8', text: 'Most reps at 5 kg' }])
+  // put the lift back on dumbbells and it picks that history up again, the cable's set aside
+  const back = byEquipment(sessions, new Map(byId).set(raise.id, raise))
+  assert.deepEqual(
+    historyFor(raise.id, back.workouts).map((h) => h.sets[0].kg),
+    [9, 9, 9],
+  )
+  assert.equal(back.exercises.get('lateral-raise~cable')?.name, 'Lateral Raise · Cable')
+  // a session that doesn't say what it was done with goes with what the lift is on now, and nothing is split
+  const unsaid = [session(raise, 2, three(5, 8))]
+  assert.equal(byEquipment(unsaid, lifts).workouts[0], unsaid[0])
+  assert.equal(byEquipment(unsaid, lifts).exercises.size, lifts.size)
+})
+
+test('sessions take what the exercise is on when they don’t say, and a change of equipment is said from one session back', () => {
+  const raise: Exercise = { ...byId.get('lateral-raise')!, equipment: 'cable' }
+  const lifts = new Map(byId).set(raise.id, raise)
+  const sessions = [1, 8, 15, 22].map((d) => session(raise, d, three(5, 8)))
+  const said = withEquipment(sessions, lifts)
+  assert.deepEqual(
+    said.map((w) => w.exercises[0].equipment),
+    ['cable', 'cable', 'cable', 'cable'],
+  )
+  // one that already says is left alone, and so is the list when they all do
+  assert.equal(withEquipment(said, new Map(byId))[0], said[0])
+  // the third newest was the last on dumbbells: it and the one before it move, the two since stay on the cable
+  const moved = doneWith(said, raise.id, said[2].id, 'dumbbell')
+  assert.deepEqual(
+    moved.map((w) => w.exercises[0].equipment),
+    ['cable', 'cable', 'dumbbell', 'dumbbell'],
+  )
+  assert.equal(moved[0], said[0])
+  // moving one of those back only takes the ones on the same thing as it: here the oldest alone
+  assert.deepEqual(
+    doneWith(moved, raise.id, moved[3].id, 'band').map((w) => w.exercises[0].equipment),
+    ['cable', 'cable', 'dumbbell', 'band'],
+  )
+  // other lifts in the same sessions don't move, nor anything for a session that isn't there
+  const mixed = said.map((w) => ({ ...w, exercises: [...w.exercises, { id: `${w.id}-b`, exerciseId: bench.id, equipment: 'barbell' as const, sets: [] }] }))
+  assert.deepEqual(
+    doneWith(mixed, raise.id, mixed[0].id, 'dumbbell').map((w) => w.exercises[1].equipment),
+    ['barbell', 'barbell', 'barbell', 'barbell'],
+  )
+  assert.equal(doneWith(said, raise.id, 'nope', 'dumbbell'), said)
 })

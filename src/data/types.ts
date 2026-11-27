@@ -242,6 +242,11 @@ export interface Exercise {
   /** a reverse pyramid: the top set first, then each set lighter and two reps higher, each moving on its own */
   pyramid?: boolean
   notes?: string
+  /**
+   * Never saved: the lift this one is the same exercise as, done with other equipment. The world makes one for a
+   * lift's sessions on equipment it isn't on now, so they keep a history of their own (`byEquipment`).
+   */
+  variantOf?: string
 }
 
 /** a drop set is logged straight after the set before it, lighter: extra work that doesn't move the targets */
@@ -260,6 +265,11 @@ export interface SetEntry {
 export interface WorkoutExercise {
   id: string
   exerciseId: string
+  /**
+   * What it was done with, written down when the session is saved. A lift only goes on from its sessions on the
+   * equipment it's on now: 9 kg dumbbells and 5 kg on a cable aren't one history.
+   */
+  equipment?: Equipment
   sets: SetEntry[]
   /** exercises next to each other with the same key are a superset, done in turns */
   superset?: string

@@ -1,9 +1,10 @@
 // Everything you type into the app as one portable copy. The server keeps one
 // (src/data/backup.ts), Settings downloads one, and either folds back in.
 
-import { SAMPLE_ROUTINES } from '../data/exercises'
+import { SAMPLE_ROUTINES, exercisesOf } from '../data/exercises'
 import type { BodyEntry, Exercise, Match, Profile, Programme, Routine, Workout } from '../data/types'
 import { withPoints } from './football'
+import { withEquipment } from './lift'
 
 export interface Backup {
   profile: Profile
@@ -59,18 +60,21 @@ export const hasContent = (b: Partial<Backup>) =>
  * version of an item wins; a match deleted on the phone stays deleted. The saved
  * settings only come in when the phone has nothing of yours yet. A copy from
  * before workouts started empty may carry the old starters: the ones never
- * used are left behind.
+ * used are left behind. And one from before sessions said what each exercise
+ * was done with takes what the exercise is on now.
  */
 export function merge(mine: Backup, saved: Partial<Backup>): Backup {
   const join = <T extends { id: string }>(a: T[], b: T[] = [], keep: (x: T) => boolean = () => true) => [...a, ...b.filter((x) => keep(x) && !a.some((y) => y.id === x.id))]
+  const customExercises = join(mine.customExercises, saved.customExercises)
+  const exerciseEdits = { ...saved.exerciseEdits, ...mine.exerciseEdits }
   return {
     profile: hasContent(mine) ? mine.profile : { ...mine.profile, ...saved.profile },
     matches: join(mine.matches, saved.matches?.map(withPoints), (m) => !mine.hiddenMatchIds.includes(m.id)),
     hiddenMatchIds: [...new Set([...mine.hiddenMatchIds, ...(saved.hiddenMatchIds ?? [])])],
     skippedRatings: [...new Set([...mine.skippedRatings, ...(saved.skippedRatings ?? [])])],
-    workouts: join(mine.workouts, saved.workouts),
-    customExercises: join(mine.customExercises, saved.customExercises),
-    exerciseEdits: { ...saved.exerciseEdits, ...mine.exerciseEdits },
+    workouts: withEquipment(join(mine.workouts, saved.workouts), new Map(exercisesOf(customExercises, exerciseEdits).map((e) => [e.id, e]))),
+    customExercises,
+    exerciseEdits,
     routines: withoutStarters(join(mine.routines, saved.routines), join(mine.workouts, saved.workouts)),
     programmes: join(mine.programmes ?? [], saved.programmes),
     body: join(mine.body, saved.body),
