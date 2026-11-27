@@ -9,27 +9,8 @@ import { useStore } from '../../data/store'
 import type { Exercise, SetEntry, WorkoutExercise } from '../../data/types'
 import { useUi } from '../../data/ui'
 import { useWorld, type World } from '../../data/world'
-import {
-  beltMates,
-  bestSets,
-  countAt,
-  dropFor,
-  dropsBySet,
-  fmtKg,
-  historyFor,
-  loaded,
-  mainSets,
-  plates,
-  pyramidOf,
-  setText,
-  stepDown,
-  supersetTags,
-  targetText,
-  tidySupersets,
-  toggleSuperset,
-  weeksOf,
-  type Target,
-} from '../../lib/lift'
+import { beltMates, fmtKg, loaded, mainSets, plates, setText, supersetTags, targetText, tidySupersets, toggleSuperset, type Target } from '../../lib/lift'
+import { beltCard, cardsOf, logRows, moveCard, pastOf, splitCard, tickOf, type Past, type Row, type Turn } from '../../lib/logging'
 import { uid } from '../../lib/rng'
 import { MoveNote, SupersetLink, bodyKgOf, planOf } from './parts'
 
@@ -111,13 +92,7 @@ function Live() {
   const total = active.exercises.reduce((a, we) => a + working(we).length, 0)
   // a card an exercise, except lifts that go round on one belt and sit next to each other: they're one card, logged
   // a round at a time
-  const cards: number[][] = []
-  for (let i = 0; i < active.exercises.length;) {
-    let j = i + 1
-    while (j < active.exercises.length && mates[i]?.includes(j)) j++
-    cards.push(Array.from({ length: j - i }, (_, n) => i + n))
-    i = j
-  }
+  const cards = cardsOf(active.exercises.length, mates)
 
   const addExercise = () =>
     open({
@@ -191,106 +166,8 @@ function Live() {
   )
 }
 
-/** A set as the logger shows it: its label, last time's beside it, and what ticking it writes down if it's left as it is. */
-interface Row {
-  s: SetEntry
-  /** its number among the sets that count, W for a warm-up, D for a drop set */
-  label: string
-  /** which of the sets that count it is, from 0; none for a warm-up or a drop set */
-  k?: number
-  previous?: SetEntry
-  phKg?: number
-  phCount?: number
-  /** done, and a new best */
-  best?: boolean
-}
-
-/** What a lift has behind it: every session, and the one its target builds on (the latest week's best, which a tired second go that week isn't). */
-function pastOf(w: World, ex: Exercise | undefined, bodyKg: number | undefined) {
-  const history = ex ? historyFor(ex.id, w.workouts) : []
-  return { history, base: ex ? weeksOf(ex, history, bodyKg)[0] : undefined }
-}
-type Past = ReturnType<typeof pastOf>
 /** the column over last time's sets: the session they come from isn't always the latest */
 const pastLabel = (past: Past) => (past.base && past.base !== past.history[0] ? 'Week’s best' : 'Last time')
-
-/**
- * An exercise's sets as the logger's rows: each with last time's beside it and what ticking it writes down if you
- * leave it as it is (its target, or for a warm-up what you did last time). `worn(k)` is the weight a lift sharing the
- * belt has on it for round `k`, if it has.
- */
-function rowsOf(ex: Exercise, we: WorkoutExercise, target: Target, past: Past, bodyKg: number | undefined, worn: (k: number) => number | undefined): Row[] {
-  const weighted = loaded(ex)
-  const timed = ex.kind === 'duration'
-  const prev = past.base
-  // last time's sets beside today's; in a reverse pyramid from its top set, the warm-up to it left out
-  const prevWork = prev ? (ex.pyramid && weighted ? pyramidOf(ex, prev.sets) : mainSets(prev.sets)) : []
-  const prevWarm = prev?.sets.filter((s) => s.kind === 'warmup') ?? []
-  const prevDrops = prev ? dropsBySet(prev.sets) : new Map<number, SetEntry[]>()
-  const countOf = (x?: SetEntry) => (timed ? x?.secs : x?.reps)
-  let nWork = 0
-  let nWarm = 0
-  let nDrop = 0
-  // straight sets: the weight you last put in on a set today carries down the sets after it planned at the same weight,
-  // whatever the plan said (so not from the ramp up to the working weight onto it)
-  let typed: { plan?: number; kg: number } | undefined
-  // the set above, as it stands: a drop set goes down from it, and so does the next set of a pyramid
-  let above: { kg?: number; count?: number } = {}
-  let main: { kg?: number; count?: number } = {}
-  const rows = we.sets.map((s): Row => {
-    if (s.kind === 'warmup') {
-      const previous = prevWarm[nWarm++]
-      return { s, label: 'W', previous, phKg: previous?.kg, phCount: countOf(previous) }
-    }
-    if (s.kind === 'drop') {
-      const k = nWork - 1
-      const previous = prevDrops.get(k)?.[nDrop]
-      const from = nDrop ? prevDrops.get(k)?.[nDrop - 1]?.kg : prevWork[k]?.kg
-      nDrop++
-      const t = dropFor(ex, above, previous && { from, kg: previous.kg, reps: countOf(previous) }, bodyKg)
-      above = { kg: s.kg ?? t.kg, count: countOf(s) ?? t.count }
-      return { s, label: 'D', previous, phKg: t.kg, phCount: t.count }
-    }
-    const k = nWork++
-    nDrop = 0
-    const slot = target.perSet[k]
-    // what the set was planned at: its own weight and reps, else the target's; weight added to you with none is
-    // bodyweight (a set planned at bodyweight isn't the target's weight, nor the set above's)
-    const none = ex.kind === 'weighted-bodyweight' ? 0 : undefined
-    let kgPlan = (slot ? slot.kg : target.kg) ?? none
-    let countPlan = slot?.count ?? target.count
-    // down a pyramid a set sits under the one above as it stands: when that isn't what was planned (you loaded more
-    // or less than it said), or this set has no plan, it's placed again under it, as the plan would have
-    if (ex.pyramid && weighted && k && main.kg !== undefined && (!slot || main.kg !== (target.perSet[k - 1]?.kg ?? none))) {
-      const t = stepDown(ex, k, { kg: main.kg || undefined, count: main.count ?? countPlan }, prevWork, target.move === 'back', bodyKg)
-      kgPlan = t.kg ?? none
-      countPlan = t.count
-    }
-    // straight sets: the weight you put in above carries down the sets planned at the same weight. And lifts done
-    // in turns go round on one belt: the weight the other has on it this round
-    const phKg = worn(k) ?? (!ex.pyramid && typed && typed.plan === kgPlan ? typed.kg : kgPlan)
-    // the reps go with the weight that's on the set, typed or not: what the plan for it comes to there. A first go
-    // has no reps planned at a weight, and a weight half typed in (8 on the way to 80) is nothing to go by, so only
-    // one within half the planned load of it moves them
-    const on = s.kg ?? phKg
-    const body = ex.kind === 'weighted-bodyweight' ? (bodyKg ?? 0) : 0
-    const near = on !== undefined && kgPlan !== undefined && on !== kgPlan && Math.abs(on - kgPlan) <= (kgPlan + body) / 2
-    const phCount = weighted && target.move !== 'first' && near ? countAt(ex, { kg: kgPlan, count: countPlan }, on, bodyKg) : countPlan
-    if (s.kg !== undefined) typed = { plan: kgPlan, kg: s.kg }
-    main = above = { kg: s.kg ?? phKg, count: countOf(s) ?? phCount }
-    return { s, label: String(k + 1), k, previous: prevWork[k], phKg, phCount }
-  })
-  // a best as it's ticked: at the heaviest weight the session has, done or still to do, so the ramp up to it and the
-  // sets down a pyramid aren't in the running
-  const top = Math.max(0, ...rows.filter((r) => r.k !== undefined).map((r) => r.s.kg ?? r.phKg ?? 0))
-  const bests = bestSets(
-    ex,
-    we.sets,
-    past.history.flatMap((h) => h.sets),
-    top,
-  )
-  return bests.size ? rows.map((r) => (bests.has(r.s.id) ? { ...r, best: true } : r)) : rows
-}
 
 /** Changes to the workout in progress, by exercise and set. */
 function useLog() {
@@ -300,19 +177,9 @@ function useLog() {
   const patchSet = (id: string, setId: string, p: Partial<SetEntry>) => patchEx(id, (e) => ({ ...e, sets: e.sets.map((s) => (s.id === setId ? { ...s, ...p } : s)) }))
   /** tick a set, writing down what it was prefilled with, or untick one that's done */
   const tick = (ex: Exercise, id: string, r: Row) => {
-    const { s } = r
-    if (s.done) return patchSet(id, s.id, { done: false })
-    const timed = ex.kind === 'duration'
-    const p: Partial<SetEntry> = { done: true }
-    if (timed) {
-      if (s.secs === undefined) p.secs = r.phCount
-    } else {
-      if (s.reps === undefined) p.reps = r.phCount
-      if (loaded(ex) && s.kg === undefined && r.phKg) p.kg = r.phKg
-    }
-    if (!(timed ? (p.secs ?? s.secs) : (p.reps ?? s.reps))) return say(timed ? 'Add the seconds first' : 'Add your reps first')
-    if (ex.kind === 'weight' && !(p.kg ?? s.kg)) return say('Add the weight first')
-    patchSet(id, s.id, p)
+    const t = tickOf(ex, r)
+    if ('missing' in t) return say(t.missing === 'weight' ? 'Add the weight first' : t.missing === 'seconds' ? 'Add the seconds first' : 'Add your reps first')
+    patchSet(id, r.s.id, t.patch)
   }
   return { update, patchEx, patchSet, tick }
 }
@@ -388,21 +255,14 @@ function ExerciseBlock({
   const log = useLog()
   const ex = w.exerciseById.get(we.exerciseId)
   const bodyKg = bodyKgOf(w)
-  const past = useMemo(() => pastOf(w, ex, bodyKg), [w.workouts, ex, bodyKg])
+  const past = useMemo(() => pastOf(ex, w.workouts, bodyKg), [w.workouts, ex, bodyKg])
   const [menu, setMenu] = useState(false)
   if (!ex || !target) return null
 
   const weighted = loaded(ex)
   const timed = ex.kind === 'duration'
-  const rows = rowsOf(ex, we, target, past, bodyKg, worn)
-  const move = (d: -1 | 1) =>
-    log.update((x) => {
-      const list = [...x.exercises]
-      const j = index + d
-      if (j < 0 || j >= list.length) return x
-      ;[list[index], list[j]] = [list[j], list[index]]
-      return { ...x, exercises: tidySupersets(list) }
-    })
+  const rows = logRows(ex, we, target, past, bodyKg, worn)
+  const move = (d: -1 | 1) => log.update((x) => ({ ...x, exercises: moveCard(x.exercises, index, 1, d) }))
   const remove = () => log.update((x) => ({ ...x, exercises: tidySupersets(x.exercises.filter((e) => e.id !== we.id)) }))
 
   // the bar for the next set you'll lift, for the plates
@@ -504,7 +364,8 @@ const ROUND = 'grid grid-cols-[24px_minmax(0,1fr)_70px_56px_40px] items-center g
  * Lifts that go round on one belt and sit next to each other, as one card logged in turns: a round at a time, with
  * one box for the belt beside the lifts it's for (typed once, it goes on each of them) and each lift's own reps and
  * tick. A round the plan gives them different weights in, or where you've put different weights on them, keeps a box
- * each. Warm-ups and drop sets sit between the rounds where they were done, with a box of their own.
+ * each. A warm-up sits over the round it leads into and a drop set under the round it follows, with a box of their
+ * own. How it's laid out is worked out in lib/logging (`beltCard`).
  */
 function RoundsBlock({
   w,
@@ -520,7 +381,7 @@ function RoundsBlock({
   const log = useLog()
   const bodyKg = bodyKgOf(w)
   const ids = list.map((l) => l.we.exerciseId).join(' ')
-  const pasts = useMemo(() => ids.split(' ').map((id) => pastOf(w, w.exerciseById.get(id), bodyKg)), [w.workouts, w.exerciseById, ids, bodyKg])
+  const pasts = useMemo(() => ids.split(' ').map((id) => pastOf(w.exerciseById.get(id), w.workouts, bodyKg)), [w.workouts, w.exerciseById, ids, bodyKg])
   const active = useStore((s) => s.active)
   const [menu, setMenu] = useState(false)
   const [dropping, setDropping] = useState(false)
@@ -530,58 +391,14 @@ function RoundsBlock({
   })
   if (lifts.length < 2 || !active) return null
 
-  const mains = lifts.map((l) => working(l.we))
-  const rounds = Math.max(...mains.map((m) => m.length))
-  const planned = (n: number, k: number) => (lifts[n].target.perSet[k] ?? lifts[n].target).kg ?? 0
-  /** the lifts with a set in round `k` */
-  const inRound = (k: number) => lifts.map((_, n) => n).filter((n) => mains[n][k])
-  // one box for a round: its lifts were planned at one weight, and none has been given another
-  const shared = (k: number) => {
-    const who = inRound(k)
-    const put = who.map((n) => mains[n][k].kg).filter((x) => x !== undefined)
-    return who.length > 1 && who.every((n) => planned(n, k) === planned(who[0], k)) && put.every((x) => x === put[0])
-  }
-  // each lift's rows; in a shared round a lift takes what the first lift in it has on the belt, typed or planned
-  const rows: Row[][] = []
-  lifts.forEach((l, n) => {
-    const worn = (k: number) => {
-      const lead = shared(k) ? rows.slice(0, n).flatMap((list) => list.find((r) => r.k === k) ?? [])[0] : undefined
-      return lead ? (lead.s.kg ?? lead.phKg ?? 0) : l.worn(k)
-    }
-    rows.push(rowsOf(l.ex, l.we, l.target, l.past, bodyKg, worn))
-  })
-  // warm-ups and drop sets, by the round they come before, each lift's in its own order: a drop set follows the
-  // round it was done after
-  const extras: { n: number; r: Row }[][] = Array.from({ length: rounds + 1 }, () => [])
-  rows.forEach((list, n) => {
-    let at = 0
-    for (const r of list) {
-      if (r.k !== undefined) at = r.k + 1
-      else extras[Math.min(at, rounds)].push({ n, r })
-    }
-  })
-
-  const first = active.exercises.findIndex((e) => e.id === lifts[0].we.id)
+  // the rounds, who's in each, where the belt is shared, and the warm-ups and drop sets between them
+  const card = beltCard(lifts, bodyKg)
+  const at = (x: { exercises: WorkoutExercise[] }) => x.exercises.findIndex((e) => e.id === lifts[0].we.id)
+  const first = at(active)
   const last = first + lifts.length - 1
-  // the card moves as one: the exercise above goes under it, or the one below over it
-  const move = (d: -1 | 1) =>
-    log.update((x) => {
-      const out = [...x.exercises]
-      const a = out.findIndex((e) => e.id === lifts[0].we.id)
-      const b = a + lifts.length - 1
-      if (a < 0 || (d < 0 ? a === 0 : b >= out.length - 1)) return x
-      if (d < 0) out.splice(b, 0, ...out.splice(a - 1, 1))
-      else out.splice(a, 0, ...out.splice(b + 1, 1))
-      return { ...x, exercises: tidySupersets(out) }
-    })
-  // apart again, a card each: from the last link back, so each split leaves the ones above joined
-  const split = () =>
-    log.update((x) => {
-      let out = x.exercises
-      const a = out.findIndex((e) => e.id === lifts[0].we.id)
-      for (let i = a + lifts.length - 2; i >= a && a >= 0; i--) if (out[i].superset && out[i].superset === out[i + 1]?.superset) out = toggleSuperset(out, i, uid)
-      return { ...x, exercises: out }
-    })
+  // the card moves as one, and Split gives each lift a card of its own again
+  const move = (d: -1 | 1) => log.update((x) => ({ ...x, exercises: moveCard(x.exercises, at(x), lifts.length, d) }))
+  const split = () => log.update((x) => ({ ...x, exercises: splitCard(x.exercises, at(x), lifts.length, uid) }))
   const mine = (id: string) => lifts.some((l) => l.we.id === id)
   /** the belt for a round, on every lift in it */
   const setBelt = (k: number, kg: number | undefined) =>
@@ -595,12 +412,7 @@ function RoundsBlock({
   const addRound = () => log.update((x) => ({ ...x, exercises: x.exercises.map((e) => (mine(e.id) ? { ...e, sets: [...e.sets, blankSet()] } : e)) }))
   // the last thing on the card goes: a drop set or a warm-up after the last round, else the last round itself
   const removeLast = () => {
-    const tail = extras[rounds]
-    if (tail.length) {
-      const { n, r } = tail[tail.length - 1]
-      return log.patchEx(lifts[n].we.id, (e) => ({ ...e, sets: e.sets.filter((s) => s.id !== r.s.id) }))
-    }
-    const gone = new Set(inRound(rounds - 1).map((n) => mains[n][rounds - 1].id))
+    const gone = new Set(card.last.map((x) => x.id))
     log.update((x) => ({ ...x, exercises: x.exercises.map((e) => (mine(e.id) ? { ...e, sets: e.sets.filter((s) => !gone.has(s.id)) } : e)) }))
   }
 
@@ -632,7 +444,7 @@ function RoundsBlock({
     <NumInput label="Weight in kg" decimal value={r.s.kg} placeholder={weightHint(lifts[n].ex, r)} onChange={(v) => log.patchSet(lifts[n].we.id, r.s.id, { kg: v })} />
   )
   /** a warm-up or a drop set: a row of its own, with its own weight */
-  const extra = ({ n, r }: { n: number; r: Row }) => (
+  const extra = ({ n, r }: Turn) => (
     <div key={r.s.id} className={`${ROUND} py-[5px]`}>
       <button
         aria-label={kindLabel(r.s)}
@@ -649,9 +461,8 @@ function RoundsBlock({
   )
   /** a round: its lifts in turn, and the belt beside them */
   const round = (k: number) => {
-    const turns = inRound(k).map((n) => ({ n, r: rows[n].find((x) => x.k === k)! }))
-    const one = shared(k)
-    const on = turns.map((t) => t.r.s.kg).find((x) => x !== undefined)
+    const turns = card.turns(k)
+    const one = card.shared(k)
     return (
       <div className={`${ROUND} py-[5px]`}>
         <span
@@ -665,7 +476,7 @@ function RoundsBlock({
             <NumInput
               label="Weight on the belt in kg"
               decimal
-              value={on}
+              value={card.on(k)}
               placeholder={weightHint(lifts[turns[0].n].ex, turns[0].r)}
               onChange={(v) => setBelt(k, v)}
               className={beltCls}
@@ -731,14 +542,17 @@ function RoundsBlock({
         <span />
       </div>
 
+      {/* a warm-up sits over the round it leads into, a drop set under the round it follows */}
       <div className="list">
-        {extras[0].length > 0 && <div>{extras[0].map(extra)}</div>}
-        {Array.from({ length: rounds }, (_, k) => (
+        {card.drops[0].length > 0 && <div>{card.drops[0].map(extra)}</div>}
+        {Array.from({ length: card.rounds }, (_, k) => (
           <div key={k} className="py-1 first:pt-0">
+            {card.warmups[k].map(extra)}
             {round(k)}
-            {extras[k + 1].map(extra)}
+            {card.drops[k + 1].map(extra)}
           </div>
         ))}
+        {card.warmups[card.rounds].length > 0 && <div className="py-1">{card.warmups[card.rounds].map(extra)}</div>}
       </div>
 
       <div className="mt-2 flex items-center gap-2">
@@ -748,7 +562,7 @@ function RoundsBlock({
         <button onClick={() => setDropping((d) => !d)} aria-expanded={dropping} className={`chip h-9 ${dropping ? 'chip-on' : ''}`}>
           <Plus size={14} /> Drop
         </button>
-        <button onClick={removeLast} disabled={!rounds && !extras[0].length} aria-label="Remove last set" className="chip h-9 px-3 disabled:opacity-30">
+        <button onClick={removeLast} disabled={!card.last.length} aria-label="Remove last set" className="chip h-9 px-3 disabled:opacity-30">
           <Minus size={14} />
         </button>
       </div>
