@@ -37,7 +37,7 @@
 
 import { differenceInCalendarWeeks, parseISO, startOfWeek } from 'date-fns'
 import { MUSCLES } from '../data/exercises'
-import type { Exercise, LiftSummary, Programme, ProgrammeRun, Routine, SetEntry, Workout } from '../data/types'
+import type { Exercise, LiftSummary, Muscle, Programme, ProgrammeRun, Routine, SetEntry, Workout } from '../data/types'
 import { isoDay } from './format'
 import { median, round } from './math'
 
@@ -957,4 +957,30 @@ export function focusOf(r: Routine, exercises: Map<string, Exercise>): string {
     .slice(0, 3)
     .map(([m]) => MUSCLES.find((x) => x.key === m)?.label ?? m)
   return names.map((n, i) => (i ? n.toLowerCase() : n)).join(', ')
+}
+
+/** a set counts this much for each muscle that helps the lift's main one */
+const HELPER = 0.5
+
+/**
+ * What a week of a programme works: sets a week for each muscle, the most worked first, and the sets a week in all.
+ * Every set of an exercise counts for its main muscle and half for each that helps, and each workout comes round as
+ * often as the programme's sessions a week share out between its workouts (three workouts three times a week: once
+ * each; four of them: three weeks in four).
+ */
+export function musclesOf(p: Programme, routines: Routine[], exercises: Map<string, Exercise>): { list: { muscle: Muscle; sets: number }[]; total: number } {
+  const own = routinesOf(p, routines).filter((r) => r.items.length)
+  const often = own.length ? p.perWeek / own.length : 0
+  const sets = new Map<Muscle, number>()
+  let total = 0
+  for (const r of own)
+    for (const it of r.items) {
+      const ex = exercises.get(it.exerciseId)
+      if (!ex) continue
+      const n = it.sets * often
+      total += n
+      sets.set(ex.muscle, (sets.get(ex.muscle) ?? 0) + n)
+      for (const m of new Set(ex.secondary ?? [])) if (m !== ex.muscle) sets.set(m, (sets.get(m) ?? 0) + n * HELPER)
+    }
+  return { list: [...sets.entries()].map(([muscle, n]) => ({ muscle, sets: round(n, 2) })).sort((a, b) => b.sets - a.sets), total: round(total, 2) }
 }
