@@ -135,8 +135,9 @@ export const SAMPLE_ROUTINES: Routine[] = [
     name: 'Calisthenics',
     focus: 'Bar, rings and floor',
     items: [
-      { exerciseId: 'pull-up', sets: 3 },
-      { exerciseId: 'dips', sets: 3 },
+      // in turns, on one belt
+      { exerciseId: 'pull-up', sets: 3, superset: 'bar' },
+      { exerciseId: 'dips', sets: 3, superset: 'bar' },
       { exerciseId: 'muscle-up', sets: 3 },
       { exerciseId: 'pistol-squat', sets: 3 },
       { exerciseId: 'l-sit', sets: 3 },

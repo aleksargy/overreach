@@ -87,6 +87,8 @@ const SCREENS = [
     {
       from: '/feed',
       async sheet(page) {
+        // with nothing synced and Demo off there's no long run to open
+        if (!(await page.locator('a[href^="/activity/"]:has-text("Long run")').count())) return false
         await page.locator('a[href^="/activity/"]:has-text("Long run")').first().click()
         await page.waitForTimeout(600)
         await page.locator('a[href^="/ghost/"]').first().click()
@@ -237,6 +239,33 @@ const SCREENS = [
         await page.waitForTimeout(500)
         await page.getByRole('button', { name: 'Save workout' }).click()
         await page.waitForTimeout(1300)
+      },
+    },
+  ],
+  // lifts on one belt, logged a round at a time: the sample lifter's pull-ups and dips with the first round ticked
+  [
+    'lift-log-belt',
+    {
+      from: '/lift/workout/calisthenics',
+      async sheet(page) {
+        const start = page.getByRole('button', { name: 'Start', exact: true })
+        // only the sample lifter does them in turns
+        if (!(await start.count())) return false
+        await start.click()
+        await page.waitForTimeout(700)
+        const ticks = page.getByRole('button', { name: 'Mark set done' })
+        await ticks.first().click()
+        await page.waitForTimeout(200)
+        await ticks.first().click()
+        await page.waitForTimeout(400)
+      },
+      // and binned, so the shots after it find no workout running
+      async after(page) {
+        await page.getByRole('button', { name: 'Finish', exact: true }).click()
+        await page.waitForTimeout(500)
+        await page.getByRole('button', { name: 'Discard workout' }).click()
+        await page.getByRole('button', { name: 'Tap again to discard' }).click()
+        await page.waitForTimeout(500)
       },
     },
   ],
