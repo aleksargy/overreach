@@ -113,5 +113,21 @@ test('your own numbers feed it: mornings, runs and lifts', () => {
   }
   const sessions = [lifted(1, 65), lifted(8, 62.5), lifted(15, 62.5), lifted(22, 60), lifted(29, 60), lifted(36, 57.5)]
   const best = standout(liftSeries(sessions, byId), NOW)!
-  assert.deepEqual([best.text, best.value, best.tone], ['Heaviest bench press yet', '65 kg', 'good'])
+  // said as the set itself: it goes by what the set says for a one-rep max, not only by the weight on the bar
+  assert.deepEqual([best.text, best.value, best.tone], ['Best bench press yet', '65 kg × 8', 'good'])
+  // so more reps at a weight you've held is news too, where the heaviest set alone would have said nothing
+  const reps = (daysAgo: number, n: number): Workout => ({
+    ...lifted(daysAgo, 60),
+    exercises: [{ id: `e${daysAgo}`, exerciseId: 'bench-press', sets: [{ id: `s${daysAgo}`, kind: 'working', kg: 60, reps: n, done: true }] }],
+  })
+  const held = standout(liftSeries([reps(1, 10), reps(8, 8), reps(15, 8), reps(22, 8), reps(29, 7), reps(36, 7)], byId), NOW)!
+  assert.deepEqual([held.text, held.value], ['Best bench press yet', '60 kg × 10'])
+  assert.equal(standout(liftSeries([reps(1, 8), reps(8, 8), reps(15, 8), reps(22, 8), reps(29, 7), reps(36, 7)], byId), NOW), undefined)
+  // weight added to you counts with your body weight, and is said as what's added
+  const chins = (daysAgo: number, kg: number, n: number): Workout => ({
+    ...lifted(daysAgo, kg),
+    exercises: [{ id: `e${daysAgo}`, exerciseId: 'chin-up', sets: [{ id: `s${daysAgo}`, kind: 'working', kg, reps: n, done: true }] }],
+  })
+  const belt = standout(liftSeries([chins(1, 15, 8), chins(8, 15, 7), chins(15, 12.5, 8), chins(22, 12.5, 7), chins(29, 10, 8), chins(36, 10, 7)], byId, 78), NOW)!
+  assert.deepEqual([belt.text, belt.value], ['Best chin-up yet', '+15 kg × 8'])
 })

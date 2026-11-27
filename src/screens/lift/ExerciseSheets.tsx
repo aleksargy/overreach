@@ -60,6 +60,8 @@ function ExerciseForm({ exerciseId, initialName, onSaved }: { exerciseId?: strin
   const base = exerciseId ? w.exerciseById.get(exerciseId) : undefined
   const [name, setName] = useState(base?.name ?? initialName ?? '')
   const [muscle, setMuscle] = useState<Muscle>(base?.muscle ?? 'chest')
+  // the muscles that help: half a set each in a programme's week
+  const [also, setAlso] = useState<Muscle[]>(base?.secondary ?? [])
   const [equipment, setEquipment] = useState<Equipment>(base?.equipment ?? 'dumbbell')
   const [kind, setKind] = useState<ExerciseKind>(base?.kind ?? 'weight')
   const [lo, setLo] = useState(base?.repRange[0] ?? 8)
@@ -82,6 +84,7 @@ function ExerciseForm({ exerciseId, initialName, onSaved }: { exerciseId?: strin
     const patch: Partial<Exercise> = {
       name: name.trim(),
       muscle,
+      secondary: also.filter((m) => m !== muscle),
       equipment,
       kind,
       repRange: [Math.min(lo, hi), Math.max(lo, hi)],
@@ -138,6 +141,26 @@ function ExerciseForm({ exerciseId, initialName, onSaved }: { exerciseId?: strin
       <div>
         <div className="label mb-2">Main muscle</div>
         <Chips value={muscle} options={MUSCLES} onChange={setMuscle} />
+      </div>
+
+      <div>
+        <div className="label mb-2">Also works</div>
+        <div className="flex flex-wrap gap-2">
+          {MUSCLES.filter((m) => m.key !== muscle && m.key !== 'full').map((m) => {
+            const on = also.includes(m.key)
+            return (
+              <button
+                key={m.key}
+                type="button"
+                aria-pressed={on}
+                onClick={() => setAlso(on ? also.filter((x) => x !== m.key) : [...also, m.key])}
+                className={`chip ${on ? 'chip-on' : ''}`}
+              >
+                {m.label}
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       <div>

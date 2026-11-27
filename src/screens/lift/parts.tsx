@@ -6,7 +6,7 @@ import type { Exercise, Routine, Workout } from '../../data/types'
 import { useUi } from '../../data/ui'
 import type { World } from '../../data/world'
 import { dur, fmt } from '../../lib/format'
-import { barsOf, fmtKg, historyFor, lastDone, planFor, routinesOf, setsOf, targetFor, workingSets, type PlanItem, type Target } from '../../lib/lift'
+import { barsOf, fmtKg, historyFor, lastDone, planFor, routinesOf, sessionBars, setsOf, targetFor, workingSets, type LiftBars, type PlanItem, type Target } from '../../lib/lift'
 
 export const MUSCLE_LABEL = Object.fromEntries(MUSCLES.map((m) => [m.key, m.label])) as Record<string, string>
 export const EQUIPMENT_LABEL = Object.fromEntries(EQUIPMENT.map((m) => [m.key, m.label])) as Record<string, string>
@@ -136,8 +136,41 @@ export function MoveNote({ t, className = '', plain }: { t: Target; className?: 
 
 export const daysAgo = (d?: number) => (d === undefined ? 'Not done yet' : d <= 0 ? 'Today' : d === 1 ? 'Yesterday' : `${d} days ago`)
 
-/** A session you've finished, as a row. */
-export function WorkoutRow({ w, records }: { w: Workout; records?: number }) {
+/** A session of your own as its sets, for `SessionBars`: against every session before it, at your latest weigh-in. */
+export const barsFor = (w: World, x: Workout): LiftBars[] => sessionBars(x, w.workouts, w.exerciseById, bodyKgOf(w))
+
+/** how a session is drawn where: big on Today, small in a row of sessions, and a lift's own on the session's page */
+const SKY = { big: { w: 7, gap: 3, group: 13, h: 30, max: 322 }, row: { w: 3, gap: 1.5, group: 5, h: 20, max: 124 }, lift: { w: 6, gap: 3, group: 0, h: 22, max: 96 } }
+
+/**
+ * A lifting session as its sets, the way a run has its route: a group of bars a lift, each bar as tall as its weight
+ * against the lift's heaviest, the working weight solid, and a set that was a new best in sage. A long session's
+ * bars narrow to fit.
+ */
+export function SessionBars({ lifts, size, className = '' }: { lifts: LiftBars[]; size: keyof typeof SKY; className?: string }) {
+  const k = SKY[size]
+  const sets = lifts.reduce((a, l) => a + l.bars.length, 0)
+  if (!sets) return null
+  const fit = Math.min(1, k.max / (sets * k.w + (sets - lifts.length) * k.gap + (lifts.length - 1) * k.group))
+  return (
+    <span role="img" aria-label={`${sets} ${sets === 1 ? 'set' : 'sets'}`} className={`flex shrink-0 items-end ${className}`} style={{ gap: k.group * fit, height: k.h }}>
+      {lifts.map((l) => (
+        <span key={l.id} className="flex items-end" style={{ gap: k.gap * fit }}>
+          {l.bars.map((b, i) => (
+            <span
+              key={i}
+              className={`rounded-full ${b.best ? 'bg-football' : b.top ? 'bg-strength' : 'bg-strength/[0.34]'}`}
+              style={{ width: k.w * fit, height: k.h * (0.36 + 0.64 * b.rise) }}
+            />
+          ))}
+        </span>
+      ))}
+    </span>
+  )
+}
+
+/** A session you've finished, as a row: its name and bests, when it was, and its sets drawn over how many there were. */
+export function WorkoutRow({ w, records, bars }: { w: Workout; records?: number; bars?: LiftBars[] }) {
   const secs = w.end ? (Date.parse(w.end) - Date.parse(w.start)) / 1000 : 0
   return (
     <Link to={`/lift/history/${w.id}`} className="flex items-center gap-3 py-3 transition-colors duration-150 active:bg-ink-2">
@@ -150,10 +183,17 @@ export function WorkoutRow({ w, records }: { w: Workout; records?: number }) {
           {fmt(w.start, 'EEE d MMM')} · {dur(secs)}
         </span>
       </span>
-      <span className="num text-[17px]">
-        {workingSets(w)}
-        <span className="unit ml-0.5 text-[12px]">sets</span>
-      </span>
+      {bars?.length ? (
+        <span className="flex shrink-0 flex-col items-end gap-[5px]">
+          <SessionBars lifts={bars} size="row" />
+          <span className="text-[12px] font-semibold leading-none text-fg-3">{workingSets(w)} sets</span>
+        </span>
+      ) : (
+        <span className="num text-[17px]">
+          {workingSets(w)}
+          <span className="unit ml-0.5 text-[12px]">sets</span>
+        </span>
+      )}
       <ChevronRight size={16} strokeWidth={2} className="shrink-0 text-fg-4" />
     </Link>
   )

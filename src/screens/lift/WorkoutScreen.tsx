@@ -7,6 +7,7 @@ import { useUi } from '../../data/ui'
 import { useWorld } from '../../data/world'
 import { dur, fmt } from '../../lib/format'
 import { mainSets, recordsIn, setsLine, supersetTags, workingSets } from '../../lib/lift'
+import { SessionBars, barsFor } from './parts'
 
 const EFFORT = ['', 'Easy', 'Easy', 'Easy', 'Easy', 'Solid', 'Solid', 'Hard', 'Hard', 'All out', 'All out']
 
@@ -25,6 +26,7 @@ export function WorkoutScreen() {
   const [sure, setSure] = useState(false)
   const wk = w.workouts.find((x) => x.id === id)
   const records = useMemo(() => (wk ? recordsIn(wk, w.workouts, w.exerciseById) : []), [wk, w])
+  const bars = useMemo(() => (wk ? barsFor(w, wk) : []), [wk, w])
   const tags = supersetTags(wk?.exercises ?? [])
 
   if (!wk) {
@@ -86,12 +88,16 @@ export function WorkoutScreen() {
             const ex = w.exerciseById.get(we.exerciseId)
             if (!ex) return null
             return (
-              <Link key={we.id} to={`/lift/exercise/${ex.id}`} className="flex items-baseline gap-3 py-3 transition-colors duration-150 active:bg-ink-2">
-                <span className="min-w-0 flex-1 truncate text-[16px] font-semibold">
-                  {tags[i] && <span className="mr-1.5 text-[12.5px] font-extrabold text-strength">{tags[i]}</span>}
-                  {ex.name}
+              <Link key={we.id} to={`/lift/exercise/${ex.id}`} className="flex items-center gap-3 py-2.5 transition-colors duration-150 active:bg-ink-2">
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[16px] font-semibold leading-[22px]">
+                    {tags[i] && <span className="mr-1.5 text-[12.5px] font-extrabold text-strength">{tags[i]}</span>}
+                    {ex.name}
+                  </span>
+                  <span className="meta block">{setsLine(ex, we.sets)}</span>
                 </span>
-                <span className="num max-w-[62%] text-right text-[17px] leading-[1.25]">{setsLine(ex, we.sets)}</span>
+                {/* its sets as bars, a new best in sage */}
+                <SessionBars lifts={bars.filter((b) => b.id === we.id)} size="lift" />
               </Link>
             )
           })}

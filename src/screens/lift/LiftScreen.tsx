@@ -12,7 +12,7 @@ import { useUi } from '../../data/ui'
 import { useWorld, type World } from '../../data/world'
 import { amount, focusOf, gainText, historyFor, lastDone, nextRoutine, progressOf, recordsIn, setsOf, supersetTags, targetText, topOf } from '../../lib/lift'
 import { uid } from '../../lib/rng'
-import { EQUIPMENT_LABEL, MUSCLE_LABEL, MoveNote, SetBars, WorkoutRow, bodyKgOf, daysAgo, inPlay, planOf, useBegin } from './parts'
+import { EQUIPMENT_LABEL, MUSCLE_LABEL, MoveNote, SetBars, WorkoutRow, barsFor, bodyKgOf, daysAgo, inPlay, planOf, useBegin } from './parts'
 import { WeekBars, programmeWhen } from './ProgrammeScreen'
 
 /** How long ago a workout was last done, in days; undefined if never. */
@@ -96,7 +96,7 @@ export function LiftScreen() {
         >
           <div className="list">
             {w.workouts.slice(0, 3).map((x) => (
-              <WorkoutRow key={x.id} w={x} records={recordsIn(x, w.workouts, w.exerciseById).length} />
+              <WorkoutRow key={x.id} w={x} records={recordsIn(x, w.workouts, w.exerciseById).length} bars={barsFor(w, x)} />
             ))}
           </div>
         </Section>
@@ -243,7 +243,10 @@ function ProgressList({ w }: { w: World }) {
             <Rise values={p.points.filter((x) => x.t >= w.now.getTime() - 56 * 86_400_000).map((x) => x.v)} />
             <span className="flex flex-col items-end">
               <span className="num whitespace-nowrap text-[16px] leading-[1.3]">{p.now}</span>
-              <span className={`text-[11.5px] font-bold ${p.gain.d > 0 ? 'text-good' : p.gain.d < 0 ? 'text-bad' : 'text-fg-3'}`}>{gainText(p.ex, p.gain) || 'Holding'}</span>
+              {/* green or red only when the line agrees: more weight for fewer reps isn't a gain until the reps are back */}
+              <span className={`text-[11.5px] font-bold ${p.gain.d > 0 && p.moved >= 0 ? 'text-good' : p.gain.d < 0 && p.moved <= 0 ? 'text-bad' : 'text-fg-3'}`}>
+                {gainText(p.ex, p.gain) || 'Holding'}
+              </span>
             </span>
           </Link>
         ))}
@@ -290,6 +293,7 @@ export function LiftHistoryScreen() {
     return [...out.entries()]
   }, [w])
   const records = useMemo(() => new Map(w.workouts.map((x) => [x.id, recordsIn(x, w.workouts, w.exerciseById).length])), [w])
+  const bars = useMemo(() => new Map(w.workouts.map((x) => [x.id, barsFor(w, x)])), [w])
   return (
     <Screen title="History" back>
       {!w.workouts.length && <Empty title="Nothing yet" />}
@@ -297,7 +301,7 @@ export function LiftHistoryScreen() {
         <Section key={k} title={k} action={<span className="meta">{`${list.length} ${list.length === 1 ? 'session' : 'sessions'}`}</span>} className={i ? '' : '!mt-0'}>
           <div className="list">
             {list.map((x) => (
-              <WorkoutRow key={x.id} w={x} records={records.get(x.id)} />
+              <WorkoutRow key={x.id} w={x} records={records.get(x.id)} bars={bars.get(x.id)} />
             ))}
           </div>
         </Section>

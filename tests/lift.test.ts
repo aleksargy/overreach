@@ -27,6 +27,7 @@ import {
   sessionsByWeek,
   progressOf,
   recordsIn,
+  sessionBars,
   setsLine,
   setsOf,
   setupsOf,
@@ -342,6 +343,9 @@ test('progress is each session’s estimated max over the weeks asked for, and w
   // a lift that's held its weight and gained reps has still moved: the line goes up, and it's said in reps
   const [held] = progressOf([session(bench, 30, [set(70, 7), set(70, 7), set(70, 6)]), session(bench, 2, [set(70, 10), set(70, 9), set(70, 9)])], byId, now)
   assert.deepEqual([held.now, gainText(held.ex, held.gain), held.points[1].v > held.points[0].v], ['70 kg × 10', '+3 reps', true])
+  // more weight for fewer reps is a gain in weight that the estimated max doesn't back yet: said, and known to be so
+  const [early] = progressOf([session(bench, 30, [set(60, 10)]), session(bench, 2, [set(62.5, 6)])], byId, now)
+  assert.deepEqual([gainText(early.ex, early.gain), early.moved < 0, held.moved > 0], ['+2.5 kg', true, true])
   // nothing gained says nothing
   const [flat] = progressOf([session(bench, 30, [set(70, 8)]), session(bench, 2, [set(70, 8)])], byId, now)
   assert.equal(gainText(flat.ex, flat.gain), '')
@@ -847,4 +851,23 @@ test('sessions take what the exercise is on when they don’t say, and a change 
     ['barbell', 'barbell', 'barbell', 'barbell'],
   )
   assert.equal(doneWith(said, raise.id, 'nope', 'dumbbell'), said)
+})
+
+test('a session is drawn as its sets: a group of bars a lift, the ones that were new bests marked', () => {
+  const first = both(10, [bench, [set(60, 8), set(60, 8)]], [squat, [set(60, 9), set(80, 5)]])
+  const then = both(3, [bench, [set(60, 9), set(60, 8), set(45, 12, 'drop')]], [squat, [set(60, 9), set(80, 5), set(80, 6)]])
+  const drawn = (w: Workout) => sessionBars(w, [then, first], byId).map((l) => [l.exerciseId, l.bars.map((b) => `${b.rise}${b.top ? ' top' : ''}${b.best ? ' best' : ''}`)])
+  assert.deepEqual(drawn(then), [
+    // nine where eight was the most; the drop set isn't one of the sets that count, so it isn't drawn
+    ['bench-press', ['1 top best', '1 top']],
+    // the ramp set is as short as a bar gets, and of the two at 80 the six is the best
+    ['back-squat', ['0', '1 top', '1 top best']],
+  ])
+  // the first session of a lift has nothing before it to beat
+  assert.deepEqual(
+    drawn(first).map(([, bars]) => (bars as string[]).some((b) => b.includes('best'))),
+    [false, false],
+  )
+  // each group goes by the logged exercise, so a lift done twice in a session is two groups
+  assert.equal(new Set(sessionBars(then, [then, first], byId).map((l) => l.id)).size, 2)
 })

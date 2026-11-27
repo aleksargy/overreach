@@ -5,7 +5,7 @@
 import { addWeeks, startOfISOWeek } from 'date-fns'
 import type { Activity, BodyEntry, Daily, Exercise, Match, Workout } from '../data/types'
 import { clock, km } from './format'
-import { fmtKg, historyFor, topOf } from './lift'
+import { bestText, historyFor, loaded, strengthOf } from './lift'
 import { BEST_M, BEST_NAME } from './running'
 import type { Series } from './standout'
 
@@ -52,22 +52,27 @@ export function runSeries(activities: Activity[], now: Date): Series[] {
   ]
 }
 
-/** Every lift you've logged: the most you moved in a session. Workouts in any order. */
-export function liftSeries(workouts: Workout[], exercises: Map<string, Exercise>): Series[] {
+/**
+ * Every lift you've logged: how strong each session says you are (`strengthOf`: its best set's estimated max, so more
+ * reps at the same weight are news as much as more weight; with nothing to load, the most reps or the longest hold).
+ * It's said as the set itself, "70 kg × 10". Workouts in any order.
+ */
+export function liftSeries(workouts: Workout[], exercises: Map<string, Exercise>, bodyKg?: number): Series[] {
   const ids = new Set(workouts.flatMap((w) => w.exercises.map((e) => e.exerciseId)))
   return [...ids].flatMap((id): Series[] => {
     const ex = exercises.get(id)
     if (!ex) return []
     const sessions = historyFor(id, workouts).reverse()
-    const loaded = ex.kind === 'weight' || ex.kind === 'weighted-bodyweight'
+    const points = sessions.map((h) => ({ t: Date.parse(h.date), v: strengthOf(ex, h, bodyKg), said: bestText(ex, h, bodyKg) })).filter((p) => p.v > 0)
     return [
       {
         key: `lift-${id}`,
-        what: loaded ? ex.name.toLowerCase() : `${ex.name.toLowerCase()}${ex.kind === 'duration' ? ' hold' : ' set'}`,
-        points: sessions.map((h) => ({ t: Date.parse(h.date), v: topOf(ex, h.sets) })).filter((p) => p.v > 0),
-        top: loaded ? 'Heaviest' : ex.kind === 'duration' ? 'Longest' : 'Biggest',
+        what: loaded(ex) ? ex.name.toLowerCase() : `${ex.name.toLowerCase()}${ex.kind === 'duration' ? ' hold' : ' set'}`,
+        points,
+        top: loaded(ex) ? 'Best' : ex.kind === 'duration' ? 'Longest' : 'Biggest',
         good: 'top',
-        format: (v) => (ex.kind === 'weight' ? `${fmtKg(v)} kg` : ex.kind === 'weighted-bodyweight' ? `+${fmtKg(v)} kg` : ex.kind === 'duration' ? `${v} s` : `${v} reps`),
+        // the latest session with that reading, as the set that made it
+        format: (v) => points.findLast((p) => p.v === v)?.said ?? '',
         min: 3,
         fresh: 2,
         count: 'sessions',

@@ -13,7 +13,7 @@ import { runModel, type RunModel } from '../lib/running'
 import { nextOccurrence, recurringSlots, type Slot } from '../lib/schedule'
 import { footballSeries, liftSeries, recoverySeries, runSeries, weightSeries } from '../lib/series'
 import { headline, standout, type Standout } from '../lib/standout'
-import { differenceInCalendarDays, format, subWeeks } from 'date-fns'
+import { differenceInCalendarDays, format, parseISO, subDays, subWeeks } from 'date-fns'
 
 export interface World {
   now: Date
@@ -149,10 +149,17 @@ export function useWorld(): World {
     const live = !demo && s.sync.mode === 'live' && !!s.garmin
     const sample = demo ? getSample(now, s.profile) : null
 
-    // on sample data the sample lifter's programme shows too, four weeks in, unless you've made it yours; the one you're
-    // on comes first, then theirs
+    // on sample data the sample lifter's programme shows too, four weeks in after a seven-week run before it, unless
+    // you've made it yours; the one you're on comes first, then theirs
     const sampleProgrammes: Programme[] =
-      demo && !s.programmes.some((p) => p.id === SAMPLE_PROGRAMME.id) ? [{ ...SAMPLE_PROGRAMME, runs: [{ start: mondayOf(subWeeks(now, 4)) }] }] : []
+      demo && !s.programmes.some((p) => p.id === SAMPLE_PROGRAMME.id)
+        ? [
+            {
+              ...SAMPLE_PROGRAMME,
+              runs: [{ start: mondayOf(subWeeks(now, 11)), end: isoDay(subDays(parseISO(mondayOf(subWeeks(now, 4))), 1)) }, { start: mondayOf(subWeeks(now, 4)) }],
+            },
+          ]
+        : []
     const programmes = [...sampleProgrammes, ...s.programmes]
     const programme = currentProgramme(s.programmes) ?? currentProgramme(sampleProgrammes)
 
@@ -192,7 +199,7 @@ export function useWorld(): World {
     const news: World['news'] = {
       recovery: standout(recoverySeries(dailies), t),
       run: standout(runSeries(activities, now), t),
-      lift: standout(liftSeries(workouts, exerciseById), t),
+      lift: standout(liftSeries(workouts, exerciseById, body.find((b) => b.weightKg)?.weightKg), t),
       football: standout(
         footballSeries(
           matches,

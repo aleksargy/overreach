@@ -31,6 +31,8 @@ const TOPICS: { key: string; title: string; lines: string[] }[] = [
       'A superset is exercises linked in a workout and done in turns, A1 then A2. Each still moves on its own.',
       'Two lifts that add weight to you, done in turns, share the belt: the weaker one sets the weight and the other does more reps. A lift is only ever held back that way, and three reps over its range it goes its own way.',
       'The bars beside a lift are its sets, each as tall as its weight against the heaviest, the working weight solid. On the lift’s own page, sets at more than one weight are steps with their numbers.',
+      'A lift keeps a history for each thing it’s done with. Put it on other equipment and it starts again there, with the sessions before set aside until you go back.',
+      'Equipment, beside a lift’s sessions, is for the ones that were on something else: say what, and the last session that was. It and the ones before it move.',
     ],
   },
   {
@@ -49,6 +51,7 @@ const TOPICS: { key: string; title: string; lines: string[] }[] = [
     title: 'Bests and progress',
     lines: [
       'A best is the heaviest you’ve lifted, or the most reps at that weight or heavier.',
+      'A finished session is drawn as its sets: a group of bars for each lift, a new best in sage.',
       'Progress is your estimated max: what your best set says you could lift once, a thirtieth more for every rep. So reps gained at one weight count, and what a lift has gained is said as weight, or as reps at the same weight.',
       'Weight added to you counts with your body weight, and its estimated max is said as what you’d add.',
     ],
@@ -67,7 +70,8 @@ const TOPICS: { key: string; title: string; lines: string[] }[] = [
       'Move a goal a step either way. Stretch means it needs half as fast again as you’ve been going on that lift, or over a percent a week.',
       'A goal’s bar is your best set since you set it, against the goal by estimated one-rep max. Done is the goal’s weight lifted for its reps. On pace or behind shows after three weeks, from where your weekly bests are heading.',
       'A goal sits ahead of the line on its lift’s chart until you reach it.',
-      'Sets a week: every set counts for the lift’s main muscle and half for each one that helps, and a workout comes round as often as your sessions a week share out between the programme’s workouts. A muscle left graphite gets nothing.',
+      'Sets a week: every set counts for the lift’s main muscle and half for each one that helps (Also works, on the exercise), and a workout comes round as often as your sessions a week share out between the programme’s workouts. A muscle left graphite gets nothing.',
+      'A run that’s over stays on the programme’s page: its weeks, its sessions and how each goal ended.',
     ],
   },
   {
@@ -123,7 +127,7 @@ const TOPICS: { key: string; title: string; lines: string[] }[] = [
     title: 'What gets picked out',
     lines: [
       'Only what’s rare for you: the highest or lowest in a while, against your own readings.',
-      'A morning has to be the most extreme in three weeks. A run has to beat the ten before it, a game the eight before it, a lift its last three sessions.',
+      'A morning has to be the most extreme in three weeks. A run has to beat the ten before it, a game the eight before it, a lift its last three sessions, by its best set’s estimated max.',
       'Today shows one only when it’s twice as rare, and from the last day or so. Most days nothing is.',
     ],
   },

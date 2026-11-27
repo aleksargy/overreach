@@ -11,6 +11,7 @@ import { useUi } from '../../data/ui'
 import { useWorld, type World } from '../../data/world'
 import { goalDay, goalProgress, isStretch, liftsOf, mainLiftsOf, nudge, suggestGoal } from '../../lib/goals'
 import { doneThisWeek, focusOf, historyFor, musclesOf, nextRoutine, openRun, routinesOf, sessionsByWeek, setText, weekOfRun } from '../../lib/lift'
+import { fmt } from '../../lib/format'
 import { uid } from '../../lib/rng'
 import { MUSCLE_LABEL } from './parts'
 
@@ -64,7 +65,8 @@ export function WeeksTrack({ p, now, className = '' }: { p: Programme; now: Date
  */
 function RunWeeks({ p, run, w }: { p: Programme; run: ProgrammeRun; w: World }) {
   const counts = sessionsByWeek(p, run, w.routines, w.workouts, w.now)
-  const weeks = Math.max(counts.length, p.weeks ?? 0)
+  // a run that's over is the weeks it ran, not the weeks it was meant to
+  const weeks = run.end ? counts.length : Math.max(counts.length, p.weeks ?? 0)
   const done = counts.reduce((a, b) => a + b, 0)
   return (
     <div
@@ -117,7 +119,10 @@ function Muscles({ p, w }: { p: Programme; w: World }) {
 /** A set as a goal says it: "82.5 × 6", or "+10 × 6" for weight added to you. */
 const goalText = (ex: Exercise, x: { kg: number; reps: number }) => setText(ex, { id: '', kind: 'working', kg: x.kg, reps: x.reps, done: true } as SetEntry)
 
-/** A goal and how it's going: from where it stood to it, your best set since it was set, and a track between them. */
+/**
+ * A goal and how it's going: from where it stood to it, your best set since it was set, and a track between them. For
+ * a run that's over it's how it went: no pace, there's nothing left to keep pace with.
+ */
 function GoalRow({ g, w, run }: { g: LiftGoal; w: World; run: ProgrammeRun }) {
   const ex = w.exerciseById.get(g.exerciseId)
   if (!ex) return null
@@ -135,7 +140,7 @@ function GoalRow({ g, w, run }: { g: LiftGoal; w: World; run: ProgrammeRun }) {
           <span className={`num text-[17px] leading-[1.25] ${at.done ? 'text-football' : ''}`}>{goalText(ex, at.now)}</span>
           {at.done ? (
             <span className="pill [--p:var(--football)]">Done</span>
-          ) : at.pace === 'on' ? (
+          ) : run.end ? null : at.pace === 'on' ? (
             <span className="pill [--p:var(--good)]">On pace</span>
           ) : at.pace === 'behind' ? (
             <span className="pill [--p:var(--bad)]">Behind</span>
@@ -146,6 +151,44 @@ function GoalRow({ g, w, run }: { g: LiftGoal; w: World; run: ProgrammeRun }) {
         <div className={`h-full rounded-full ${at.done ? 'bg-football' : 'bg-strength'}`} style={{ width: `${(at.done ? 1 : at.share) * 100}%` }} />
       </div>
     </div>
+  )
+}
+
+/**
+ * The runs of a programme that are over, the latest first: when each ran, its weeks as columns of sessions, how many
+ * sessions that came to, and how each of its goals ended up.
+ */
+function PastRuns({ p, w }: { p: Programme; w: World }) {
+  const over = p.runs.filter((r) => r.end).reverse()
+  if (!over.length) return null
+  return (
+    <Section title={over.length === 1 ? 'Last run' : 'Past runs'}>
+      <div className="list">
+        {over.map((run) => {
+          const sessions = sessionsByWeek(p, run, w.routines, w.workouts, w.now).reduce((a, b) => a + b, 0)
+          return (
+            <div key={run.start} className="py-3 first:pt-0 last:pb-0">
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="text-[15px] font-bold leading-5">
+                  {fmt(run.start, 'd MMM')} – {fmt(run.end!, 'd MMM yy')}
+                </span>
+                <span className="meta shrink-0">
+                  {sessions} {sessions === 1 ? 'session' : 'sessions'}
+                </span>
+              </div>
+              <RunWeeks p={p} run={run} w={w} />
+              {!!run.goals?.length && (
+                <div className="list mt-2">
+                  {run.goals.map((g) => (
+                    <GoalRow key={g.exerciseId} g={g} w={w} run={run} />
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </Section>
   )
 }
 
@@ -456,6 +499,7 @@ export function ProgrammeScreen() {
             </div>
           )}
           {ready && <Muscles p={p} w={w} />}
+          <PastRuns p={p} w={w} />
           {ready && (!running || over) && (
             <button
               onClick={() => {

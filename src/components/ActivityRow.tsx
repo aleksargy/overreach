@@ -27,7 +27,7 @@ export function secondary(a: Activity): string[] {
   else if (a.sport === 'ride') out.push(`${kmh(a.avgSpeed).toFixed(1)} km/h`, dur(a.durationS))
   else if (a.sport === 'swim') out.push(`${swimPace(a.avgSpeed)} /100m`, dur(a.durationS))
   else if (a.sport === 'football') out.push(dur(a.durationS), a.football ? `${a.football.sprints} sprints` : '')
-  else if (a.sport === 'strength' && a.lift) out.push(a.lift.volumeKg >= 1000 ? `${(a.lift.volumeKg / 1000).toFixed(1)} t · ${dur(a.durationS)}` : dur(a.durationS))
+  else if (a.sport === 'strength' && a.lift) out.push(dur(a.durationS))
   // anything else already leads with its minutes
   if (a.avgHr) out.push(`${a.avgHr} bpm`)
   return out.filter(Boolean)

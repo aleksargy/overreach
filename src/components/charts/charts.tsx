@@ -245,6 +245,9 @@ interface TrendProps {
   children?: ReactNode
 }
 
+/** with a goal ahead, the least of a trend chart's width that what's been done so far keeps */
+const PAST_SHARE = 0.4
+
 /** Raw readings as dots, the rolling average as the line that matters; a goal ahead of it stretches the chart on to its day. */
 export function TrendChart({ points, avg, band, height = 170, xLabel, color = 'rgb(var(--fg))', minSpan = 0, goal }: TrendProps) {
   const [ref, w] = useMeasure<HTMLDivElement>()
@@ -268,7 +271,11 @@ export function TrendChart({ points, avg, band, height = 170, xLabel, color = 'r
     const right = w - 6
     const top = 8
     const bottom = height - 20
-    const X = (t: number) => left + ((t - t0) / (t1 - t0 || 1)) * (right - left)
+    // time runs evenly, except on to a goal a long way off: what's been done keeps two fifths of the width at least,
+    // and the stretch still to go is drawn shorter than its days
+    const done = Math.max(...ts)
+    const share = goal && goal.t > done ? Math.max(PAST_SHARE, (done - t0) / (goal.t - t0)) : 1
+    const X = (t: number) => left + (right - left) * (t <= done || share === 1 ? ((t - t0) / (done - t0 || 1)) * share : share + ((t - done) / (t1 - done)) * (1 - share))
     const Y = (v: number) => bottom - ((v - lo) / (hi - lo)) * (bottom - top)
     const line = (avg ?? []).map((p, i) => `${i ? 'L' : 'M'}${X(p.t).toFixed(1)},${Y(p.v).toFixed(1)}`).join('')
     const last = avg?.length ? avg[avg.length - 1] : points[points.length - 1]
