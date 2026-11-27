@@ -98,6 +98,7 @@ const TOPICS: { key: string; title: string; lines: string[] }[] = [
       'Minutes and metres a minute run from kick-off to the final whistle, without half time. A warm-up and the walk off don’t count.',
       'Walking is under 7 km/h, jogging to 14.4, running to 18, and sprinting faster. High intensity is running and sprinting.',
       'A sprint is 18 km/h or more for two seconds.',
+      'Replay plays your game back from the watch’s GPS, placed the way the heatmap is. Its minutes are minutes played, without half time, and each tick on its track is a sprint.',
     ],
   },
   {
@@ -120,6 +121,7 @@ const TOPICS: { key: string; title: string; lines: string[] }[] = [
       'A race is a run marked as one on the watch, or your run on race day.',
       'Training for a race: Run opens with a countdown and your goal pace, and for a month afterwards with the result.',
       'Ghosts are your earlier runs that shared at least 3 km of this one, the same way round, raced on moving time.',
+      'Where you run is every run of the last year that started around where most of yours do, drawn together. The streets you run most come out brightest, and runs from somewhere else are left off.',
     ],
   },
   {

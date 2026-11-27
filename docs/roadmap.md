@@ -21,6 +21,7 @@ Everything so far was built and tested against the fake Garmin and generated sam
 - On the iPhone: the home-screen install, the offline shell, exporting a backup through the share sheet, and the backup coming back after removing and re-adding the app.
 - The running model's fitness trend on real data, which is noisier (GPS drift, wrist heart rate).
 - Whether his sessions the day after a game are weaker, measured on his own sessions, before any rule about lifting after football is built: there aren't enough weeks of both yet.
+- The match replay and the run map on real data: real GPS wobbles more than the sample's, and real runs start from more than one place. The fake Garmin's runs all go round one circle, so live mode locally draws a single loop.
 - The Lift tab's rules over months of real sessions: Alex has a few weeks logged. The 26 Nov rules were tuned on simulated lifters, who tire the same amount every set and whose reps follow Epley exactly; his won't.
 
 ## Ideas on the shelf
@@ -31,7 +32,7 @@ From the first concept pitch, not started. Running and football come first.
 - An n-of-1 lab for testing habits.
 - An interference radar, for when the schedule fights itself (squats the day before a tempo run).
 - Heart-rate cost per lifting set.
-- Fog-of-war territory maps.
+- Fog-of-war territory maps: Where you run (27 Nov) draws every run around home; the streets nearby never run would be the next step.
 - A "$YOU" stock ticker.
 - A kickoff clock: your best time of day to perform.
 - Swim analysis.
