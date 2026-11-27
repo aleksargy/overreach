@@ -10,7 +10,7 @@ import { useStore } from '../../data/store'
 import type { Muscle, Routine } from '../../data/types'
 import { useUi } from '../../data/ui'
 import { useWorld, type World } from '../../data/world'
-import { amount, focusOf, historyFor, lastDone, nextRoutine, progressOf, recordsIn, setsOf, supersetTags, targetText, topOf } from '../../lib/lift'
+import { amount, focusOf, gainText, historyFor, lastDone, nextRoutine, progressOf, recordsIn, setsOf, supersetTags, targetText, topOf } from '../../lib/lift'
 import { uid } from '../../lib/rng'
 import { EQUIPMENT_LABEL, MUSCLE_LABEL, MoveNote, SetBars, WorkoutRow, bodyKgOf, daysAgo, inPlay, planOf, useBegin } from './parts'
 import { WeekBars, programmeWhen } from './ProgrammeScreen'
@@ -220,9 +220,12 @@ function Workouts({ w, next, onNew }: { w: World; next?: string; onNew: () => vo
   )
 }
 
-/** The lifts you do most, each with a step line, where it's got to and what it's gained over eight weeks. */
+/**
+ * The lifts you do most, each with its estimated max over eight weeks as a line, its best set last time and what
+ * that's gained: weight, or reps at the same weight. The lines and the numbers line up down the list.
+ */
 function ProgressList({ w }: { w: World }) {
-  const list = useMemo(() => progressOf(w.workouts, w.exerciseById, w.now).slice(0, 5), [w])
+  const list = useMemo(() => progressOf(w.workouts, w.exerciseById, w.now, 8, bodyKgOf(w)).slice(0, 5), [w])
   if (!list.length) return null
   return (
     <Section
@@ -233,20 +236,14 @@ function ProgressList({ w }: { w: World }) {
         </Link>
       }
     >
-      <div className="list -mb-1">
+      <div className="list -mb-1 grid grid-cols-[minmax(0,1fr)_70px_auto] gap-x-2.5">
         {list.map((p) => (
-          <Link
-            key={p.ex.id}
-            to={`/lift/exercise/${p.ex.id}`}
-            className="grid grid-cols-[minmax(0,1fr)_70px_92px] items-center gap-2.5 py-2 transition-colors duration-150 active:bg-ink-2"
-          >
+          <Link key={p.ex.id} to={`/lift/exercise/${p.ex.id}`} className="col-span-3 grid grid-cols-subgrid items-center py-2 transition-colors duration-150 active:bg-ink-2">
             <span className="truncate text-[14.5px] font-bold">{p.ex.name}</span>
-            <Steps values={p.points.filter((x) => x.t >= w.now.getTime() - 56 * 86_400_000).map((x) => x.v)} />
+            <Rise values={p.points.filter((x) => x.t >= w.now.getTime() - 56 * 86_400_000).map((x) => x.v)} />
             <span className="flex flex-col items-end">
-              <span className="num text-[17px] leading-[1.25]">{amount(p.ex, p.now)}</span>
-              <span className={`text-[11.5px] font-bold ${p.change > 0 ? 'text-good' : p.change < 0 ? 'text-bad' : 'text-fg-3'}`}>
-                {p.change ? amount(p.ex, p.change, true) : 'Holding'}
-              </span>
+              <span className="num whitespace-nowrap text-[16px] leading-[1.3]">{p.now}</span>
+              <span className={`text-[11.5px] font-bold ${p.gain.d > 0 ? 'text-good' : p.gain.d < 0 ? 'text-bad' : 'text-fg-3'}`}>{gainText(p.ex, p.gain) || 'Holding'}</span>
             </span>
           </Link>
         ))}
@@ -255,17 +252,28 @@ function ProgressList({ w }: { w: World }) {
   )
 }
 
-/** Each session's top set as a step: flat until it moves. */
-function Steps({ values }: { values: number[] }) {
+/**
+ * Each session's estimated max as a line, the latest a dot. It fills the height when the lift has moved a twentieth
+ * or more, and is flatter for less, so a rep here and there doesn't read as a climb.
+ */
+function Rise({ values }: { values: number[] }) {
   if (values.length < 2) return <span />
   const lo = Math.min(...values)
   const hi = Math.max(...values)
-  const X = (i: number) => 1 + (i / (values.length - 1)) * 68
-  const Y = (v: number) => (hi === lo ? 11 : 19 - ((v - lo) / (hi - lo)) * 16)
-  const d = values.map((v, i) => (i ? `H${X(i).toFixed(1)}V${Y(v).toFixed(1)}` : `M${X(0)},${Y(v).toFixed(1)}`)).join('') + `H69`
+  const span = Math.max(hi - lo, hi * 0.05) || 1
+  const X = (i: number) => 2 + (i / (values.length - 1)) * 63
+  const Y = (v: number) => 11 - ((v - (hi + lo) / 2) / span) * 15
   return (
     <svg width={70} height={22} viewBox="0 0 70 22" aria-hidden="true">
-      <path d={d} fill="none" stroke="rgb(var(--strength))" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d={values.map((v, i) => `${i ? 'L' : 'M'}${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join('')}
+        fill="none"
+        stroke="rgb(var(--strength))"
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle cx={X(values.length - 1)} cy={Y(values[values.length - 1])} r={3} fill="rgb(var(--fg))" />
     </svg>
   )
 }

@@ -240,18 +240,20 @@ interface TrendProps {
   color?: string
   /** smallest range the y axis shows, so a flat series doesn't fill the chart with noise and repeat its labels */
   minSpan?: number
+  /** somewhere the line is meant to get to: a ring ahead of it, a dotted line to it and what it is beside it */
+  goal?: { t: number; v: number; label: string }
   children?: ReactNode
 }
 
-/** Raw readings as dots, the rolling average as the line that matters. */
-export function TrendChart({ points, avg, band, height = 170, xLabel, color = 'rgb(var(--fg))', minSpan = 0 }: TrendProps) {
+/** Raw readings as dots, the rolling average as the line that matters; a goal ahead of it stretches the chart on to its day. */
+export function TrendChart({ points, avg, band, height = 170, xLabel, color = 'rgb(var(--fg))', minSpan = 0, goal }: TrendProps) {
   const [ref, w] = useMeasure<HTMLDivElement>()
   const geo = useMemo(() => {
     if (!w || points.length < 2) return null
     const ts = points.map((p) => p.t)
-    const vs = [...points.map((p) => p.v), ...(band ?? [])]
+    const vs = [...points.map((p) => p.v), ...(band ?? []), ...(goal ? [goal.v] : [])]
     const t0 = Math.min(...ts)
-    const t1 = Math.max(...ts)
+    const t1 = Math.max(...ts, goal?.t ?? 0)
     let lo = Math.min(...vs)
     let hi = Math.max(...vs)
     if (hi - lo < minSpan) {
@@ -271,7 +273,7 @@ export function TrendChart({ points, avg, band, height = 170, xLabel, color = 'r
     const line = (avg ?? []).map((p, i) => `${i ? 'L' : 'M'}${X(p.t).toFixed(1)},${Y(p.v).toFixed(1)}`).join('')
     const last = avg?.length ? avg[avg.length - 1] : points[points.length - 1]
     return { X, Y, line, last, t0, t1, lo, hi, right, top, bottom }
-  }, [points, avg, band, w, height, minSpan])
+  }, [points, avg, band, w, height, minSpan, goal])
 
   return (
     <div ref={ref} className="w-full" style={{ height }}>
@@ -283,12 +285,34 @@ export function TrendChart({ points, avg, band, height = 170, xLabel, color = 'r
             <circle key={i} cx={geo.X(p.t)} cy={geo.Y(p.v)} r={1.5} fill={color} fillOpacity={0.4} />
           ))}
           {geo.line && <path d={geo.line} fill="none" stroke={color} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />}
+          {goal && (
+            <>
+              <path
+                d={`M${geo.X(geo.last.t).toFixed(1)},${geo.Y(geo.last.v).toFixed(1)}L${geo.X(goal.t).toFixed(1)},${geo.Y(goal.v).toFixed(1)}`}
+                fill="none"
+                stroke="rgb(var(--line-2))"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeDasharray="0.1 7"
+              />
+              <circle cx={geo.X(goal.t)} cy={geo.Y(goal.v)} r={5} fill="rgb(var(--ink-1))" stroke={color} strokeWidth={2.5} />
+              <text x={geo.X(goal.t) - 12} y={geo.Y(goal.v) + 4.5} textAnchor="end" className="num fill-fg text-[13px]">
+                {goal.label}
+              </text>
+            </>
+          )}
           <circle cx={geo.X(geo.last.t)} cy={geo.Y(geo.last.v)} r={5} fill="rgb(var(--fg))" />
           {xLabel && (
             <>
               <text x={0} y={height - 4} className={`fill-fg-4 ${TICK}`}>
                 {xLabel(geo.t0)}
               </text>
+              {/* with a goal ahead, the latest reading's day sits under it, when there's room between the other two */}
+              {goal && geo.X(geo.last.t) > 80 && geo.X(geo.last.t) < geo.right - 80 && (
+                <text x={geo.X(geo.last.t)} y={height - 4} textAnchor="middle" className={`fill-fg-4 ${TICK}`}>
+                  {xLabel(geo.last.t)}
+                </text>
+              )}
               <text x={geo.right} y={height - 4} textAnchor="end" className={`fill-fg-4 ${TICK}`}>
                 {xLabel(geo.t1)}
               </text>
