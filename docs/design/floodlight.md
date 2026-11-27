@@ -168,6 +168,8 @@ Sentence case. The only capitals are the card's six stat names and the position.
 4. **Progress**: the lifts done most in eight weeks, each with a step line, the current weight and the gain in `good`.
 5. Recent sessions (not drawn): rows in a tile, with a session's bests said in sage.
 
+Since 27 Nov two things differ from `lift.png`, on purpose: each exercise's sets are drawn as bars beside its target where the mockup says "3 sets", and Progress draws each lift's estimated max as a line ending in a dot, with its best set and what that's gained, where the mockup has step lines.
+
 ### Match report (`match-report.png`)
 
 1. Round Back and Edit buttons; the date, kick-off, format and which meeting it was. No headline and no summary: Alex dropped them on 13 Nov ("i dont want any cringe one liners or fake summaries"), so the score comes straight after.
