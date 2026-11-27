@@ -6,12 +6,14 @@ import {
   barsOf,
   beltMates,
   bestSets,
+  bestText,
   countAt,
   currentProgramme,
   doneThisWeek,
   dropFor,
   dropsBySet,
   focusOf,
+  gainText,
   historyFor,
   liftSummary,
   nextRoutine,
@@ -313,7 +315,7 @@ test('a session’s bests: the heaviest yet, or more reps than ever at that weig
   assert.deepEqual(recordsIn(before[0], [before[0]], byId), [])
 })
 
-test('progress is the most you moved each session, over the weeks asked for', () => {
+test('progress is each session’s estimated max over the weeks asked for, and what the best set has gained', () => {
   const now = new Date('2026-11-01T20:00:00Z')
   const sessions = [
     session(bench, 70, [set(55, 8)]),
@@ -325,12 +327,25 @@ test('progress is the most you moved each session, over the weeks asked for', ()
   const [p, ...rest] = progressOf(sessions, byId, now)
   // pull-ups were only done once in the eight weeks, so they don't show yet
   assert.equal(rest.length, 0)
-  assert.deepEqual([p.ex.id, p.now, p.change, p.sessions], ['bench-press', 62.5, 5, 3])
-  // the line still starts from the session before the window
+  assert.deepEqual([p.ex.id, p.now, gainText(p.ex, p.gain), p.sessions], ['bench-press', '62.5 kg × 7', '+5 kg', 3])
+  // the line still starts from the session before the window: each set's weight and a thirtieth of it a rep
   assert.deepEqual(
-    p.points.map((x) => x.v),
-    [55, 57.5, 60, 62.5],
+    p.points.map((x) => Math.round(x.v * 10) / 10),
+    [69.7, 72.8, 76, 77.1],
   )
+  // a lift that's held its weight and gained reps has still moved: the line goes up, and it's said in reps
+  const [held] = progressOf([session(bench, 30, [set(70, 7), set(70, 7), set(70, 6)]), session(bench, 2, [set(70, 10), set(70, 9), set(70, 9)])], byId, now)
+  assert.deepEqual([held.now, gainText(held.ex, held.gain), held.points[1].v > held.points[0].v], ['70 kg × 10', '+3 reps', true])
+  // nothing gained says nothing
+  const [flat] = progressOf([session(bench, 30, [set(70, 8)]), session(bench, 2, [set(70, 8)])], byId, now)
+  assert.equal(gainText(flat.ex, flat.gain), '')
+  // weight added to you counts with your body weight, and is said as what's added; with nothing to load it's the reps
+  const belt = [session(dips, 30, [set(10, 8), set(undefined, 12)]), session(dips, 2, [set(15, 8), set(5, 10)])]
+  const [d] = progressOf(belt, byId, now, 8, 78)
+  assert.deepEqual([d.now, gainText(d.ex, d.gain), Math.round(d.points[1].v)], ['+15 kg × 8', '+5 kg', 118])
+  assert.equal(bestText(dips, historyFor(dips.id, [session(dips, 1, [set(undefined, 12)])])[0], 78), 'BW × 12')
+  const [u] = progressOf([session(pushUp, 30, [set(undefined, 14)]), session(pushUp, 2, [set(undefined, 16)])], byId, now)
+  assert.deepEqual([u.now, gainText(u.ex, u.gain), u.points.map((x) => x.v)], ['16 reps', '+2 reps', [14, 16]])
 })
 
 test('next up is the workout that has waited longest, and one never done comes first', () => {

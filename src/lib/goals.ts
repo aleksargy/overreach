@@ -18,8 +18,10 @@
 import { addDays, differenceInCalendarDays, parseISO } from 'date-fns'
 import type { Exercise, LiftGoal, Programme, ProgrammeRun, Routine } from '../data/types'
 import { isoDay } from './format'
-import { loaded, mainSets, mondayOf, routinesOf, type ExerciseSession } from './lift'
+import { bestSet, loaded, mainSets, mondayOf, oneRm, routinesOf, type BestSet, type ExerciseSession } from './lift'
 import { round } from './math'
+
+export { bestSet, oneRm, type BestSet }
 
 /** with less than this to go on, a lift is taken to go up half a percent a week */
 export const DEFAULT_RATE = 0.005
@@ -34,32 +36,10 @@ export const GOAL_WEEKS = 10
 const WEEK = 7 * 86_400_000
 const floorTo = (x: number, step: number) => round(Math.floor(x / step + 1e-9) * step, 2)
 
-/** What a set says you could lift once (Epley), the whole load counted. */
-export const oneRm = (kg: number, reps: number) => kg * (1 + reps / 30)
-
 /** Weeks counted towards a goal: each past eight counts half, as gains slow down. */
 export const counted = (weeks: number) => (weeks <= 8 ? weeks : 8 + (weeks - 8) / 2)
 
-export interface BestSet {
-  kg: number
-  reps: number
-  /** what it says you could lift once, the whole load counted */
-  max: number
-  date: string
-}
-
 const bodyOf = (ex: Exercise, bodyKg = 0) => (ex.kind === 'weighted-bodyweight' ? bodyKg : 0)
-
-/** A session's best set: the one that says the most for a one-rep max. Weight added to you counts with your body weight. */
-export function bestSet(ex: Exercise, h: ExerciseSession, bodyKg?: number): BestSet | undefined {
-  let best: BestSet | undefined
-  for (const s of mainSets(h.sets)) {
-    if (!s.reps) continue
-    const max = oneRm((s.kg ?? 0) + bodyOf(ex, bodyKg), s.reps)
-    if (!best || max > best.max) best = { kg: s.kg ?? 0, reps: s.reps, max, date: h.date }
-  }
-  return best
-}
 
 /** A lift's best set each week (Monday to Sunday) it was done, oldest first. */
 export function weeklyBests(ex: Exercise, history: ExerciseSession[], bodyKg?: number): BestSet[] {

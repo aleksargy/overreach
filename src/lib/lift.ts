@@ -770,33 +770,105 @@ export function bestSets(ex: Pick<Exercise, 'kind'>, sets: SetEntry[], before: S
   return out
 }
 
+/** What a set says you could lift once (Epley), the whole load counted. */
+export const oneRm = (kg: number, reps: number) => kg * (1 + reps / 30)
+
+export interface BestSet {
+  kg: number
+  reps: number
+  /** what it says you could lift once, the whole load counted */
+  max: number
+  date: string
+}
+
+/** A session's best set: the one that says the most for a one-rep max. Weight added to you counts with your body weight. */
+export function bestSet(ex: Pick<Exercise, 'kind'>, h: ExerciseSession, bodyKg = 0): BestSet | undefined {
+  const body = ex.kind === 'weighted-bodyweight' ? bodyKg : 0
+  let best: BestSet | undefined
+  for (const s of work(h.sets)) {
+    if (!s.reps) continue
+    const max = oneRm((s.kg ?? 0) + body, s.reps)
+    if (!best || max > best.max) best = { kg: s.kg ?? 0, reps: s.reps, max, date: h.date }
+  }
+  return best
+}
+
+/**
+ * How strong a session says you are on a lift: its best set's estimated one-rep max, the whole load counted, so reps
+ * gained at one weight count as much as weight gained. With nothing to load (or no load to go on: weight added to
+ * you, none on, and no weigh-in), the most you moved.
+ */
+export function strengthOf(ex: Pick<Exercise, 'kind'>, h: ExerciseSession, bodyKg?: number): number {
+  const best = loaded(ex) ? bestSet(ex, h, bodyKg) : undefined
+  return best && best.max > 0 ? best.max : topOf(ex, h.sets)
+}
+
+/** What a lift has gained from one session to another, in the terms it's lifted in: weight, or reps (or seconds) at the same weight. */
+export interface Gain {
+  by: 'kg' | 'count'
+  d: number
+}
+
+/** The best set's weight if that moved, else its reps; with nothing to load, the most reps or the longest hold. */
+export function gainOf(ex: Pick<Exercise, 'kind'>, from: ExerciseSession, to: ExerciseSession, bodyKg?: number): Gain {
+  if (!loaded(ex)) return { by: 'count', d: topOf(ex, to.sets) - topOf(ex, from.sets) }
+  const a = bestSet(ex, from, bodyKg)
+  const b = bestSet(ex, to, bodyKg)
+  if (!a || !b) return { by: 'kg', d: 0 }
+  return a.kg !== b.kg ? { by: 'kg', d: round(b.kg - a.kg, 2) } : { by: 'count', d: b.reps - a.reps }
+}
+
+/** A gain in a few characters: "+2.5 kg", "−5 kg", "+3 reps", "+10 s"; nothing when it hasn't moved. */
+export function gainText(ex: Pick<Exercise, 'kind'>, g: Gain): string {
+  if (!g.d) return ''
+  const n = `${g.d > 0 ? '+' : '−'}${fmtKg(Math.abs(g.d))}`
+  return g.by === 'kg' ? `${n} kg` : ex.kind === 'duration' ? `${n} s` : `${n} ${Math.abs(g.d) === 1 ? 'rep' : 'reps'}`
+}
+
+/** A session's best on a lift, said whole: "70 kg × 10", "+15 kg × 8", "BW × 12", or "12 reps" and "45 s" with nothing to load. */
+export function bestText(ex: Pick<Exercise, 'kind'>, h: ExerciseSession, bodyKg?: number): string {
+  const best = loaded(ex) ? bestSet(ex, h, bodyKg) : undefined
+  if (!best) return amount(ex, topOf(ex, h.sets))
+  return `${best.kg ? amount(ex, best.kg) : ex.kind === 'weighted-bodyweight' ? 'BW' : '?'} × ${best.reps}`
+}
+
 export interface Progress {
   ex: Exercise
-  /** the most you moved each session, oldest first */
+  /** how strong each session says you are (`strengthOf`), oldest first */
   points: { t: number; v: number }[]
-  now: number
-  /** against the first session in the window */
-  change: number
+  /** the latest session's best: "70 kg × 10" */
+  now: string
+  /** what it's gained since the first session in the window */
+  gain: Gain
   /** sessions in the window */
   sessions: number
 }
 
-/** How your lifts have moved over the last `weeks`, the ones you do most first. A lift needs two sessions in that time to show. */
-export function progressOf(workouts: Workout[], exercises: Map<string, Exercise>, now: Date, weeks = 8): Progress[] {
+/**
+ * How your lifts have moved over the last `weeks`, the ones you do most first: each session's estimated max, so a
+ * lift that's held its weight and gained reps is still seen to move. A lift needs two sessions in that time to show.
+ */
+export function progressOf(workouts: Workout[], exercises: Map<string, Exercise>, now: Date, weeks = 8, bodyKg?: number): Progress[] {
   const from = now.getTime() - weeks * 7 * 86_400_000
   const ids = new Set(workouts.flatMap((w) => w.exercises.map((e) => e.exerciseId)))
   const out: Progress[] = []
   for (const id of ids) {
     const ex = exercises.get(id)
     if (!ex) continue
-    const points = historyFor(id, workouts)
-      .map((h) => ({ t: Date.parse(h.date), v: topOf(ex, h.sets) }))
-      .filter((p) => p.v > 0)
+    // oldest first
+    const all = historyFor(id, workouts)
+      .filter((h) => strengthOf(ex, h, bodyKg) > 0)
       .reverse()
-    const recent = points.filter((p) => p.t >= from)
+    const recent = all.filter((h) => Date.parse(h.date) >= from)
     if (recent.length < 2) continue
-    const last = recent[recent.length - 1].v
-    out.push({ ex, points: points.slice(-16), now: last, change: round(last - recent[0].v, 2), sessions: recent.length })
+    const last = recent[recent.length - 1]
+    out.push({
+      ex,
+      points: all.slice(-16).map((h) => ({ t: Date.parse(h.date), v: strengthOf(ex, h, bodyKg) })),
+      now: bestText(ex, last, bodyKg),
+      gain: gainOf(ex, recent[0], last, bodyKg),
+      sessions: recent.length,
+    })
   }
   return out.sort((a, b) => b.sessions - a.sessions || b.points[b.points.length - 1].t - a.points[a.points.length - 1].t)
 }
