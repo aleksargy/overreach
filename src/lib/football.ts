@@ -394,15 +394,121 @@ function pitchFrame(pts: [number, number][]): (p: [number, number]) => [number, 
   }
 }
 
-/** Rotate GPS points so the long axis of your movement runs left to right, then frame them. */
-export function projectToPitch(lat: number[], lon: number[]): [number, number][] {
+/**
+ * The pitch a game's GPS points were played on: turned so the long axis of your movement runs left to right, then
+ * framed by where they reach. A fix it's given (latitude, longitude) comes back as a point on it, each way 0–1.
+ */
+function pitchOf(lat: number[], lon: number[]): ((la: number, lo: number) => [number, number]) | undefined {
   const fixes = lat.map((la, i) => [la, lon[i]]).filter(([la, lo]) => la && lo)
-  if (fixes.length < 10) return []
+  if (fixes.length < 10) return undefined
   const lat0 = mean(fixes.map((f) => f[0]))
   const lon0 = mean(fixes.map((f) => f[1]))
   const kx = kxAt(lat0)
-  const pts = fixes.map(([la, lo]) => [(lo - lon0) * kx, (la - lat0) * KY] as [number, number])
-  return pts.map(pitchFrame(pts))
+  const metres = (la: number, lo: number): [number, number] => [(lo - lon0) * kx, (la - lat0) * KY]
+  const frame = pitchFrame(fixes.map(([la, lo]) => metres(la, lo)))
+  return (la, lo) => frame(metres(la, lo))
+}
+
+/** Rotate GPS points so the long axis of your movement runs left to right, then frame them. Points with no fix are left out. */
+export function projectToPitch(lat: number[], lon: number[]): [number, number][] {
+  const on = pitchOf(lat, lon)
+  return on ? lat.flatMap((la, i) => (la && lon[i] ? [on(la, lon[i])] : [])) : []
+}
+
+/** When each sprint got going, in seconds from the start of the recording: SPRINT_MPS held for 2 s, at least 3 s after the last one. */
+export function sprintStarts(v: readonly number[], dt: number): number[] {
+  const out: number[] = []
+  for (let i = 0, run = 0, cool = 99; i < v.length; i++) {
+    if (v[i] >= SPRINT_MPS) {
+      run += dt
+      if (run >= 2 && cool >= 3) {
+        out.push(i * dt)
+        cool = 0
+        run = -999
+      }
+    } else {
+      run = 0
+      cool += dt
+    }
+  }
+  return out
+}
+
+/** A game to play back: every sample of play, both halves end to end without half time, on the pitch the heatmap is drawn on. */
+export interface Replay {
+  /** where you were, x along the pitch's length and y across it, each 0–1, smoothed over REPLAY_SMOOTH_S */
+  x: Float32Array
+  y: Float32Array
+  /** how fast you were going, m/s */
+  v: Float32Array
+  /** seconds a sample stands for */
+  dt: number
+  /** the samples of the first half: the second starts at this index */
+  half: number
+  /** the samples each sprint got going at (`sprintStarts`), as indices into these */
+  sprints: number[]
+}
+
+/** a GPS fix wobbles a few metres from one second to the next: positions are averaged over this many seconds */
+const REPLAY_SMOOTH_S = 5
+
+/**
+ * A game as it's played back: from kick-off to the final whistle without half time (`phasesOf`), each sample placed
+ * on the pitch the way the heatmap places them (framed from a point every 2 s of play, so the two agree), with a
+ * missing fix keeping the last one. Sprints are the report's, so the replay ticks as many as it counts.
+ */
+export function replayOf(stream: Stream): Replay | undefined {
+  const dt = stream.dt
+  const lat = stream.lat ?? []
+  const lon = stream.lon ?? []
+  const v = stream.v ?? []
+  const n = Math.min(lat.length, lon.length, v.length)
+  if (n < 10) return undefined
+  const ph = phasesOf(stream)
+  const halves: [number, number][] = [
+    [ph.kickOff, ph.halfTime?.from ?? ph.second],
+    [ph.second, ph.end],
+  ]
+  const inPlay = (s: number) => halves.some(([a, b]) => s >= a && s < b)
+  // the heatmap's frame: a point every 2 s of play
+  const every = Math.max(1, Math.round(2 / dt))
+  const kept: number[] = []
+  for (let i = 0; i < n; i += every) if (inPlay(i * dt)) kept.push(i)
+  const on = pitchOf(
+    kept.map((i) => lat[i]),
+    kept.map((i) => lon[i]),
+  )
+  if (!on) return undefined
+  const at = (s: number) => Math.min(n, Math.max(0, Math.round(s / dt)))
+  const idx = halves.flatMap(([a, b]) => Array.from({ length: Math.max(0, at(b) - at(a)) }, (_, k) => at(a) + k))
+  const half = Math.max(0, at(halves[0][1]) - at(halves[0][0]))
+  // each sample on the pitch, a missing fix keeping the one before it (or the first there is)
+  const first = idx.find((i) => lat[i] && lon[i])
+  if (first === undefined) return undefined
+  let last = on(lat[first], lon[first])
+  const raw = idx.map((i) => (last = lat[i] && lon[i] ? on(lat[i], lon[i]) : last))
+  // smoothed within each half, so the jump from one end to the other at half time isn't drawn
+  const w = Math.max(1, Math.round(REPLAY_SMOOTH_S / dt))
+  const x = new Float32Array(idx.length)
+  const y = new Float32Array(idx.length)
+  for (const [a, b] of [
+    [0, half],
+    [half, idx.length],
+  ]) {
+    const part = raw.slice(a, b)
+    const sx = smooth(
+      part.map((p) => p[0]),
+      w,
+    )
+    const sy = smooth(
+      part.map((p) => p[1]),
+      w,
+    )
+    x.set(sx, a)
+    y.set(sy, a)
+  }
+  const starts = new Set(sprintStarts(v, dt).map((s) => Math.round(s / dt)))
+  return { x, y, v: Float32Array.from(idx, (i) => v[i] || 0), dt, half, sprints: idx.flatMap((i, k) => (starts.has(i) ? [k] : [])) }
 }
 
 /** A fade lasts at least this many minutes, to the final whistle. */
@@ -447,20 +553,7 @@ export function analyseFootball(stream: Stream): FootballAnalysis {
   const cum = (s: number) => (own ? d![Math.min(n - 1, at(s))] - d![0] : pre[at(s)])
 
   // a sprint is SPRINT_MPS held for 2 s, at least 3 s after the last one
-  const sprintAt: number[] = []
-  for (let i = 0, run = 0, cool = 99; i < n; i++) {
-    if (v[i] >= SPRINT_MPS) {
-      run += dt
-      if (run >= 2 && cool >= 3) {
-        sprintAt.push(i * dt)
-        cool = 0
-        run = -999
-      }
-    } else {
-      run = 0
-      cool += dt
-    }
-  }
+  const sprintAt = sprintStarts(v, dt)
 
   const halfOf = (from: number, to: number): Half => {
     let hi = 0

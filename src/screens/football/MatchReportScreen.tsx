@@ -13,6 +13,7 @@ import { fmt } from '../../lib/format'
 import { FEEL, headToHead, ordinal, ratingTone, result, sameOpponent, type Bands, type Half } from '../../lib/football'
 import { zoneBounds, zoneOf } from '../../lib/load'
 import { median } from '../../lib/math'
+import { MatchReplay } from './MatchReplay'
 import { RatingLines } from './RatingLines'
 
 export function MatchReportScreen() {
@@ -148,6 +149,9 @@ export function MatchReportScreen() {
               ]}
             />
           </section>
+
+          {/* the game played back, on the same pitch */}
+          {stream?.lat && <MatchReplay stream={stream} format={m.format} flip={m.flip} />}
 
           <Section title="Intensity" action={<span className="label">Metres per 5 minutes</span>}>
             <Bars
