@@ -73,6 +73,9 @@
   --card-end: 12 12 14;
   --card-figure: 47 48 53;
 
+  /* a plate on the bar: lilac at 30% on a tile, made solid so the bar doesn't show through it */
+  --plate: 69 68 81;
+
   /* the other sports */
   --ride: 127 181 173;
   --swim: 147 180 201;
