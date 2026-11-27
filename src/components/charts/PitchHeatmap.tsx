@@ -3,10 +3,60 @@ import type { Format } from '../../data/types'
 import { PITCH } from '../../lib/football'
 import { useMeasure } from './primitives'
 
-const cssRgb = (name: string): [number, number, number] => {
+export const cssRgb = (name: string): [number, number, number] => {
   const raw = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
   const [r, g, b] = raw.split(/\s+/).map(Number)
   return [r || 0, g || 0, b || 0]
+}
+
+/**
+ * The pitch in its rounded box, filled and with its lines on (halfway, the centre circle, the boxes for the format),
+ * left clipped to the box so what's drawn next stays on it. `restore` the context when done, then `pitchEdge`.
+ */
+export function pitchBase(ctx: CanvasRenderingContext2D, px: number, py: number, pw: number, ph: number, format: Format) {
+  const [L, W] = PITCH[format]
+  const rgb = (name: string, a = 1) => `rgba(${cssRgb(name).join(',')},${a})`
+  ctx.beginPath()
+  ctx.roundRect(px, py, pw, ph, 8)
+  ctx.fillStyle = rgb('--pitch')
+  ctx.fill()
+  ctx.save()
+  ctx.clip()
+  ctx.strokeStyle = rgb('--pitch-line')
+  ctx.lineWidth = 1.5
+  const sx = pw / L
+  const sy = ph / W
+  ctx.beginPath()
+  ctx.moveTo(px + pw / 2, py)
+  ctx.lineTo(px + pw / 2, py + ph)
+  ctx.stroke()
+  ctx.beginPath()
+  ctx.arc(px + pw / 2, py + ph / 2, Math.min(W * 0.16, 9.15) * sy, 0, Math.PI * 2)
+  ctx.stroke()
+  for (const side of [0, 1]) {
+    const x = side ? px + pw : px
+    if (format <= 6) {
+      ctx.beginPath()
+      ctx.arc(x, py + ph / 2, W * 0.3 * sy, -Math.PI / 2, Math.PI / 2, side === 1)
+      ctx.stroke()
+    } else {
+      const bd = (format <= 8 ? 10 : 16.5) * sx
+      const bw = (format <= 8 ? W * 0.5 : 40.3) * sy
+      ctx.strokeRect(side ? x - bd : x, py + ph / 2 - bw / 2, bd, bw)
+      const sd = (format <= 8 ? 4 : 5.5) * sx
+      const sw = (format <= 8 ? W * 0.25 : 18.3) * sy
+      ctx.strokeRect(side ? x - sd : x, py + ph / 2 - sw / 2, sd, sw)
+    }
+  }
+}
+
+/** The pitch's edge, over whatever's been drawn on it. */
+export function pitchEdge(ctx: CanvasRenderingContext2D, px: number, py: number, pw: number, ph: number) {
+  ctx.beginPath()
+  ctx.roundRect(px, py, pw, ph, 8)
+  ctx.strokeStyle = `rgb(${cssRgb('--pitch-line').join(',')})`
+  ctx.lineWidth = 1.5
+  ctx.stroke()
 }
 
 /**
@@ -34,41 +84,9 @@ export function PitchHeatmap({ points, format, flip }: { points: [number, number
     const py = 1
     const pw = w - 2
     const ph = h - 2
-    const rgb = (name: string, a = 1) => `rgba(${cssRgb(name).join(',')},${a})`
 
     // the pitch, and its lines under the heat
-    ctx.beginPath()
-    ctx.roundRect(px, py, pw, ph, 8)
-    ctx.fillStyle = rgb('--pitch')
-    ctx.fill()
-    ctx.save()
-    ctx.clip()
-    ctx.strokeStyle = rgb('--pitch-line')
-    ctx.lineWidth = 1.5
-    const sx = pw / L
-    const sy = ph / W
-    ctx.beginPath()
-    ctx.moveTo(px + pw / 2, py)
-    ctx.lineTo(px + pw / 2, py + ph)
-    ctx.stroke()
-    ctx.beginPath()
-    ctx.arc(px + pw / 2, py + ph / 2, Math.min(W * 0.16, 9.15) * sy, 0, Math.PI * 2)
-    ctx.stroke()
-    for (const side of [0, 1]) {
-      const x = side ? px + pw : px
-      if (format <= 6) {
-        ctx.beginPath()
-        ctx.arc(x, py + ph / 2, W * 0.3 * sy, -Math.PI / 2, Math.PI / 2, side === 1)
-        ctx.stroke()
-      } else {
-        const bd = (format <= 8 ? 10 : 16.5) * sx
-        const bw = (format <= 8 ? W * 0.5 : 40.3) * sy
-        ctx.strokeRect(side ? x - bd : x, py + ph / 2 - bw / 2, bd, bw)
-        const sd = (format <= 8 ? 4 : 5.5) * sx
-        const sw = (format <= 8 ? W * 0.25 : 18.3) * sy
-        ctx.strokeRect(side ? x - sd : x, py + ph / 2 - sw / 2, sd, sw)
-      }
-    }
+    pitchBase(ctx, px, py, pw, ph, format)
 
     // density grid
     const GX = 72
@@ -121,11 +139,7 @@ export function PitchHeatmap({ points, format, flip }: { points: [number, number
     ctx.imageSmoothingQuality = 'high'
     ctx.drawImage(off, px, py, pw, ph)
     ctx.restore()
-    ctx.beginPath()
-    ctx.roundRect(px, py, pw, ph, 8)
-    ctx.strokeStyle = rgb('--pitch-line')
-    ctx.lineWidth = 1.5
-    ctx.stroke()
+    pitchEdge(ctx, px, py, pw, ph)
   }, [points, format, flip, w, h, L, W])
 
   return (

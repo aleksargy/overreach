@@ -3,6 +3,7 @@ import { ChevronRight } from 'lucide-react'
 import { useMemo } from 'react'
 import { Link } from 'react-router'
 import { ActivityList } from '../../components/ActivityRow'
+import { RunMapDrawing } from '../../components/charts/RunMap'
 import { Sparkline } from '../../components/charts/primitives'
 import { Screen } from '../../components/ui/Screen'
 import { StandoutLine } from '../../components/ui/Standout'
@@ -12,6 +13,7 @@ import { useRunModel, useWorld } from '../../data/world'
 import { clock, fmt, km, pace } from '../../lib/format'
 import { mean } from '../../lib/math'
 import { daysTo, formatGoal, goalPaceS, raceName, racesIn } from '../../lib/race'
+import { runMapOf } from '../../lib/routes'
 import { BEST_NAME, bestsOf, type RunModel } from '../../lib/running'
 import type { Standout } from '../../lib/standout'
 
@@ -60,6 +62,7 @@ export function RunScreen() {
           {news && news.key === 'long' && <StandoutLine s={news} className="mt-2.5" />}
           {m?.engineNow && <Fitness m={m} />}
           <Bests runs={runs} news={news?.key.startsWith('best-') ? news : undefined} />
+          <Where runs={runs} />
           <Races />
           <Section
             title="Recent"
@@ -169,6 +172,17 @@ function Bests({ runs, news }: { runs: Activity[]; news?: Standout }) {
         )
       })}
     </div>
+  )
+}
+
+/** Every run around where you usually run, drawn on one map: the streets you run most come out brightest. */
+function Where({ runs }: { runs: Activity[] }) {
+  const map = useMemo(() => runMapOf(runs), [runs])
+  if (!map) return null
+  return (
+    <Section title="Where you run" action={<span className="label">{`${map.runs} runs · ${map.km} km`}</span>}>
+      <RunMapDrawing map={map} />
+    </Section>
   )
 }
 

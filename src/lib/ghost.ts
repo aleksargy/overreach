@@ -44,8 +44,9 @@ const MOVING = 0.8
 const GHOSTS = 8
 const COURSES = 3
 
-const KY = 110_540
-const kxAt = (lat: number) => 111_320 * Math.cos((lat * Math.PI) / 180)
+/** metres a degree of latitude, and of longitude at a latitude: what an outline's metres are measured in */
+export const KY = 110_540
+export const kxAt = (lat: number) => 111_320 * Math.cos((lat * Math.PI) / 180)
 /** outline legs are filed by squares this big (m): a leg within ON_ROUTE_M of a point has an end within one square of it */
 const CELL = 150
 

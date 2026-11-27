@@ -58,6 +58,27 @@ const SCREENS = [
   // the latest run's page, where its ghosts are offered
   ['run-activity', { from: '/run', link: 'a[href^="/activity/"]' }],
   ['match', { from: '/football', link: 'a[href^="/match/"]' }],
+  // the latest game played back for a few seconds, then paused: the dot and the trail behind it
+  [
+    'match-replay',
+    {
+      from: '/football',
+      async sheet(page) {
+        const game = page.locator('a[href^="/match/"]').first()
+        if (!(await game.count())) return false
+        await game.click()
+        await page.waitForTimeout(900)
+        const play = page.getByRole('button', { name: 'Play', exact: true })
+        if (!(await play.count())) return false
+        await play.scrollIntoViewIfNeeded()
+        await play.click()
+        await page.waitForTimeout(2500)
+        await page.getByRole('button', { name: 'Pause', exact: true }).click()
+        await page.getByText('Replay', { exact: true }).evaluate((el) => el.closest('section')?.scrollIntoView({ block: 'center' }))
+        await page.waitForTimeout(300)
+      },
+    },
+  ],
   // the first game you faded in, at its halves and the fade on its intensity chart (live mode on the fake has no matches)
   [
     'match-fade',

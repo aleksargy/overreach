@@ -7,8 +7,10 @@ import {
   formatOf,
   gamesToRate,
   playerCard,
+  projectToPitch,
   rateMatch,
   recurringPoints,
+  replayOf,
   seasonPitch,
   suggestPoints,
   summaryOf,
@@ -367,4 +369,33 @@ test('a season of games lines up on one pitch, each half facing the end you atta
   // own half is the left, and your right is the bottom edge when you attack to the right
   assert.ok(mean(0) < 0.47, `along ${mean(0)}`)
   assert.ok(mean(1) > 0.55, `across ${mean(1)}`)
+})
+
+test('a game is played back from kick-off to the whistle, without half time, on the heatmap’s pitch', () => {
+  const st = played(ALEX)
+  const an = analyseFootball(st)
+  const r = replayOf(st)!
+  // both halves end to end, each as long as the report says, and half time left out
+  near((r.half * r.dt) / 60, an.halves[0].minutes, 0.1)
+  near((r.x.length * r.dt) / 60, an.minutes, 0.1)
+  // the sprints are the report's, every one in play
+  assert.equal(r.sprints.length, an.sprints)
+  assert.ok(r.sprints.every((i, k) => i < r.x.length && (!k || i > r.sprints[k - 1])))
+  assert.ok(r.sprints.every((i) => r.v[i] >= 5))
+  // on the pitch, where the heatmap puts the game: about the same place on average, smoothed or not
+  assert.ok([...r.x, ...r.y].every((p) => p >= 0 && p <= 1))
+  const mean = (xs: ArrayLike<number>) => Array.from(xs).reduce((a, b) => a + b, 0) / xs.length
+  near(mean(r.x), mean(an.heat.map((p) => p[0])), 0.03)
+  near(mean(r.y), mean(an.heat.map((p) => p[1])), 0.03)
+  // a game played straight through splits in the middle of play
+  const through = replayOf(played(fives([600, 580, 590, 610, 560, 600, 570, 590, 600, 580, 560, 590])))!
+  near(through.half / through.x.length, 0.5, 0.05)
+  // with no GPS there's nothing to play back
+  assert.equal(replayOf({ ...st, lat: undefined, lon: undefined }), undefined)
+  // the heatmap's own points are where they always were: a fix with nothing in it is left out
+  const lat = st.lat!.slice(0, 600)
+  const lon = st.lon!.slice(0, 600)
+  const gaps = lat.map((x, i) => (i % 7 ? x : 0))
+  assert.equal(projectToPitch(gaps, lon).length, gaps.filter(Boolean).length)
+  assert.deepEqual(projectToPitch(lat, lon).length, 600)
 })
