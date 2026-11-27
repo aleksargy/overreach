@@ -8,8 +8,8 @@ import type { SetEntry } from '../../data/types'
 import { useUi } from '../../data/ui'
 import { useWorld } from '../../data/world'
 import { fmt } from '../../lib/format'
-import { amount, historyFor, loaded, mainSets, setText, setsLine, targetText, topOf } from '../../lib/lift'
-import { EQUIPMENT_LABEL, MUSCLE_LABEL, MoveNote, nextFor } from './parts'
+import { amount, historyFor, loaded, mainSets, setText, setsLine, stepped, targetText, topOf } from '../../lib/lift'
+import { EQUIPMENT_LABEL, MOST_STEPS, MUSCLE_LABEL, MoveNote, SetSteps, bodyKgOf, nextFor } from './parts'
 
 /** One lift: what to do next time, how it's moved, and every session you've logged. */
 export function ExerciseScreen() {
@@ -25,7 +25,9 @@ export function ExerciseScreen() {
       </Screen>
     )
   }
-  const t = nextFor(w, ex)
+  const { t, sets } = nextFor(w, ex)
+  // sets that aren't all at one weight (a pyramid, a ramp) are drawn as steps, each with its numbers
+  const steps = stepped(ex, sets) && sets.length <= MOST_STEPS
   const points = [...history].reverse().map((h) => ({ t: Date.parse(h.date), v: topOf(ex, h.sets) }))
   const all = history.flatMap((h) => mainSets(h.sets))
   const top = points.length ? Math.max(...points.map((p) => p.v)) : 0
@@ -56,8 +58,12 @@ export function ExerciseScreen() {
           <h2>Next time</h2>
           <MoveNote t={t} plain className="text-[12.5px] font-semibold" />
         </div>
-        {/* a long one ("Bodyweight × 8") steps down a size to stay on one line */}
-        <div className={`num-hero whitespace-nowrap text-strength-head ${targetText(ex, t).length > 11 ? 'text-[42px]' : 'text-[56px]'}`}>{targetText(ex, t)}</div>
+        {steps ? (
+          <SetSteps ex={ex} sets={sets} bodyKg={bodyKgOf(w)} />
+        ) : (
+          // a long one ("Bodyweight × 8") steps down a size to stay on one line
+          <div className={`num-hero whitespace-nowrap text-strength-head ${targetText(ex, t).length > 11 ? 'text-[42px]' : 'text-[56px]'}`}>{targetText(ex, t)}</div>
+        )}
       </section>
 
       {history.length > 0 ? (
