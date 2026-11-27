@@ -3,6 +3,7 @@ import { test } from 'node:test'
 import { BUILTIN_EXERCISES } from '../src/data/exercises'
 import type { Exercise, Programme, Routine, SetEntry, Workout } from '../src/data/types'
 import {
+  barsOf,
   beltMates,
   countAt,
   currentProgramme,
@@ -20,6 +21,8 @@ import {
   progressOf,
   recordsIn,
   setsLine,
+  setsOf,
+  stepped,
   supersetTags,
   targetFor,
   targetText,
@@ -632,4 +635,52 @@ test('supersets: exercises linked next to each other are done in turns, A1 and A
   const split = toggleSuperset(giant, 0, key)
   assert.deepEqual(supersetTags(split), [undefined, 'A1', 'A2'])
   assert.equal(split[0].superset, undefined)
+})
+
+test('sets are drawn as bars as tall as their weight: a pyramid steps down, a ramp steps up, straight sets are level', () => {
+  const bars = (ex: Exercise, kgs: (number | undefined)[], bodyKg?: number) =>
+    barsOf(
+      ex,
+      kgs.map((kg) => ({ kg })),
+      bodyKg,
+    ).map((b) => [Math.round(b.rise * 100) / 100, b.top])
+  // straight sets are level, all at the working weight
+  assert.deepEqual(bars(bench, [60, 60, 60]), [
+    [1, true],
+    [1, true],
+    [1, true],
+  ])
+  // a ramp: 60 on the way to 80 is three quarters of it, which is as short as a bar gets
+  assert.deepEqual(bars(squat, [60, 80, 80]), [
+    [0, false],
+    [1, true],
+    [1, true],
+  ])
+  // a pyramid on the belt: body weight counts, so +15, +5 and nothing at 78 kg are 93, 83 and 78
+  assert.deepEqual(bars(dips, [15, 5, undefined], 78), [
+    [1, true],
+    [0.57, false],
+    [0.35, false],
+  ])
+  // nothing to load, or no weight yet: level
+  assert.deepEqual(bars(pushUp, [undefined, undefined]), [
+    [1, true],
+    [1, true],
+  ])
+  assert.deepEqual(bars(bench, [undefined]), [[1, true]])
+  // a workout's sets as the target plans them: each one's own, and the headline past the end of them
+  const t = next(squat, session(squat, 3, [set(60, 9), set(80, 5), set(80, 5)]))
+  assert.deepEqual(
+    setsOf(t, 4).map((x) => [x.kg, x.count]),
+    [
+      [60, 9],
+      [80, 6],
+      [80, 6],
+      [80, 6],
+    ],
+  )
+  // sets at more than one weight are stepped; level ones, and ones with nothing to load, aren't
+  assert.equal(stepped(squat, setsOf(t, 3)), true)
+  assert.equal(stepped(bench, [{ kg: 60 }, { kg: 60 }]), false)
+  assert.equal(stepped(pushUp, [{}, {}]), false)
 })

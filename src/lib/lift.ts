@@ -640,6 +640,27 @@ function shareBelt(members: BeltMember[], bodyKg: number): Target[] {
   })
 }
 
+/** The sets a workout has for an exercise as its target plans them, in order: each one's own, or the headline past the end of them. */
+export const setsOf = (t: Target, sets: number): Target['perSet'] => Array.from({ length: Math.max(1, sets) }, (_, k) => t.perSet[k] ?? { kg: t.kg, count: t.count })
+
+/** at this share of the heaviest set, or under it, a bar is as short as it's drawn */
+const BAR_FLOOR = 0.75
+
+/**
+ * Sets as bars: how tall each is drawn against the heaviest (1 at it, 0 at three quarters of it or under) and whether
+ * it's at that weight, the working one. Weight added to you counts with your body weight, so a pyramid's steps are as
+ * big as they are to lift. With nothing to load, or no weight yet, the sets are level.
+ */
+export function barsOf(ex: Pick<Exercise, 'kind'>, sets: { kg?: number }[], bodyKg = 0): { rise: number; top: boolean }[] {
+  const body = ex.kind === 'weighted-bodyweight' ? bodyKg : 0
+  const loads = sets.map((s) => (loaded(ex) ? (s.kg ?? 0) + body : 0))
+  const most = Math.max(0, ...loads)
+  return loads.map((l) => ({ rise: most > 0 ? Math.min(1, Math.max(0, (l / most - BAR_FLOOR) / (1 - BAR_FLOOR))) : 1, top: l === most }))
+}
+
+/** Sets that aren't all at one weight: a pyramid, or a ramp up to the working weight. Level sets are said in one number. */
+export const stepped = (ex: Pick<Exercise, 'kind'>, sets: { kg?: number }[]) => loaded(ex) && new Set(sets.map((s) => s.kg ?? 0)).size > 1
+
 /** The target in a glance: "62.5 kg × 8", "+10 kg × 6", "12 reps", "45 s"; the range when it's your first go. */
 export function targetText(ex: Exercise, t: Target): string {
   const [lo, hi] = ex.repRange

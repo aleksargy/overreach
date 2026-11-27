@@ -10,9 +10,9 @@ import { useStore } from '../../data/store'
 import type { Muscle, Routine } from '../../data/types'
 import { useUi } from '../../data/ui'
 import { useWorld, type World } from '../../data/world'
-import { amount, focusOf, historyFor, lastDone, nextRoutine, progressOf, recordsIn, supersetTags, targetText, topOf } from '../../lib/lift'
+import { amount, focusOf, historyFor, lastDone, nextRoutine, progressOf, recordsIn, setsOf, supersetTags, targetText, topOf } from '../../lib/lift'
 import { uid } from '../../lib/rng'
-import { EQUIPMENT_LABEL, MUSCLE_LABEL, MoveNote, WorkoutRow, daysAgo, inPlay, planOf, useBegin } from './parts'
+import { EQUIPMENT_LABEL, MUSCLE_LABEL, MoveNote, SetBars, WorkoutRow, bodyKgOf, daysAgo, inPlay, planOf, useBegin } from './parts'
 import { WeekBars, programmeWhen } from './ProgrammeScreen'
 
 /** How long ago a workout was last done, in days; undefined if never. */
@@ -140,14 +140,18 @@ function NextUp({ w, routine }: { w: World; routine: Routine }) {
   )
 }
 
-/** A workout's exercises, each with its sets, the rule in play and the weight and reps to go for. `tinted` sets it on the lilac hero. */
+/**
+ * A workout's exercises, each with its sets drawn as bars, the rule in play and the weight and reps to go for. The
+ * bars and the numbers line up down the list. `tinted` sets it on the lilac hero.
+ */
 export function Targets({ w, routine, className = '', tinted }: { w: World; routine: Routine; className?: string; tinted?: boolean }) {
   // exercises done in turns are tagged A1, A2
   const tags = supersetTags(routine.items)
   // what each is to lift, with the belt shared between lifts done in turns
   const plan = useMemo(() => planOf(w, routine.items), [w, routine.items])
+  const bodyKg = bodyKgOf(w)
   return (
-    <div className={`${tinted ? '' : 'list ruled'} ${className}`}>
+    <div className={`grid grid-cols-[minmax(0,1fr)_auto_auto] gap-x-3 ${tinted ? '' : 'list ruled'} ${className}`}>
       {routine.items.map((it, i) => {
         const ex = w.exerciseById.get(it.exerciseId)
         const t = plan[i]
@@ -156,20 +160,17 @@ export function Targets({ w, routine, className = '', tinted }: { w: World; rout
           <Link
             key={`${it.exerciseId}-${i}`}
             to={`/lift/exercise/${ex.id}`}
-            className={`flex items-center gap-3 transition-colors duration-150 ${tinted ? 'border-t border-strength/[0.14] py-[9px]' : 'py-[10px] active:bg-ink-2'}`}
+            className={`col-span-3 grid grid-cols-subgrid items-center transition-colors duration-150 ${tinted ? 'border-t border-strength/[0.14] py-[9px]' : 'py-[10px] active:bg-ink-2'}`}
           >
-            <span className="min-w-0 flex-1">
+            <span className="min-w-0">
               <span className="block truncate text-[15px] font-bold leading-5">
                 {tags[i] && <span className={`mr-1.5 text-[12.5px] font-extrabold ${tinted ? 'text-strength-label' : 'text-strength'}`}>{tags[i]}</span>}
                 {ex.name}
               </span>
-              <span className={`block text-[12px] ${tinted ? 'text-strength-head/80' : 'text-fg-3'}`}>
-                {it.sets} {it.sets === 1 ? 'set' : 'sets'}
-                {(t.move === 'first' || t.note) && ' · '}
-                <MoveNote t={t} plain={tinted} />
-              </span>
+              {(t.move === 'first' || t.note) && <MoveNote t={t} plain={tinted} className={`block text-[12px] ${tinted ? 'text-strength-head/80' : ''}`} />}
             </span>
-            <span className={`num shrink-0 text-right text-[18px] ${tinted ? 'text-strength-head' : ''}`}>{targetText(ex, t)}</span>
+            <SetBars ex={ex} sets={setsOf(t, it.sets)} bodyKg={bodyKg} />
+            <span className={`num text-right text-[18px] ${tinted ? 'text-strength-head' : ''}`}>{targetText(ex, t)}</span>
           </Link>
         )
       })}
