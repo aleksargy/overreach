@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, Check, ChevronDown, ChevronUp, Minus, MoreHorizontal, Plus, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, Check, ChevronDown, ChevronUp, Link2Off, Minus, MoreHorizontal, Plus, Trash2 } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -6,11 +6,12 @@ import { useNavigate } from 'react-router'
 import { Sheet } from '../../components/ui/Sheet'
 import { NumInput } from '../../components/ui/bits'
 import { useStore } from '../../data/store'
-import type { SetEntry, WorkoutExercise } from '../../data/types'
+import type { Exercise, SetEntry, WorkoutExercise } from '../../data/types'
 import { useUi } from '../../data/ui'
 import { useWorld, type World } from '../../data/world'
 import {
   beltMates,
+  bestSets,
   countAt,
   dropFor,
   dropsBySet,
@@ -108,6 +109,15 @@ function Live() {
   }
   const done = active.exercises.reduce((a, we) => a + working(we).filter((s) => s.done).length, 0)
   const total = active.exercises.reduce((a, we) => a + working(we).length, 0)
+  // a card an exercise, except lifts that go round on one belt and sit next to each other: they're one card, logged
+  // a round at a time
+  const cards: number[][] = []
+  for (let i = 0; i < active.exercises.length;) {
+    let j = i + 1
+    while (j < active.exercises.length && mates[i]?.includes(j)) j++
+    cards.push(Array.from({ length: j - i }, (_, n) => i + n))
+    i = j
+  }
 
   const addExercise = () =>
     open({
@@ -145,24 +155,31 @@ function Live() {
 
       <div className="flex-1 overflow-y-auto overscroll-contain">
         <div className="gutter mx-auto max-w-app pb-[calc(var(--safe-bottom)+40px)]">
-          {active.exercises.map((we, i) => (
-            <Fragment key={we.id}>
-              {i === 0 ? (
-                <div className="h-2.5" />
-              ) : (
-                // the gap between two exercises, with the link that makes them a superset
-                <div className={`relative flex justify-center ${joined(i - 1) ? 'h-1' : 'h-2.5'}`}>
-                  <SupersetLink
-                    linked={joined(i - 1)}
-                    onToggle={() => link(i - 1)}
-                    above={w.exerciseById.get(active.exercises[i - 1].exerciseId)?.name ?? 'This exercise'}
-                    className="absolute top-1/2 -translate-y-1/2"
-                  />
-                </div>
-              )}
-              <ExerciseBlock w={w} we={we} index={i} count={active.exercises.length} tag={tags[i]} target={plan[i]} worn={worn(i)} />
-            </Fragment>
-          ))}
+          {cards.map((card) => {
+            const i = card[0]
+            return (
+              <Fragment key={active.exercises[i].id}>
+                {i === 0 ? (
+                  <div className="h-2.5" />
+                ) : (
+                  // the gap between two exercises, with the link that makes them a superset
+                  <div className={`relative flex justify-center ${joined(i - 1) ? 'h-1' : 'h-2.5'}`}>
+                    <SupersetLink
+                      linked={joined(i - 1)}
+                      onToggle={() => link(i - 1)}
+                      above={w.exerciseById.get(active.exercises[i - 1].exerciseId)?.name ?? 'This exercise'}
+                      className="absolute top-1/2 -translate-y-1/2"
+                    />
+                  </div>
+                )}
+                {card.length > 1 ? (
+                  <RoundsBlock w={w} list={card.map((n) => ({ we: active.exercises[n], tag: tags[n], target: plan[n], worn: worn(n) }))} total={active.exercises.length} />
+                ) : (
+                  <ExerciseBlock w={w} we={active.exercises[i]} index={i} count={active.exercises.length} tag={tags[i]} target={plan[i]} worn={worn(i)} />
+                )}
+              </Fragment>
+            )
+          })}
           <button onClick={addExercise} className="btn-ghost mt-5 w-full">
             <Plus size={18} /> Add exercise
           </button>
@@ -174,55 +191,42 @@ function Live() {
   )
 }
 
-function ExerciseBlock({
-  w,
-  we,
-  index,
-  count,
-  tag,
-  target,
-  worn,
-}: {
-  w: World
-  we: WorkoutExercise
-  index: number
-  count: number
-  tag?: string
-  /** what to lift, from the plan for the whole workout */
-  target?: Target
-  /** the weight a lift sharing the belt has put in for a round, if it has */
-  worn: (k: number) => number | undefined
-}) {
-  const update = useStore((s) => s.updateActive)
-  const say = useUi((s) => s.say)
-  const ex = w.exerciseById.get(we.exerciseId)
-  const history = useMemo(() => (ex ? historyFor(ex.id, w.workouts) : []), [ex, w.workouts])
-  // the session the target builds on: the latest week's best, which a tired second go that week isn't
-  const bodyKg = bodyKgOf(w)
-  const base = useMemo(() => (ex ? weeksOf(ex, history, bodyKg)[0] : undefined), [ex, history, bodyKg])
-  const [menu, setMenu] = useState(false)
-  if (!ex || !target) return null
+/** A set as the logger shows it: its label, last time's beside it, and what ticking it writes down if it's left as it is. */
+interface Row {
+  s: SetEntry
+  /** its number among the sets that count, W for a warm-up, D for a drop set */
+  label: string
+  /** which of the sets that count it is, from 0; none for a warm-up or a drop set */
+  k?: number
+  previous?: SetEntry
+  phKg?: number
+  phCount?: number
+  /** done, and a new best */
+  best?: boolean
+}
 
+/** What a lift has behind it: every session, and the one its target builds on (the latest week's best, which a tired second go that week isn't). */
+function pastOf(w: World, ex: Exercise | undefined, bodyKg: number | undefined) {
+  const history = ex ? historyFor(ex.id, w.workouts) : []
+  return { history, base: ex ? weeksOf(ex, history, bodyKg)[0] : undefined }
+}
+type Past = ReturnType<typeof pastOf>
+/** the column over last time's sets: the session they come from isn't always the latest */
+const pastLabel = (past: Past) => (past.base && past.base !== past.history[0] ? 'Week’s best' : 'Last time')
+
+/**
+ * An exercise's sets as the logger's rows: each with last time's beside it and what ticking it writes down if you
+ * leave it as it is (its target, or for a warm-up what you did last time). `worn(k)` is the weight a lift sharing the
+ * belt has on it for round `k`, if it has.
+ */
+function rowsOf(ex: Exercise, we: WorkoutExercise, target: Target, past: Past, bodyKg: number | undefined, worn: (k: number) => number | undefined): Row[] {
   const weighted = loaded(ex)
   const timed = ex.kind === 'duration'
-  const prev = base
+  const prev = past.base
   // last time's sets beside today's; in a reverse pyramid from its top set, the warm-up to it left out
-  const prevWork = prev ? (ex.pyramid && loaded(ex) ? pyramidOf(ex, prev.sets) : mainSets(prev.sets)) : []
+  const prevWork = prev ? (ex.pyramid && weighted ? pyramidOf(ex, prev.sets) : mainSets(prev.sets)) : []
   const prevWarm = prev?.sets.filter((s) => s.kind === 'warmup') ?? []
   const prevDrops = prev ? dropsBySet(prev.sets) : new Map<number, SetEntry[]>()
-
-  const patchEx = (fn: (x: WorkoutExercise) => WorkoutExercise) => update((x) => ({ ...x, exercises: x.exercises.map((e) => (e.id === we.id ? fn(e) : e)) }))
-  const patchSet = (id: string, p: Partial<SetEntry>) => patchEx((e) => ({ ...e, sets: e.sets.map((s) => (s.id === id ? { ...s, ...p } : s)) }))
-  const move = (d: -1 | 1) =>
-    update((x) => {
-      const list = [...x.exercises]
-      const j = index + d
-      if (j < 0 || j >= list.length) return x
-      ;[list[index], list[j]] = [list[j], list[index]]
-      return { ...x, exercises: tidySupersets(list) }
-    })
-  const remove = () => update((x) => ({ ...x, exercises: tidySupersets(x.exercises.filter((e) => e.id !== we.id)) }))
-
   const countOf = (x?: SetEntry) => (timed ? x?.secs : x?.reps)
   let nWork = 0
   let nWarm = 0
@@ -233,8 +237,7 @@ function ExerciseBlock({
   // the set above, as it stands: a drop set goes down from it, and so does the next set of a pyramid
   let above: { kg?: number; count?: number } = {}
   let main: { kg?: number; count?: number } = {}
-  // what ticking a set writes down if you leave it as it is: its target, or for a warm-up what you did last time
-  const rows = we.sets.map((s) => {
+  const rows = we.sets.map((s): Row => {
     if (s.kind === 'warmup') {
       const previous = prevWarm[nWarm++]
       return { s, label: 'W', previous, phKg: previous?.kg, phCount: countOf(previous) }
@@ -264,7 +267,7 @@ function ExerciseBlock({
       countPlan = t.count
     }
     // straight sets: the weight you put in above carries down the sets planned at the same weight. And lifts done
-    // in turns go round on one belt: the weight the other has put on it this round
+    // in turns go round on one belt: the weight the other has on it this round
     const phKg = worn(k) ?? (!ex.pyramid && typed && typed.plan === kgPlan ? typed.kg : kgPlan)
     // the reps go with the weight that's on the set, typed or not: what the plan for it comes to there. A first go
     // has no reps planned at a weight, and a weight half typed in (8 on the way to 80) is nothing to go by, so only
@@ -275,23 +278,132 @@ function ExerciseBlock({
     const phCount = weighted && target.move !== 'first' && near ? countAt(ex, { kg: kgPlan, count: countPlan }, on, bodyKg) : countPlan
     if (s.kg !== undefined) typed = { plan: kgPlan, kg: s.kg }
     main = above = { kg: s.kg ?? phKg, count: countOf(s) ?? phCount }
-    return { s, label: String(k + 1), previous: prevWork[k], phKg, phCount }
+    return { s, label: String(k + 1), k, previous: prevWork[k], phKg, phCount }
   })
+  // a best as it's ticked: at the heaviest weight the session has, done or still to do, so the ramp up to it and the
+  // sets down a pyramid aren't in the running
+  const top = Math.max(0, ...rows.filter((r) => r.k !== undefined).map((r) => r.s.kg ?? r.phKg ?? 0))
+  const bests = bestSets(
+    ex,
+    we.sets,
+    past.history.flatMap((h) => h.sets),
+    top,
+  )
+  return bests.size ? rows.map((r) => (bests.has(r.s.id) ? { ...r, best: true } : r)) : rows
+}
 
-  const tick = (r: (typeof rows)[number]) => {
+/** Changes to the workout in progress, by exercise and set. */
+function useLog() {
+  const update = useStore((s) => s.updateActive)
+  const say = useUi((s) => s.say)
+  const patchEx = (id: string, fn: (x: WorkoutExercise) => WorkoutExercise) => update((x) => ({ ...x, exercises: x.exercises.map((e) => (e.id === id ? fn(e) : e)) }))
+  const patchSet = (id: string, setId: string, p: Partial<SetEntry>) => patchEx(id, (e) => ({ ...e, sets: e.sets.map((s) => (s.id === setId ? { ...s, ...p } : s)) }))
+  /** tick a set, writing down what it was prefilled with, or untick one that's done */
+  const tick = (ex: Exercise, id: string, r: Row) => {
     const { s } = r
-    if (s.done) return patchSet(s.id, { done: false })
+    if (s.done) return patchSet(id, s.id, { done: false })
+    const timed = ex.kind === 'duration'
     const p: Partial<SetEntry> = { done: true }
     if (timed) {
       if (s.secs === undefined) p.secs = r.phCount
     } else {
       if (s.reps === undefined) p.reps = r.phCount
-      if (weighted && s.kg === undefined && r.phKg) p.kg = r.phKg
+      if (loaded(ex) && s.kg === undefined && r.phKg) p.kg = r.phKg
     }
     if (!(timed ? (p.secs ?? s.secs) : (p.reps ?? s.reps))) return say(timed ? 'Add the seconds first' : 'Add your reps first')
     if (ex.kind === 'weight' && !(p.kg ?? s.kg)) return say('Add the weight first')
-    patchSet(s.id, p)
+    patchSet(id, s.id, p)
   }
+  return { update, patchEx, patchSet, tick }
+}
+
+/** The round button that ticks a set: lilac once it's done, and sage with a ring when the set is a new best. */
+function Tick({ r, onClick }: { r: Row; onClick: () => void }) {
+  return (
+    <button
+      aria-label={r.s.done ? `${r.best ? 'A new best. ' : ''}Mark set not done` : 'Mark set done'}
+      aria-pressed={r.s.done}
+      onClick={onClick}
+      className={`press ml-auto grid h-9 w-9 place-items-center rounded-full transition-colors ${
+        r.best ? 'bg-football text-ink-0 ring-2 ring-football/50 ring-offset-[3px] ring-offset-ink-1' : r.s.done ? 'bg-strength text-ink-0' : 'bg-ink-2 text-fg-4'
+      }`}
+    >
+      <Check size={18} strokeWidth={2.75} />
+    </button>
+  )
+}
+
+/** a set's label in its colour: a warm-up blue, a drop set lilac, a best sage, done bright */
+const labelTone = (r: Row) => (r.s.kind === 'warmup' ? 'text-z1' : r.s.kind === 'drop' ? 'text-strength' : r.best ? 'text-football' : r.s.done ? 'text-fg' : 'text-fg-3')
+const kindLabel = (s: SetEntry) => `${KIND_WORD[s.kind]}. Tap for a ${KIND_WORD[NEXT_KIND[s.kind]].toLowerCase()}`
+const lastText = (ex: Exercise, r: Row) => (r.previous ? setText(ex, r.previous).replace(' reps', '') : '')
+const weightHint = (ex: Exercise, r: Row) => (r.phKg !== undefined ? fmtKg(r.phKg) : ex.kind === 'weighted-bodyweight' ? '0' : '')
+
+/** how tall each plate is drawn: the big ones tall, the change small */
+const PLATE: Record<number, string> = { 25: 'h-[46px]', 20: 'h-[42px]', 15: 'h-[38px]', 10: 'h-8', 5: 'h-[25px]', 2.5: 'h-5', 1.25: 'h-[17px]' }
+
+/** One end of the bar with the plates for a side on it, biggest first, each with its weight. */
+function Plates({ list }: { list: number[] }) {
+  return (
+    <span className="flex basis-full items-center gap-2.5 pt-1.5">
+      <span
+        role="img"
+        aria-label={`${list.map(fmtKg).join(' + ')} a side`}
+        className="relative flex items-center gap-[3px] pr-3.5 before:absolute before:inset-x-0 before:top-1/2 before:h-1 before:-translate-y-1/2 before:rounded-full before:bg-fg-4"
+      >
+        <span className="relative h-[15px] w-1.5 rounded-[2px] bg-fg-4" />
+        {list.map((p, i) => (
+          <span
+            key={i}
+            className={`num relative grid w-[26px] place-items-center rounded-lg bg-plate text-strength-head ${fmtKg(p).length > 3 ? 'text-[10.5px]' : 'text-[12.5px]'} ${PLATE[p] ?? 'h-5'}`}
+          >
+            {fmtKg(p)}
+          </span>
+        ))}
+      </span>
+      <span className="meta">a side</span>
+    </span>
+  )
+}
+
+function ExerciseBlock({
+  w,
+  we,
+  index,
+  count,
+  tag,
+  target,
+  worn,
+}: {
+  w: World
+  we: WorkoutExercise
+  index: number
+  count: number
+  tag?: string
+  /** what to lift, from the plan for the whole workout */
+  target?: Target
+  /** the weight a lift sharing the belt has put in for a round, if it has */
+  worn: (k: number) => number | undefined
+}) {
+  const log = useLog()
+  const ex = w.exerciseById.get(we.exerciseId)
+  const bodyKg = bodyKgOf(w)
+  const past = useMemo(() => pastOf(w, ex, bodyKg), [w.workouts, ex, bodyKg])
+  const [menu, setMenu] = useState(false)
+  if (!ex || !target) return null
+
+  const weighted = loaded(ex)
+  const timed = ex.kind === 'duration'
+  const rows = rowsOf(ex, we, target, past, bodyKg, worn)
+  const move = (d: -1 | 1) =>
+    log.update((x) => {
+      const list = [...x.exercises]
+      const j = index + d
+      if (j < 0 || j >= list.length) return x
+      ;[list[index], list[j]] = [list[j], list[index]]
+      return { ...x, exercises: tidySupersets(list) }
+    })
+  const remove = () => log.update((x) => ({ ...x, exercises: tidySupersets(x.exercises.filter((e) => e.id !== we.id)) }))
 
   // the bar for the next set you'll lift, for the plates
   const nextUp = rows.find((r) => !r.s.done && r.s.kind !== 'warmup') ?? rows[rows.length - 1]
@@ -310,7 +422,7 @@ function ExerciseBlock({
           <div className="mt-2.5 flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <span className="num text-[17px] text-fg-2">{targetText(ex, target)}</span>
             <MoveNote t={target} />
-            {perSide.length > 0 && <span className="meta">{perSide.map(fmtKg).join(' + ')} a side</span>}
+            {perSide.length > 0 && <Plates list={perSide} />}
           </div>
         </div>
         <button aria-label="Exercise options" onClick={() => setMenu((m) => !m)} className={`round h-9 w-9 ${menu ? 'round-on' : 'text-fg-3'}`}>
@@ -337,7 +449,7 @@ function ExerciseBlock({
 
       <div className={`mt-4 grid ${cols} items-center gap-2 pb-1 text-[12px] font-semibold text-fg-3`}>
         <span>Set</span>
-        <span>{prev && prev !== history[0] ? 'Week’s best' : 'Last time'}</span>
+        <span>{pastLabel(past)}</span>
         {weighted && <span className="text-center">{ex.kind === 'weighted-bodyweight' ? '+ kg' : 'kg'}</span>}
         <span className="text-center">{timed ? 'secs' : 'reps'}</span>
         <span />
@@ -346,48 +458,33 @@ function ExerciseBlock({
       {rows.map((r) => (
         <div key={r.s.id} className={`grid ${cols} items-center gap-2 py-[5px]`}>
           <button
-            aria-label={`${KIND_WORD[r.s.kind]}. Tap for a ${KIND_WORD[NEXT_KIND[r.s.kind]].toLowerCase()}`}
-            onClick={() => patchSet(r.s.id, { kind: NEXT_KIND[r.s.kind] })}
-            className={`num h-10 text-left text-[16.5px] ${r.s.kind === 'warmup' ? 'text-z1' : r.s.kind === 'drop' ? 'text-strength' : r.s.done ? 'text-fg' : 'text-fg-3'}`}
+            aria-label={kindLabel(r.s)}
+            onClick={() => log.patchSet(we.id, r.s.id, { kind: NEXT_KIND[r.s.kind] })}
+            className={`num h-10 text-left text-[16.5px] ${labelTone(r)}`}
           >
             {r.label}
           </button>
-          <span className="meta min-w-0 truncate">{r.previous ? setText(ex, r.previous).replace(' reps', '') : ''}</span>
-          {weighted && (
-            <NumInput
-              label="Weight in kg"
-              decimal
-              value={r.s.kg}
-              placeholder={r.phKg !== undefined ? fmtKg(r.phKg) : ex.kind === 'weighted-bodyweight' ? '0' : ''}
-              onChange={(v) => patchSet(r.s.id, { kg: v })}
-            />
-          )}
+          <span className="meta min-w-0 truncate">{lastText(ex, r)}</span>
+          {weighted && <NumInput label="Weight in kg" decimal value={r.s.kg} placeholder={weightHint(ex, r)} onChange={(v) => log.patchSet(we.id, r.s.id, { kg: v })} />}
           <NumInput
             label={timed ? 'Seconds' : 'Reps'}
             value={timed ? r.s.secs : r.s.reps}
             placeholder={r.phCount !== undefined ? String(r.phCount) : ''}
-            onChange={(v) => patchSet(r.s.id, timed ? { secs: v } : { reps: v })}
+            onChange={(v) => log.patchSet(we.id, r.s.id, timed ? { secs: v } : { reps: v })}
           />
-          <button
-            aria-label={r.s.done ? 'Mark set not done' : 'Mark set done'}
-            aria-pressed={r.s.done}
-            onClick={() => tick(r)}
-            className={`press ml-auto grid h-9 w-9 place-items-center rounded-full transition-colors ${r.s.done ? 'bg-strength text-ink-0' : 'bg-ink-2 text-fg-4'}`}
-          >
-            <Check size={18} strokeWidth={2.75} />
-          </button>
+          <Tick r={r} onClick={() => log.tick(ex, we.id, r)} />
         </div>
       ))}
 
       <div className="mt-2 flex items-center gap-2">
-        <button onClick={() => patchEx((e) => ({ ...e, sets: [...e.sets, blankSet()] }))} className="chip h-9">
+        <button onClick={() => log.patchEx(we.id, (e) => ({ ...e, sets: [...e.sets, blankSet()] }))} className="chip h-9">
           <Plus size={14} /> Set
         </button>
-        <button onClick={() => patchEx((e) => ({ ...e, sets: [...e.sets, blankSet('drop')] }))} className="chip h-9">
+        <button onClick={() => log.patchEx(we.id, (e) => ({ ...e, sets: [...e.sets, blankSet('drop')] }))} className="chip h-9">
           <Plus size={14} /> Drop
         </button>
         <button
-          onClick={() => patchEx((e) => ({ ...e, sets: e.sets.slice(0, -1) }))}
+          onClick={() => log.patchEx(we.id, (e) => ({ ...e, sets: e.sets.slice(0, -1) }))}
           disabled={!we.sets.length}
           aria-label="Remove last set"
           className="chip h-9 px-3 disabled:opacity-30"
@@ -395,6 +492,287 @@ function ExerciseBlock({
           <Minus size={14} />
         </button>
       </div>
+    </section>
+  )
+}
+
+/** the belt's box: the number sits a little high, over its label */
+const beltCls = 'num h-full w-full min-w-0 rounded-[12px] bg-ink-2 pb-4 text-center text-[22px] tabular-nums placeholder:text-fg-4 focus:outline-none focus:ring-2 focus:ring-fg/30'
+const ROUND = 'grid grid-cols-[24px_minmax(0,1fr)_70px_56px_40px] items-center gap-2'
+
+/**
+ * Lifts that go round on one belt and sit next to each other, as one card logged in turns: a round at a time, with
+ * one box for the belt beside the lifts it's for (typed once, it goes on each of them) and each lift's own reps and
+ * tick. A round the plan gives them different weights in, or where you've put different weights on them, keeps a box
+ * each. Warm-ups and drop sets sit between the rounds where they were done, with a box of their own.
+ */
+function RoundsBlock({
+  w,
+  list,
+  total,
+}: {
+  w: World
+  /** the lifts, in the workout's order */
+  list: { we: WorkoutExercise; tag?: string; target?: Target; worn: (k: number) => number | undefined }[]
+  /** exercises in the workout, to know when the card is first or last */
+  total: number
+}) {
+  const log = useLog()
+  const bodyKg = bodyKgOf(w)
+  const ids = list.map((l) => l.we.exerciseId).join(' ')
+  const pasts = useMemo(() => ids.split(' ').map((id) => pastOf(w, w.exerciseById.get(id), bodyKg)), [w.workouts, w.exerciseById, ids, bodyKg])
+  const active = useStore((s) => s.active)
+  const [menu, setMenu] = useState(false)
+  const [dropping, setDropping] = useState(false)
+  const lifts = list.flatMap((l, n) => {
+    const ex = w.exerciseById.get(l.we.exerciseId)
+    return ex && l.target ? [{ ...l, ex, target: l.target, past: pasts[n] }] : []
+  })
+  if (lifts.length < 2 || !active) return null
+
+  const mains = lifts.map((l) => working(l.we))
+  const rounds = Math.max(...mains.map((m) => m.length))
+  const planned = (n: number, k: number) => (lifts[n].target.perSet[k] ?? lifts[n].target).kg ?? 0
+  /** the lifts with a set in round `k` */
+  const inRound = (k: number) => lifts.map((_, n) => n).filter((n) => mains[n][k])
+  // one box for a round: its lifts were planned at one weight, and none has been given another
+  const shared = (k: number) => {
+    const who = inRound(k)
+    const put = who.map((n) => mains[n][k].kg).filter((x) => x !== undefined)
+    return who.length > 1 && who.every((n) => planned(n, k) === planned(who[0], k)) && put.every((x) => x === put[0])
+  }
+  // each lift's rows; in a shared round a lift takes what the first lift in it has on the belt, typed or planned
+  const rows: Row[][] = []
+  lifts.forEach((l, n) => {
+    const worn = (k: number) => {
+      const lead = shared(k) ? rows.slice(0, n).flatMap((list) => list.find((r) => r.k === k) ?? [])[0] : undefined
+      return lead ? (lead.s.kg ?? lead.phKg ?? 0) : l.worn(k)
+    }
+    rows.push(rowsOf(l.ex, l.we, l.target, l.past, bodyKg, worn))
+  })
+  // warm-ups and drop sets, by the round they come before, each lift's in its own order: a drop set follows the
+  // round it was done after
+  const extras: { n: number; r: Row }[][] = Array.from({ length: rounds + 1 }, () => [])
+  rows.forEach((list, n) => {
+    let at = 0
+    for (const r of list) {
+      if (r.k !== undefined) at = r.k + 1
+      else extras[Math.min(at, rounds)].push({ n, r })
+    }
+  })
+
+  const first = active.exercises.findIndex((e) => e.id === lifts[0].we.id)
+  const last = first + lifts.length - 1
+  // the card moves as one: the exercise above goes under it, or the one below over it
+  const move = (d: -1 | 1) =>
+    log.update((x) => {
+      const out = [...x.exercises]
+      const a = out.findIndex((e) => e.id === lifts[0].we.id)
+      const b = a + lifts.length - 1
+      if (a < 0 || (d < 0 ? a === 0 : b >= out.length - 1)) return x
+      if (d < 0) out.splice(b, 0, ...out.splice(a - 1, 1))
+      else out.splice(a, 0, ...out.splice(b + 1, 1))
+      return { ...x, exercises: tidySupersets(out) }
+    })
+  // apart again, a card each: from the last link back, so each split leaves the ones above joined
+  const split = () =>
+    log.update((x) => {
+      let out = x.exercises
+      const a = out.findIndex((e) => e.id === lifts[0].we.id)
+      for (let i = a + lifts.length - 2; i >= a && a >= 0; i--) if (out[i].superset && out[i].superset === out[i + 1]?.superset) out = toggleSuperset(out, i, uid)
+      return { ...x, exercises: out }
+    })
+  const mine = (id: string) => lifts.some((l) => l.we.id === id)
+  /** the belt for a round, on every lift in it */
+  const setBelt = (k: number, kg: number | undefined) =>
+    log.update((x) => ({
+      ...x,
+      exercises: x.exercises.map((e) => {
+        const s = mine(e.id) ? working(e)[k] : undefined
+        return s ? { ...e, sets: e.sets.map((y) => (y.id === s.id ? { ...y, kg } : y)) } : e
+      }),
+    }))
+  const addRound = () => log.update((x) => ({ ...x, exercises: x.exercises.map((e) => (mine(e.id) ? { ...e, sets: [...e.sets, blankSet()] } : e)) }))
+  // the last thing on the card goes: a drop set or a warm-up after the last round, else the last round itself
+  const removeLast = () => {
+    const tail = extras[rounds]
+    if (tail.length) {
+      const { n, r } = tail[tail.length - 1]
+      return log.patchEx(lifts[n].we.id, (e) => ({ ...e, sets: e.sets.filter((s) => s.id !== r.s.id) }))
+    }
+    const gone = new Set(inRound(rounds - 1).map((n) => mains[n][rounds - 1].id))
+    log.update((x) => ({ ...x, exercises: x.exercises.map((e) => (mine(e.id) ? { ...e, sets: e.sets.filter((s) => !gone.has(s.id)) } : e)) }))
+  }
+
+  /** a lift's name over last time's set, its tag first */
+  const who = (n: number, r: Row, button?: boolean) => (
+    <span className="min-w-0">
+      <span className="block truncate text-[14.5px] font-bold leading-5">
+        {lifts[n].tag &&
+          (button ? (
+            <button
+              aria-label={`${lifts[n].ex.name}, ${kindLabel(r.s).toLowerCase()}`}
+              onClick={() => log.patchSet(lifts[n].we.id, r.s.id, { kind: NEXT_KIND[r.s.kind] })}
+              className={`-my-2 mr-[5px] py-2 text-[12px] font-extrabold ${r.best ? 'text-football' : 'text-strength'}`}
+            >
+              {lifts[n].tag}
+            </button>
+          ) : (
+            <span className="mr-[5px] text-[12px] font-extrabold text-strength">{lifts[n].tag}</span>
+          ))}
+        {lifts[n].ex.name}
+      </span>
+      <span className="block truncate text-[12.5px] leading-4 text-fg-3">{lastText(lifts[n].ex, r)}</span>
+    </span>
+  )
+  const reps = (n: number, r: Row) => (
+    <NumInput label="Reps" value={r.s.reps} placeholder={r.phCount !== undefined ? String(r.phCount) : ''} onChange={(v) => log.patchSet(lifts[n].we.id, r.s.id, { reps: v })} />
+  )
+  const weight = (n: number, r: Row) => (
+    <NumInput label="Weight in kg" decimal value={r.s.kg} placeholder={weightHint(lifts[n].ex, r)} onChange={(v) => log.patchSet(lifts[n].we.id, r.s.id, { kg: v })} />
+  )
+  /** a warm-up or a drop set: a row of its own, with its own weight */
+  const extra = ({ n, r }: { n: number; r: Row }) => (
+    <div key={r.s.id} className={`${ROUND} py-[5px]`}>
+      <button
+        aria-label={kindLabel(r.s)}
+        onClick={() => log.patchSet(lifts[n].we.id, r.s.id, { kind: NEXT_KIND[r.s.kind] })}
+        className={`num h-10 text-left text-[16.5px] ${labelTone(r)}`}
+      >
+        {r.label}
+      </button>
+      {who(n, r)}
+      {weight(n, r)}
+      {reps(n, r)}
+      <Tick r={r} onClick={() => log.tick(lifts[n].ex, lifts[n].we.id, r)} />
+    </div>
+  )
+  /** a round: its lifts in turn, and the belt beside them */
+  const round = (k: number) => {
+    const turns = inRound(k).map((n) => ({ n, r: rows[n].find((x) => x.k === k)! }))
+    const one = shared(k)
+    const on = turns.map((t) => t.r.s.kg).find((x) => x !== undefined)
+    return (
+      <div className={`${ROUND} py-[5px]`}>
+        <span
+          className={`num self-start text-[16.5px] leading-10 ${turns.every((t) => t.r.s.done) ? 'text-fg' : 'text-fg-3'}`}
+          style={{ gridColumn: 1, gridRow: `1 / span ${turns.length}` }}
+        >
+          {k + 1}
+        </span>
+        {one && (
+          <span className="relative self-stretch" style={{ gridColumn: 3, gridRow: `1 / span ${turns.length}` }}>
+            <NumInput
+              label="Weight on the belt in kg"
+              decimal
+              value={on}
+              placeholder={weightHint(lifts[turns[0].n].ex, turns[0].r)}
+              onChange={(v) => setBelt(k, v)}
+              className={beltCls}
+            />
+            <span className="pointer-events-none absolute inset-x-0 bottom-2.5 text-center text-[11px] font-semibold leading-none text-fg-4">belt</span>
+          </span>
+        )}
+        {turns.map(({ n, r }, j) => (
+          <Fragment key={r.s.id}>
+            <span className="min-w-0" style={{ gridColumn: 2, gridRow: j + 1 }}>
+              {who(n, r, true)}
+            </span>
+            {!one && <span style={{ gridColumn: 3, gridRow: j + 1 }}>{weight(n, r)}</span>}
+            <span style={{ gridColumn: 4, gridRow: j + 1 }}>{reps(n, r)}</span>
+            <span className="flex" style={{ gridColumn: 5, gridRow: j + 1 }}>
+              <Tick r={r} onClick={() => log.tick(lifts[n].ex, lifts[n].we.id, r)} />
+            </span>
+          </Fragment>
+        ))}
+      </div>
+    )
+  }
+
+  return (
+    <section className="tile">
+      <div className="flex items-start gap-2">
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+          {lifts.map((l) => (
+            <h3 key={l.we.id} className="display flex items-baseline gap-2 text-[20px] font-extrabold leading-tight">
+              {l.tag && <span className="pill shrink-0 self-center font-sans [--p:var(--strength)]">{l.tag}</span>}
+              <span className="min-w-0 truncate">{l.ex.name}</span>
+              <MoveNote t={l.target} className="font-sans text-[13px] tracking-normal" />
+            </h3>
+          ))}
+        </div>
+        <button aria-label="Superset options" onClick={() => setMenu((m) => !m)} className={`round h-9 w-9 ${menu ? 'round-on' : 'text-fg-3'}`}>
+          <MoreHorizontal size={18} />
+        </button>
+      </div>
+      <AnimatePresence initial={false}>
+        {menu && (
+          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              <button disabled={first === 0} onClick={() => move(-1)} className="chip h-9 justify-center disabled:opacity-30">
+                <ArrowUp size={14} /> Up
+              </button>
+              <button disabled={last === total - 1} onClick={() => move(1)} className="chip h-9 justify-center disabled:opacity-30">
+                <ArrowDown size={14} /> Down
+              </button>
+              <button onClick={split} className="chip h-9 justify-center">
+                <Link2Off size={14} /> Split
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className={`mt-4 ${ROUND} pb-1 text-[12px] font-semibold text-fg-3`}>
+        <span>Set</span>
+        <span>{lifts.every((l) => pastLabel(l.past) !== 'Last time') ? 'Week’s best' : 'Last time'}</span>
+        <span className="text-center">+ kg</span>
+        <span className="text-center">reps</span>
+        <span />
+      </div>
+
+      <div className="list">
+        {extras[0].length > 0 && <div>{extras[0].map(extra)}</div>}
+        {Array.from({ length: rounds }, (_, k) => (
+          <div key={k} className="py-1 first:pt-0">
+            {round(k)}
+            {extras[k + 1].map(extra)}
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-2 flex items-center gap-2">
+        <button onClick={addRound} className="chip h-9">
+          <Plus size={14} /> Set
+        </button>
+        <button onClick={() => setDropping((d) => !d)} aria-expanded={dropping} className={`chip h-9 ${dropping ? 'chip-on' : ''}`}>
+          <Plus size={14} /> Drop
+        </button>
+        <button onClick={removeLast} disabled={!rounds && !extras[0].length} aria-label="Remove last set" className="chip h-9 px-3 disabled:opacity-30">
+          <Minus size={14} />
+        </button>
+      </div>
+      <AnimatePresence initial={false}>
+        {dropping && (
+          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+            {/* which lift the drop set is for */}
+            <div className="mt-2 flex flex-wrap gap-2">
+              {lifts.map((l) => (
+                <button
+                  key={l.we.id}
+                  onClick={() => {
+                    log.patchEx(l.we.id, (e) => ({ ...e, sets: [...e.sets, blankSet('drop')] }))
+                    setDropping(false)
+                  }}
+                  className="chip h-9"
+                >
+                  {l.ex.name}
+                </button>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </section>
   )
 }

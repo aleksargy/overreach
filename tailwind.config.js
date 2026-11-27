@@ -20,6 +20,7 @@ export default {
         run: set('run'),
         body: set('body'),
         strength: set('strength'),
+        plate: v('plate'),
         gold: { ...set('gold'), read: v('gold-read'), quiet: v('gold-quiet') },
         ride: v('ride'),
         swim: v('swim'),

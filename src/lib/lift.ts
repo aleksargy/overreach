@@ -743,6 +743,33 @@ export function recordsIn(w: Workout, all: Workout[], exercises: Map<string, Exe
   return out
 }
 
+/**
+ * The sets of a session that set a new best as they were done, by id: at the session's heaviest weight (`top`), one
+ * heavier than any set before it, or with more reps than any before it at that weight or heavier, the sets earlier in
+ * the session counting as before. With nothing to load: more reps, or a longer hold, than any before. None the first
+ * time a lift is logged, and never a warm-up or a drop set. It's `recordsIn` set by set: a session has a record in a
+ * lift when one of its sets is one, which is how the logger marks a best as it's ticked.
+ */
+export function bestSets(ex: Pick<Exercise, 'kind'>, sets: SetEntry[], before: SetEntry[], top = topOf(ex, sets.filter(isWorking))): Set<string> {
+  const out = new Set<string>()
+  const seen = work(before)
+  if (!seen.length) return out
+  let most = topOf(ex, seen)
+  for (const s of sets) {
+    if (!isWorking(s)) continue
+    if (!loaded(ex)) {
+      if (countOf(ex, s) > most) out.add(s.id)
+      most = Math.max(most, countOf(ex, s))
+      continue
+    }
+    const kg = s.kg ?? 0
+    if (kg >= top && (kg > most || (s.reps ?? 0) > Math.max(0, ...seen.filter((x) => (x.kg ?? 0) >= kg).map((x) => x.reps ?? 0)))) out.add(s.id)
+    most = Math.max(most, kg)
+    seen.push(s)
+  }
+  return out
+}
+
 export interface Progress {
   ex: Exercise
   /** the most you moved each session, oldest first */

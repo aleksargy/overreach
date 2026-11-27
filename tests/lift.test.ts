@@ -5,6 +5,7 @@ import type { Exercise, Programme, Routine, SetEntry, Workout } from '../src/dat
 import {
   barsOf,
   beltMates,
+  bestSets,
   countAt,
   currentProgramme,
   doneThisWeek,
@@ -683,4 +684,37 @@ test('sets are drawn as bars as tall as their weight: a pyramid steps down, a ra
   assert.equal(stepped(squat, setsOf(t, 3)), true)
   assert.equal(stepped(bench, [{ kg: 60 }, { kg: 60 }]), false)
   assert.equal(stepped(pushUp, [{}, {}]), false)
+})
+
+test('a best is marked set by set, as it’s ticked: the same record the session ends up with', () => {
+  const before = session(bench, 10, [set(60, 8), set(60, 8), set(60, 7)])
+  const was = before.exercises[0].sets
+  const ids = (ex: Exercise, sets: SetEntry[], past: SetEntry[], top?: number) => [...bestSets(ex, sets, past, top)]
+  // the first set with more reps than ever at that weight is the best, and one that only matches it isn't another
+  const reps = [set(60, 9), set(60, 9), set(60, 8)]
+  assert.deepEqual(ids(bench, reps, was), [reps[0].id])
+  // heavier than anything before: the first set there, and a later one only with more reps again
+  const up = [set(62.5, 6), set(62.5, 6), set(62.5, 7)]
+  assert.deepEqual(ids(bench, up, was), [up[0].id, up[2].id])
+  // only at the session's heaviest weight: the ramp up to it isn't in the running, nor a set down a pyramid
+  const ramp = [set(40, 12), set(60, 9), set(50, 14)]
+  assert.deepEqual(ids(bench, ramp, was), [ramp[1].id])
+  // the logger says what the heaviest will be, so a ramp set ticked first isn't one while the top is still to come
+  assert.deepEqual(ids(bench, [set(40, 12)], was, 60), [])
+  // never a warm-up or a drop set, a set not ticked, or anything the first time a lift is logged
+  assert.deepEqual(ids(bench, [set(70, 5, 'warmup'), set(60, 20, 'drop'), { ...set(60, 12), done: false }], was), [])
+  assert.deepEqual(ids(bench, reps, []), [])
+  // nothing to load: more reps than ever
+  const ups = [set(undefined, 14), set(undefined, 16), set(undefined, 16)]
+  assert.deepEqual(ids(pushUp, ups, [set(undefined, 15)]), [ups[1].id])
+  // weight added to you: bodyweight alone is the lightest there is, so only when it's all the session has
+  const belt = [set(15, 8), set(5, 10), set(undefined, 12)]
+  assert.deepEqual(ids(dips, belt, [set(12.5, 9), set(12.5, 7)]), [belt[0].id])
+  const alone = [set(undefined, 10)]
+  assert.deepEqual(ids(dips, alone, [set(undefined, 9), set(undefined, 8)]), [alone[0].id])
+  // and a session has a record in a lift exactly when one of its sets is marked
+  for (const sets of [reps, up, ramp, [set(60, 8), set(60, 8)], [set(57.5, 12)], [set(60, 7), set(60, 9)]]) {
+    const today = session(bench, 0, sets)
+    assert.equal(recordsIn(today, [before, today], byId).length > 0, bestSets(bench, sets, was).size > 0)
+  }
 })
